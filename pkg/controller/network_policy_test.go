@@ -43,7 +43,9 @@ var tcp = "TCP"
 var udp = "UDP"
 var sctp = "SCTP"
 var port80 = 80
+var eport90 = int32(90)
 var port443 = 443
+var eport460 = int32(460)
 
 func port(proto *string, port *int) v1net.NetworkPolicyPort {
 	var portv intstr.IntOrString
@@ -57,6 +59,26 @@ func port(proto *string, port *int) v1net.NetworkPolicyPort {
 	return v1net.NetworkPolicyPort{
 		Protocol: &protov,
 		Port:     &portv,
+	}
+}
+
+func rangedPort(proto *string, port *int, endport *int32) v1net.NetworkPolicyPort {
+	var portv intstr.IntOrString
+	var porte *int32
+	var protov v1.Protocol
+	if port != nil {
+		portv = intstr.FromInt(*port)
+	}
+	if endport != nil {
+		porte = endport
+	}
+	if proto != nil {
+		protov = v1.Protocol(*proto)
+	}
+	return v1net.NetworkPolicyPort{
+		Protocol: &protov,
+		Port:     &portv,
+		EndPort:  porte,
 	}
 }
 
@@ -322,13 +344,20 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_1_0.SetAttr("direction", "ingress")
 	rule_1_0.SetAttr("ethertype", "ipv4")
 	rule_1_0.SetAttr("protocol", "tcp")
-	rule_1_0.SetAttr("toPort", "80")
+	rule_1_0.SetAttr("fromPort", "80")
+
+	rule_1_0_1 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4__np1")
+	rule_1_0_1.SetAttr("direction", "ingress")
+	rule_1_0_1.SetAttr("ethertype", "ipv4")
+	rule_1_0_1.SetAttr("protocol", "tcp")
+	rule_1_0_1.SetAttr("fromPort", "80")
+	rule_1_0_1.SetAttr("toPort", "90")
 
 	rule_2_0 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4__np1")
 	rule_2_0.SetAttr("direction", "ingress")
 	rule_2_0.SetAttr("ethertype", "ipv4")
 	rule_2_0.SetAttr("protocol", "tcp")
-	rule_2_0.SetAttr("toPort", "80")
+	rule_2_0.SetAttr("fromPort", "80")
 	rule_2_0.AddChild(
 		apicapi.NewHostprotRemoteIp(rule_2_0.GetDn(), "8.8.8.0/29"))
 	rule_2_0.AddChild(
@@ -348,7 +377,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_3_0.SetAttr("direction", "ingress")
 	rule_3_0.SetAttr("ethertype", "ipv4")
 	rule_3_0.SetAttr("protocol", "udp")
-	rule_3_0.SetAttr("toPort", "80")
+	rule_3_0.SetAttr("fromPort", "80")
 
 	rule_3_1 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4__np1")
 	rule_3_1.SetAttr("direction", "ingress")
@@ -360,7 +389,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_4_1.SetAttr("direction", "ingress")
 	rule_4_1.SetAttr("ethertype", "ipv4")
 	rule_4_1.SetAttr("protocol", "tcp")
-	rule_4_1.SetAttr("toPort", "443")
+	rule_4_1.SetAttr("fromPort", "443")
 
 	rule_5_0 := apicapi.NewHostprotRule(np1SDnI, "0-ipv4__np1")
 	rule_5_0.SetAttr("direction", "ingress")
@@ -384,13 +413,13 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_8_0.SetAttr("direction", "ingress")
 	rule_8_0.SetAttr("ethertype", "ipv4")
 	rule_8_0.SetAttr("protocol", "tcp")
-	rule_8_0.SetAttr("toPort", "80")
+	rule_8_0.SetAttr("fromPort", "80")
 	rule_8_0.AddChild(apicapi.NewHostprotRemoteIp(rule_8_0.GetDn(), "1.1.1.1"))
 	rule_8_1 := apicapi.NewHostprotRule(np1SDnI, "1_0-ipv4__np1")
 	rule_8_1.SetAttr("direction", "ingress")
 	rule_8_1.SetAttr("ethertype", "ipv4")
 	rule_8_1.SetAttr("protocol", "tcp")
-	rule_8_1.SetAttr("toPort", "443")
+	rule_8_1.SetAttr("fromPort", "443")
 	rule_8_1.AddChild(apicapi.NewHostprotRemoteIp(rule_8_1.GetDn(), "1.1.1.2"))
 
 	rule_9_0 := apicapi.NewHostprotRule(np1SDnI, "0-ipv4__np1")
@@ -409,14 +438,14 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_11_0.SetAttr("direction", "egress")
 	rule_11_0.SetAttr("ethertype", "ipv4")
 	rule_11_0.SetAttr("protocol", "tcp")
-	rule_11_0.SetAttr("toPort", "80")
+	rule_11_0.SetAttr("fromPort", "80")
 	rule_11_0.AddChild(apicapi.NewHostprotRemoteIp(rule_11_0.GetDn(), "1.1.1.1"))
 
 	rule_11_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
 	rule_11_s.SetAttr("direction", "egress")
 	rule_11_s.SetAttr("ethertype", "ipv4")
 	rule_11_s.SetAttr("protocol", "tcp")
-	rule_11_s.SetAttr("toPort", "8080")
+	rule_11_s.SetAttr("fromPort", "8080")
 	rule_11_s.AddChild(apicapi.NewHostprotRemoteIp(rule_11_s.GetDn(), "9.0.0.42"))
 
 	rule_12_0 := apicapi.NewHostprotRule(np1SDnE, "0-ipv4__np1")
@@ -429,7 +458,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_12_s_0.SetAttr("direction", "egress")
 	rule_12_s_0.SetAttr("ethertype", "ipv4")
 	rule_12_s_0.SetAttr("protocol", "tcp")
-	rule_12_s_0.SetAttr("toPort", "8080")
+	rule_12_s_0.SetAttr("fromPort", "8080")
 	rule_12_s_0.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_0.GetDn(),
 		"9.0.0.44"))
 
@@ -437,7 +466,7 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_12_s_1.SetAttr("direction", "egress")
 	rule_12_s_1.SetAttr("ethertype", "ipv4")
 	rule_12_s_1.SetAttr("protocol", "tcp")
-	rule_12_s_1.SetAttr("toPort", "8443")
+	rule_12_s_1.SetAttr("fromPort", "8443")
 	rule_12_s_1.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_1.GetDn(),
 		"9.0.0.44"))
 
@@ -449,20 +478,20 @@ func TestNetworkPolicy(t *testing.T) {
 	rule_14_0.SetAttr("direction", "egress")
 	rule_14_0.SetAttr("ethertype", "ipv4")
 	rule_14_0.SetAttr("protocol", "tcp")
-	rule_14_0.SetAttr("toPort", "80")
+	rule_14_0.SetAttr("fromPort", "80")
 
 	rule_14_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
 	rule_14_s.SetAttr("direction", "egress")
 	rule_14_s.SetAttr("ethertype", "ipv4")
 	rule_14_s.SetAttr("protocol", "tcp")
-	rule_14_s.SetAttr("toPort", "8080")
+	rule_14_s.SetAttr("fromPort", "8080")
 	rule_14_s.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s.GetDn(), "9.0.0.42"))
 
 	rule_15_0 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4__np1")
 	rule_15_0.SetAttr("direction", "ingress")
 	rule_15_0.SetAttr("ethertype", "ipv4")
 	rule_15_0.SetAttr("protocol", "sctp")
-	rule_15_0.SetAttr("toPort", "80")
+	rule_15_0.SetAttr("fromPort", "80")
 	udp_proto := v1.Protocol(udp)
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
@@ -476,7 +505,12 @@ func TestNetworkPolicy(t *testing.T) {
 					nil)}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_1_0}, nil, name),
 			nil, "allow-http"},
-
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{rangedPort(&tcp, &port80, &eport90)},
+					nil)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_1_0_1}, nil, name),
+			nil, "allow-http-portrange"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
@@ -998,13 +1032,13 @@ func TestNetworkPolicyWithLongName(t *testing.T) {
 	rule_2_0.SetAttr("direction", "ingress")
 	rule_2_0.SetAttr("ethertype", "ipv4")
 	rule_2_0.SetAttr("protocol", "tcp")
-	rule_2_0.SetAttr("toPort", "80")
+	rule_2_0.SetAttr("fromPort", "80")
 
 	rule_3_0 := apicapi.NewHostprotRule(np1SDnE, fmt.Sprintf("%s", ruleName))
 	rule_3_0.SetAttr("direction", "egress")
 	rule_3_0.SetAttr("ethertype", "ipv4")
 	rule_3_0.SetAttr("protocol", "tcp")
-	rule_3_0.SetAttr("toPort", "80")
+	rule_3_0.SetAttr("fromPort", "80")
 	rule_3_0.AddChild(apicapi.NewHostprotRemoteIp(rule_3_0.GetDn(), "1.1.1.1"))
 
 	var npTests = []npTest{
@@ -1109,21 +1143,21 @@ func TestNetworkPolicyWithLongName(t *testing.T) {
 func TestNetworkPolicyHppOptimize(t *testing.T) {
 	rule_0 := map[string]string{"direction": "ingress", "ethertype": "ipv4"}
 	rule_1 := map[string]string{"direction": "ingress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "80"}
+		"protocol": "tcp", "fromPort": "80"}
 	rule_2 := map[string]string{"direction": "ingress", "ethertype": "ipv4",
-		"protocol": "udp", "toPort": "80"}
+		"protocol": "udp", "fromPort": "80"}
 	rule_3 := map[string]string{"direction": "ingress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "443"}
+		"protocol": "tcp", "fromPort": "443"}
 	rule_4 := map[string]string{"direction": "ingress", "ethertype": "ipv4",
-		"protocol": "sctp", "toPort": "80"}
+		"protocol": "sctp", "fromPort": "80"}
 
 	rule_5 := map[string]string{"direction": "egress", "ethertype": "ipv4"}
 	rule_6 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "80"}
+		"protocol": "tcp", "fromPort": "80"}
 	rule_7 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "8080"}
+		"protocol": "tcp", "fromPort": "8080"}
 	rule_8 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "8443"}
+		"protocol": "tcp", "fromPort": "8443"}
 
 	//allow-all
 	test0_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1804,13 +1838,20 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_1_0_v6.SetAttr("direction", "ingress")
 	rule_1_0_v6.SetAttr("ethertype", "ipv6")
 	rule_1_0_v6.SetAttr("protocol", "tcp")
-	rule_1_0_v6.SetAttr("toPort", "80")
+	rule_1_0_v6.SetAttr("fromPort", "80")
+
+	rule_1_0_1_v6 := apicapi.NewHostprotRule(npv6SDnI, "0_0-ipv6__npv6")
+	rule_1_0_1_v6.SetAttr("direction", "ingress")
+	rule_1_0_1_v6.SetAttr("ethertype", "ipv6")
+	rule_1_0_1_v6.SetAttr("protocol", "tcp")
+	rule_1_0_1_v6.SetAttr("fromPort", "80")
+	rule_1_0_1_v6.SetAttr("toPort", "90")
 
 	rule_2_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0_0-ipv6__npv6")
 	rule_2_0_v6.SetAttr("direction", "ingress")
 	rule_2_0_v6.SetAttr("ethertype", "ipv6")
 	rule_2_0_v6.SetAttr("protocol", "tcp")
-	rule_2_0_v6.SetAttr("toPort", "80")
+	rule_2_0_v6.SetAttr("fromPort", "80")
 	rule_2_0_v6.AddChild(
 		apicapi.NewHostprotRemoteIp(rule_2_0_v6.GetDn(), "2001:db8::/128"))
 	rule_2_0_v6.AddChild(
@@ -1822,13 +1863,13 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_3_0_v6.SetAttr("direction", "ingress")
 	rule_3_0_v6.SetAttr("ethertype", "ipv6")
 	rule_3_0_v6.SetAttr("protocol", "udp")
-	rule_3_0_v6.SetAttr("toPort", "80")
+	rule_3_0_v6.SetAttr("fromPort", "80")
 
 	rule_4_1_v6 := apicapi.NewHostprotRule(npv6SDnI, "0_1-ipv6__npv6")
 	rule_4_1_v6.SetAttr("direction", "ingress")
 	rule_4_1_v6.SetAttr("ethertype", "ipv6")
 	rule_4_1_v6.SetAttr("protocol", "tcp")
-	rule_4_1_v6.SetAttr("toPort", "443")
+	rule_4_1_v6.SetAttr("fromPort", "443")
 
 	rule_5_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0-ipv6__npv6")
 	rule_5_0_v6.SetAttr("direction", "ingress")
@@ -1852,13 +1893,13 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_8_0_v6.SetAttr("direction", "ingress")
 	rule_8_0_v6.SetAttr("ethertype", "ipv6")
 	rule_8_0_v6.SetAttr("protocol", "tcp")
-	rule_8_0_v6.SetAttr("toPort", "80")
+	rule_8_0_v6.SetAttr("fromPort", "80")
 	rule_8_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_8_0_v6.GetDn(), "2001::2"))
 	rule_8_1_v6 := apicapi.NewHostprotRule(npv6SDnI, "1_0-ipv6__npv6")
 	rule_8_1_v6.SetAttr("direction", "ingress")
 	rule_8_1_v6.SetAttr("ethertype", "ipv6")
 	rule_8_1_v6.SetAttr("protocol", "tcp")
-	rule_8_1_v6.SetAttr("toPort", "443")
+	rule_8_1_v6.SetAttr("fromPort", "443")
 	rule_8_1_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_8_1_v6.GetDn(), "2001::3"))
 
 	rule_9_0_v6 := apicapi.NewHostprotRule(npv6SDnI, "0-ipv6__npv6")
@@ -1877,14 +1918,14 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_11_0_v6.SetAttr("direction", "egress")
 	rule_11_0_v6.SetAttr("ethertype", "ipv6")
 	rule_11_0_v6.SetAttr("protocol", "tcp")
-	rule_11_0_v6.SetAttr("toPort", "80")
+	rule_11_0_v6.SetAttr("fromPort", "80")
 	rule_11_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_11_0_v6.GetDn(), "2001::2"))
 
 	rule_11_s_v6 := apicapi.NewHostprotRule(npv6SDnE, "service_tcp_8080-ipv6")
 	rule_11_s_v6.SetAttr("direction", "egress")
 	rule_11_s_v6.SetAttr("ethertype", "ipv6")
 	rule_11_s_v6.SetAttr("protocol", "tcp")
-	rule_11_s_v6.SetAttr("toPort", "8080")
+	rule_11_s_v6.SetAttr("fromPort", "8080")
 	rule_11_s_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_11_s_v6.GetDn(), "fd00::1234"))
 
 	rule_12_0_v6 := apicapi.NewHostprotRule(npv6SDnE, "0-ipv6__npv6")
@@ -1897,7 +1938,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_12_s_0_v6.SetAttr("direction", "egress")
 	rule_12_s_0_v6.SetAttr("ethertype", "ipv6")
 	rule_12_s_0_v6.SetAttr("protocol", "tcp")
-	rule_12_s_0_v6.SetAttr("toPort", "8080")
+	rule_12_s_0_v6.SetAttr("fromPort", "8080")
 	rule_12_s_0_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_0_v6.GetDn(),
 		"fd00::1236"))
 
@@ -1905,7 +1946,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_12_s_1_v6.SetAttr("direction", "egress")
 	rule_12_s_1_v6.SetAttr("ethertype", "ipv6")
 	rule_12_s_1_v6.SetAttr("protocol", "tcp")
-	rule_12_s_1_v6.SetAttr("toPort", "8443")
+	rule_12_s_1_v6.SetAttr("fromPort", "8443")
 	rule_12_s_1_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_1_v6.GetDn(),
 		"fd00::1236"))
 
@@ -1917,13 +1958,13 @@ func TestNetworkPolicyv6(t *testing.T) {
 	rule_14_0_v6.SetAttr("direction", "egress")
 	rule_14_0_v6.SetAttr("ethertype", "ipv6")
 	rule_14_0_v6.SetAttr("protocol", "tcp")
-	rule_14_0_v6.SetAttr("toPort", "80")
+	rule_14_0_v6.SetAttr("fromPort", "80")
 
 	rule_14_s_v6 := apicapi.NewHostprotRule(npv6SDnE, "service_tcp_8080-ipv6")
 	rule_14_s_v6.SetAttr("direction", "egress")
 	rule_14_s_v6.SetAttr("ethertype", "ipv6")
 	rule_14_s_v6.SetAttr("protocol", "tcp")
-	rule_14_s_v6.SetAttr("toPort", "8080")
+	rule_14_s_v6.SetAttr("fromPort", "8080")
 	rule_14_s_v6.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s_v6.GetDn(), "fd00::1234"))
 	var np6Tests = []npTest{
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
@@ -1938,6 +1979,12 @@ func TestNetworkPolicyv6(t *testing.T) {
 					nil)}, nil, allPolicyTypes),
 			makeNp(apicapi.ApicSlice{rule_1_0_v6}, nil, name),
 			nil, "allow-http"},
+		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
+			[]v1net.NetworkPolicyIngressRule{
+				ingressRule([]v1net.NetworkPolicyPort{rangedPort(&tcp, &port80, &eport90)},
+					nil)}, nil, allPolicyTypes),
+			makeNp(apicapi.ApicSlice{rule_1_0_1_v6}, nil, name),
+			nil, "allow-http-portrange"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			[]v1net.NetworkPolicyIngressRule{
 				ingressRule([]v1net.NetworkPolicyPort{port(&tcp, &port80)},
@@ -2372,19 +2419,19 @@ func TestNetworkPolicyv6(t *testing.T) {
 func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 	rule_0_v6 := map[string]string{"direction": "ingress", "ethertype": "ipv6"}
 	rule_1_v6 := map[string]string{"direction": "ingress", "ethertype": "ipv6",
-		"protocol": "tcp", "toPort": "80"}
+		"protocol": "tcp", "fromPort": "80"}
 	rule_2_v6 := map[string]string{"direction": "ingress", "ethertype": "ipv6",
-		"protocol": "udp", "toPort": "80"}
+		"protocol": "udp", "fromPort": "80"}
 	rule_3_v6 := map[string]string{"direction": "ingress", "ethertype": "ipv6",
-		"protocol": "tcp", "toPort": "443"}
+		"protocol": "tcp", "fromPort": "443"}
 
 	rule_4_v6 := map[string]string{"direction": "egress", "ethertype": "ipv6"}
 	rule_5_v6 := map[string]string{"direction": "egress", "ethertype": "ipv6",
-		"protocol": "tcp", "toPort": "80"}
+		"protocol": "tcp", "fromPort": "80"}
 	rule_6_v6 := map[string]string{"direction": "egress", "ethertype": "ipv6",
-		"protocol": "tcp", "toPort": "8080"}
+		"protocol": "tcp", "fromPort": "8080"}
 	rule_7_v6 := map[string]string{"direction": "egress", "ethertype": "ipv6",
-		"protocol": "tcp", "toPort": "8443"}
+		"protocol": "tcp", "fromPort": "8443"}
 
 	//v6-np-allow-all
 	test0_np_v6 := netpol("testnsv6", "npv6", &metav1.LabelSelector{},
@@ -2947,14 +2994,14 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 	rule_11_0.SetAttr("direction", "egress")
 	rule_11_0.SetAttr("ethertype", "ipv4")
 	rule_11_0.SetAttr("protocol", "tcp")
-	rule_11_0.SetAttr("toPort", "80")
+	rule_11_0.SetAttr("fromPort", "80")
 	rule_11_0.AddChild(apicapi.NewHostprotRemoteIp(rule_11_0.GetDn(), "1.1.1.1"))
 
 	rule_11_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
 	rule_11_s.SetAttr("direction", "egress")
 	rule_11_s.SetAttr("ethertype", "ipv4")
 	rule_11_s.SetAttr("protocol", "tcp")
-	rule_11_s.SetAttr("toPort", "8080")
+	rule_11_s.SetAttr("fromPort", "8080")
 	rule_11_s.AddChild(apicapi.NewHostprotRemoteIp(rule_11_s.GetDn(), "9.0.0.42"))
 
 	rule_12_0 := apicapi.NewHostprotRule(np1SDnE, "0-ipv4__np1")
@@ -2967,7 +3014,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 	rule_12_s_0.SetAttr("direction", "egress")
 	rule_12_s_0.SetAttr("ethertype", "ipv4")
 	rule_12_s_0.SetAttr("protocol", "tcp")
-	rule_12_s_0.SetAttr("toPort", "8080")
+	rule_12_s_0.SetAttr("fromPort", "8080")
 	rule_12_s_0.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_0.GetDn(),
 		"9.0.0.44"))
 
@@ -2975,7 +3022,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 	rule_12_s_1.SetAttr("direction", "egress")
 	rule_12_s_1.SetAttr("ethertype", "ipv4")
 	rule_12_s_1.SetAttr("protocol", "tcp")
-	rule_12_s_1.SetAttr("toPort", "8443")
+	rule_12_s_1.SetAttr("fromPort", "8443")
 	rule_12_s_1.AddChild(apicapi.NewHostprotRemoteIp(rule_12_s_1.GetDn(),
 		"9.0.0.44"))
 
@@ -2987,13 +3034,13 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 	rule_14_0.SetAttr("direction", "egress")
 	rule_14_0.SetAttr("ethertype", "ipv4")
 	rule_14_0.SetAttr("protocol", "tcp")
-	rule_14_0.SetAttr("toPort", "80")
+	rule_14_0.SetAttr("fromPort", "80")
 
 	rule_14_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
 	rule_14_s.SetAttr("direction", "egress")
 	rule_14_s.SetAttr("ethertype", "ipv4")
 	rule_14_s.SetAttr("protocol", "tcp")
-	rule_14_s.SetAttr("toPort", "8080")
+	rule_14_s.SetAttr("fromPort", "8080")
 	rule_14_s.AddChild(apicapi.NewHostprotRemoteIp(rule_14_s.GetDn(), "9.0.0.42"))
 
 	var npTests = []npTest{
@@ -3392,11 +3439,11 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 	rule_5 := map[string]string{"direction": "egress", "ethertype": "ipv4"}
 	rule_6 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "80"}
+		"protocol": "tcp", "fromPort": "80"}
 	rule_7 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "8080"}
+		"protocol": "tcp", "fromPort": "8080"}
 	rule_8 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "8443"}
+		"protocol": "tcp", "fromPort": "8443"}
 
 	//egress-allow-http-select-pods
 	test15_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -3828,13 +3875,13 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 	rule_1_0.SetAttr("direction", "egress")
 	rule_1_0.SetAttr("ethertype", "ipv4")
 	rule_1_0.SetAttr("protocol", "tcp")
-	rule_1_0.SetAttr("toPort", "80")
+	rule_1_0.SetAttr("fromPort", "80")
 
 	rule_1_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
 	rule_1_s.SetAttr("direction", "egress")
 	rule_1_s.SetAttr("ethertype", "ipv4")
 	rule_1_s.SetAttr("protocol", "tcp")
-	rule_1_s.SetAttr("toPort", "8080")
+	rule_1_s.SetAttr("fromPort", "8080")
 	rule_1_s.AddChild(apicapi.NewHostprotRemoteIp(rule_1_s.GetDn(), "9.0.0.42"))
 	var npTests = []npTest{
 		{netpol("testns", "np1", &metav1.LabelSelector{},
@@ -3977,9 +4024,9 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 
 func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 	rule_1 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "80"}
+		"protocol": "tcp", "fromPort": "80"}
 	rule_2 := map[string]string{"direction": "egress", "ethertype": "ipv4",
-		"protocol": "tcp", "toPort": "8080"}
+		"protocol": "tcp", "fromPort": "8080"}
 
 	//egress-allow-http-all-augment-namedport-mathing-diffrent-ports
 	test1_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -4335,8 +4382,8 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 				Direction:           "ingress",
 				Ethertype:           "ipv4",
 				Protocol:            "tcp",
-				ToPort:              "80",
-				FromPort:            "unspecified",
+				ToPort:              "unspecified",
+				FromPort:            "80",
 				Name:                "rule1",
 				RsRemoteIpContainer: []string{"namespace1", "namespace2"},
 				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
@@ -4378,8 +4425,8 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 				Direction: "egress",
 				Ethertype: "ipv4",
 				Protocol:  "tcp",
-				FromPort:  "unspecified",
-				ToPort:    "80",
+				FromPort:  "80",
+				ToPort:    "unspecified",
 				Name:      "rule1",
 				HostprotRemoteIp: []hppv1.HostprotRemoteIp{
 					{
@@ -4421,8 +4468,8 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 				Direction:           "egress",
 				Ethertype:           "ipv4",
 				Protocol:            "tcp",
-				FromPort:            "unspecified",
-				ToPort:              "80",
+				FromPort:            "80",
+				ToPort:              "unspecified",
 				Name:                "rule3",
 				RsRemoteIpContainer: []string{"namespace1"},
 			},
@@ -4435,7 +4482,7 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 			podSelectors = []*metav1.LabelSelector{tc.podSelector}
 		}
 		t.Run(tc.name, func(t *testing.T) {
-			cont.buildLocalNetPolSubjRule(tc.subj, tc.ruleName, tc.direction, tc.ethertype, tc.proto, tc.port, tc.remoteNs, podSelectors, tc.remoteSubnets)
+			cont.buildLocalNetPolSubjRule(tc.subj, tc.ruleName, tc.direction, tc.ethertype, tc.proto, tc.port, "", tc.remoteNs, podSelectors, tc.remoteSubnets)
 			assert.Equal(t, tc.expectedRule, tc.subj.HostprotRule[0], "Unexpected rule. Expected: %v, Actual: %v", tc.expectedRule, tc.subj.HostprotRule[0])
 
 		})
@@ -4489,8 +4536,8 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
-	assert.Equal(t, "8080", subj.HostprotRule[0].ToPort)
-	assert.Equal(t, "unspecified", subj.HostprotRule[0].FromPort)
+	assert.Equal(t, "unspecified", subj.HostprotRule[0].ToPort)
+	assert.Equal(t, "8080", subj.HostprotRule[0].FromPort)
 	assert.Equal(t, []string{"test-namespace"}, subj.HostprotRule[0].RsRemoteIpContainer)
 
 	np = &v1net.NetworkPolicy{
@@ -4620,8 +4667,8 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Direction:           "ingress",
 			Ethertype:           "ipv4",
 			Protocol:            "tcp",
-			FromPort:            "unspecified",
-			ToPort:              "8080",
+			FromPort:            "8080",
+			ToPort:              "unspecified",
 			Name:                "test-rule_0-ipv4",
 			RsRemoteIpContainer: []string{},
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
