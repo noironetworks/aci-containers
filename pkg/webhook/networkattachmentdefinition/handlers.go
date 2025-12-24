@@ -124,7 +124,7 @@ func addNetopToNAD(ctx context.Context, req AdmissionRequest) AdmissionResponse 
 		}
 	}
 	netopPlugin := Plugin{
-		SupportedVersions: []string{"0.3.0", "0.3.1", "0.4.0, 1.0.0"},
+		SupportedVersions: []string{"0.3.0", "0.3.1", "0.4.0", "1.0.0"},
 		Type:              "netop-cni",
 		ChainingMode:      true,
 		LogLevel:          "info",
