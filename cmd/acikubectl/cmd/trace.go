@@ -803,13 +803,17 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 	dst_opflex_pod := ""
 	var src_ep EndPoints
 	var dst_ep EndPoints
-	var egresspacketdropped bool
-	var ingresspacketdropped bool
+	var request_egress_packetdropped bool
+	var request_ingress_packetdropped bool
+	var reply_egress_packetdropped bool
+	var reply_ingress_packetdropped bool
 	sections := []string{}
 	var tun_id string
 	var tun_id_int int64
+	var destPodIp string
+	var destNodeName string
 
-	out_bridgeflows := []Bridge{}
+	request_out_bridgeflows := []Bridge{}
 
 	srcns, srcpodname, err := splitNamespaceAndPod(srcnspod)
 	if err != nil {
@@ -928,7 +932,6 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
-
 		}
 	}
 
@@ -936,9 +939,7 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		dst_ep, err = findEpFile(dstPod, dst_opflex_pod)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-
 		}
-
 	}
 
 	if _, ok := nodeIdMaps.nodeMaps[srcPod.Spec.NodeName]; !ok {
@@ -946,7 +947,6 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
-
 		}
 	}
 
@@ -964,7 +964,6 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 			fmt.Fprintln(os.Stderr, err)
 			return
 		}
-
 		tun_id_int, _ = strconv.ParseInt("0x"+tun_id, 0, 64)
 	}
 
@@ -987,6 +986,11 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		printEndpointDetails(dst_ep, dstPod, dst_opflex_pod)
 	}
 
+	if dstPod != nil && dstPod.Status.PodIP == "" {
+		destPodIp = dstPod.Status.PodIP
+	}
+
+	fmt.Printf("\n%s%s%s\n", ColorYellow, "ForwardPath Summary", ColorReset)
 	if !src_pod_hostnetwork {
 		if !dst_pod_hostnetwork {
 			if !proto.Enabled {
@@ -999,20 +1003,17 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 						proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, dst_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 			}
 		} else {
-
 			if !proto.Enabled {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, ip, "+
 						"nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'", src_ep.Attributes.InterfaceName,
 						srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, "00:22:bd:f8:19:ff")}
-
 			} else {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, "+
 						"nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'", src_ep.Attributes.InterfaceName,
 						proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, "00:22:bd:f8:19:ff", proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 			}
-
 		}
 
 		log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
@@ -1020,77 +1021,87 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return
-
 		}
 
 		sections = strings.Split(src_buffer.String(), "bridge")
 
 		for idx, section := range sections {
 			if strings.Contains(section, "br-access") {
-				out_bridgeflows = append(out_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
+				request_out_bridgeflows = append(request_out_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
 					nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
 			} else if strings.Contains(section, "br-int") {
-				out_bridgeflows = append(out_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
+				request_out_bridgeflows = append(request_out_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
 					nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
 			}
 
 			if idx > 0 && strings.Contains(sections[idx-1], "br-access") && strings.Contains(sections[idx-1], "resume conntrack") {
-				out_bridgeflows[len(out_bridgeflows)-1].br_type = "br-access"
+				request_out_bridgeflows[len(request_out_bridgeflows)-1].br_type = "br-access"
 			}
 
 			if idx > 0 && strings.Contains(sections[idx-1], "br-int") && strings.Contains(sections[idx-1], "resume conntrack") {
-				out_bridgeflows[len(out_bridgeflows)-1].br_type = "br-int"
+				request_out_bridgeflows[len(request_out_bridgeflows)-1].br_type = "br-int"
 			}
 		}
 
-		for idx, _ := range out_bridgeflows {
-			out_bridgeflows[idx].brFlowEntries = out_bridgeflows[idx].parseFlowEntries()
-			out_bridgeflows[idx].out_br_buff = out_bridgeflows[idx].buildPacketTrace()
+		for idx := range request_out_bridgeflows {
+			request_out_bridgeflows[idx].brFlowEntries = request_out_bridgeflows[idx].parseFlowEntries()
+			request_out_bridgeflows[idx].out_br_buff = request_out_bridgeflows[idx].buildPacketTrace()
 		}
 
-		for _, br := range out_bridgeflows {
+		for _, br := range request_out_bridgeflows {
 			if br.summary != nil && br.summary.PacketDropped {
 				if br.br_type == "br-access" {
-					fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n", ColorRed,
+					fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n", ColorRed,
 						"br-access", br.summary.previousTable, wrapText(brAccessTableDescriptions[br.summary.previousTable], 60), srcPod.Spec.NodeName, ColorReset)
-					egresspacketdropped = true
+					request_egress_packetdropped = true
 				} else {
-					fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n", ColorRed,
+					fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n", ColorRed,
 						"br-int", br.summary.previousTable, wrapText(brIntTableDescriptions[br.summary.previousTable], 60), srcPod.Spec.NodeName, ColorReset)
-					egresspacketdropped = true
+					request_egress_packetdropped = true
+				}
+			}
+			if br.summary != nil && br.br_type == "br-int" && br.summary.ip_dst != "" {
+				destPodIp = br.summary.ip_dst
+				if destPodIp != "" {
+					_, err = findEndpoint(kubeClient, destPodIp, 0, nil)
+					if err != nil {
+						fmt.Printf("%sEndpoint is a node with IP:%s%s\n", ColorGreen, destPodIp, ColorReset)
+						destNodeName, err = findNodeByIP(kubeClient, destPodIp)
+						if err != nil {
+							fmt.Fprintln(os.Stderr, "Error: ", err)
+							return
+						}
+					}
 				}
 			}
 		}
 
-		if !dst_pod_hostnetwork {
-			if !egresspacketdropped {
+		if !request_egress_packetdropped {
+			if !dst_pod_hostnetwork {
 				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
-					fmt.Printf("%s=> Packet sent out from node:%s\n"+
+					fmt.Printf("%s=> Packet sent out from node(%s)\n"+
 						"with source_epg %s(%s)\n"+
 						"to destination_epg with VXLAN_Tunnel_ID:0x%s(decimal:%d)(%s)\n"+
 						"%s\n\n",
-						ColorGreen, srcPod.Spec.NodeName, out_bridgeflows[len(out_bridgeflows)-1].summary.TunnelID,
+						ColorGreen, srcPod.Spec.NodeName, request_out_bridgeflows[len(request_out_bridgeflows)-1].summary.TunnelID,
 						src_ep.EndpointGroupName, tun_id, tun_id_int, dst_ep.EndpointGroupName, ColorReset)
 				} else {
-					fmt.Printf("%s=> Packet sent out and recieved on same node: %s%s\n\n", ColorGreen,
+					fmt.Printf("%s=> Packet sent out and received on same node(%s)%s\n\n", ColorGreen,
 						srcPod.Spec.NodeName, ColorReset)
 				}
-			}
-		} else {
-			if !egresspacketdropped {
+			} else {
 				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
-					fmt.Printf("%s=> Packet sent out from node:%s\n"+
+					fmt.Printf("%s=> Packet sent out from node(%s)\n"+
 						"with source_epg %s(%s)\n"+
 						"to destination pod IP (%s) on the node(%s) network %s\n\n",
-						ColorGreen, srcPod.Spec.NodeName, out_bridgeflows[len(out_bridgeflows)-1].summary.TunnelID,
+						ColorGreen, srcPod.Spec.NodeName, request_out_bridgeflows[len(request_out_bridgeflows)-1].summary.TunnelID,
 						src_ep.EndpointGroupName, dstPod.Status.PodIP, dstPod.Spec.NodeName, ColorReset)
 
 				} else {
-					fmt.Printf("%s=> Packet sent out and recieved on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+					fmt.Printf("%s=> Packet sent out and received on same node(%s)%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
 				}
 			}
 		}
-
 	} else {
 		if !dst_pod_hostnetwork {
 			if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
@@ -1098,25 +1109,23 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					"with node network to destination pod IP (%s) on the node(%s) %s\n",
 					ColorGreen, srcPod.Status.PodIP, srcPod.Spec.NodeName, dstPod.Status.PodIP, dstPod.Spec.NodeName, ColorReset)
 			} else {
-				fmt.Printf("%s=> Packet sent out and recieved on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+				fmt.Printf("%s=> Packet sent out and received on same node(%s)%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
 			}
 		} else {
 			if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
 				fmt.Printf("%s=> Packet sent out from source pod IP (%s) on the node(%s)\n"+
 					"with node network to destination pod IP (%s) on the node(%s) network %s\n",
 					ColorGreen, srcPod.Status.PodIP, srcPod.Spec.NodeName, dstPod.Status.PodIP, dstPod.Spec.NodeName, ColorReset)
-
 			} else {
-				fmt.Printf("%s=> Packet sent out and recieved on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+				fmt.Printf("%s=> Packet sent out and received on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
 			}
 		}
 	}
 
-	/////////////////////////////////Incoming Traffic//////////////////////
-	in_bridgeflows := []Bridge{}
+	//////////////////  Request Incoming Traffic  //////////////////
+	request_in_bridgeflows := []Bridge{}
 
-	if !egresspacketdropped {
-
+	if !request_egress_packetdropped && srcPod.Spec.NodeName != dstPod.Spec.NodeName {
 		if _, ok := nodeIdMaps.nodeMaps[dstPod.Spec.NodeName]; !ok {
 			err := buildIdMaps(dstPod.Spec.NodeName, dst_opflex_pod)
 			if err != nil {
@@ -1128,21 +1137,18 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 		dest_buffer := new(bytes.Buffer)
 		if !dst_pod_hostnetwork {
 			if !src_pod_hostnetwork {
-				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
-					if !proto.Enabled {
-						cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
-							"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
-								"tun_id=0x%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'",
-								tun_id, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, dst_ep.Mac)}
-					} else {
-						cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
-							"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
-								"tun_id=0x%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
-								tun_id, proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac,
-								dst_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
-					}
+				if !proto.Enabled {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
+							"tun_id=0x%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'",
+							tun_id, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac, dst_ep.Mac)}
+				} else {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
+							"tun_id=0x%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+							tun_id, proto.Protocol, srcPod.Status.PodIP, dstPod.Status.PodIP, src_ep.Mac,
+							dst_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, proto.DstPortVal)}
 				}
-
 			} else {
 				if !proto.Enabled {
 					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
@@ -1169,55 +1175,276 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 			for idx, section := range sections {
 				if strings.Contains(section, "br-access") {
-					in_bridgeflows = append(in_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
+					request_in_bridgeflows = append(request_in_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
 						nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName, opflexPod: dst_opflex_pod})
 				} else if strings.Contains(section, "br-int") {
-					in_bridgeflows = append(in_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
+					request_in_bridgeflows = append(request_in_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
 						nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName, opflexPod: dst_opflex_pod})
 				}
 
 				if idx > 0 && strings.Contains(sections[idx-1], "br-access") && strings.Contains(sections[idx-1], "resume conntrack") {
-					in_bridgeflows[len(in_bridgeflows)-1].br_type = "br-access"
+					request_in_bridgeflows[len(request_in_bridgeflows)-1].br_type = "br-access"
 				}
 
 				if idx > 0 && strings.Contains(sections[idx-1], "br-int") && strings.Contains(sections[idx-1], "resume conntrack") {
-					in_bridgeflows[len(in_bridgeflows)-1].br_type = "br-int"
+					request_in_bridgeflows[len(request_in_bridgeflows)-1].br_type = "br-int"
 				}
 			}
-
-			for idx, _ := range in_bridgeflows {
-				in_bridgeflows[idx].brFlowEntries = in_bridgeflows[idx].parseFlowEntries()
-				in_bridgeflows[idx].out_br_buff = in_bridgeflows[idx].buildPacketTrace()
+			for idx := range request_in_bridgeflows {
+				request_in_bridgeflows[idx].brFlowEntries = request_in_bridgeflows[idx].parseFlowEntries()
+				request_in_bridgeflows[idx].out_br_buff = request_in_bridgeflows[idx].buildPacketTrace()
 			}
-
-			for _, br := range in_bridgeflows {
+			for _, br := range request_in_bridgeflows {
 				if br.summary != nil && br.summary.PacketDropped {
 					if br.br_type == "br-int" {
-						fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n",
+						fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n",
 							ColorRed, "br-int", br.summary.previousTable,
 							wrapText(brIntTableDescriptions[br.summary.previousTable], 60), dstPod.Spec.NodeName, ColorReset)
-						ingresspacketdropped = true
-
+						request_ingress_packetdropped = true
 					} else {
-						fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n",
+						fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n",
 							ColorRed, "br-access", br.summary.previousTable,
 							wrapText(brAccessTableDescriptions[br.summary.previousTable], 60), dstPod.Spec.NodeName, ColorReset)
-						ingresspacketdropped = true
+						request_ingress_packetdropped = true
 					}
 				}
 			}
-
-			if !ingresspacketdropped && srcPod.Spec.NodeName != dstPod.Spec.NodeName {
-				fmt.Printf("%s=> Packet recieved on node:%s with TunID: %s%s\n", ColorGreen, dstPod.Spec.NodeName, tun_id, ColorReset)
+			if !request_ingress_packetdropped && srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+				fmt.Printf("%s=> Packet received on node(%s) with TunID: %s%s\n", ColorGreen, dstPod.Spec.NodeName, tun_id, ColorReset)
 			}
 		}
+	}
 
+	//////////////////  Reply outgoing path  //////////////////
+
+	reply_out_bridgeflows := []Bridge{}
+	src_buffer = new(bytes.Buffer)
+
+	if !request_egress_packetdropped && !request_ingress_packetdropped {
+		fmt.Printf("\n%s%s%s\n", ColorYellow, "ReturnPath Summary", ColorReset)
+		if dstPod.Spec.NodeName != srcPod.Spec.NodeName {
+			src_mac := "00:22:bd:f8:19:ff"
+			if !src_pod_hostnetwork {
+				src_mac = src_ep.Mac
+				gbpObjects, err := findGbpPolicy(kubeClient, srcPod)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					return
+				}
+				tun_id, err = findTunnelId(gbpObjects, src_ep)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					return
+				}
+				tun_id_int, _ = strconv.ParseInt("0x"+tun_id, 0, 64)
+			}
+
+			if !dst_pod_hostnetwork && dstPod != nil {
+				if !proto.Enabled {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'",
+							dst_ep.Attributes.InterfaceName, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_ep.Mac, src_mac)}
+				} else {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", destOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+							dst_ep.Attributes.InterfaceName, proto.Protocol, dstPod.Status.PodIP, srcPod.Status.PodIP,
+							dst_ep.Mac, src_mac, proto.DstPort, proto.DstPortVal, proto.SrcPort, proto.SrcPortVal)}
+				}
+				// Set conntrack state that allows reply traffic out in case of egress policy is
+				// enforced on the target.
+				cmd_args[len(cmd_args)-1] = fmt.Sprintf("%s --ct-next rpl,est,trk", cmd_args[len(cmd_args)-1])
+				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
+				err = execKubectl(cmd_args, src_buffer)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					return
+				}
+
+				sections = strings.Split(src_buffer.String(), "bridge")
+
+				for idx, section := range sections {
+					if strings.Contains(section, "br-access") {
+						reply_out_bridgeflows = append(reply_out_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
+							nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName, opflexPod: dst_opflex_pod})
+					} else if strings.Contains(section, "br-int") {
+						reply_out_bridgeflows = append(reply_out_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
+							nodename: dstPod.Spec.NodeName, ovsPod: destOvsPodName, opflexPod: dst_opflex_pod})
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-access") && strings.Contains(sections[idx-1], "resume conntrack") {
+						reply_out_bridgeflows[len(reply_out_bridgeflows)-1].br_type = "br-access"
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-int") && strings.Contains(sections[idx-1], "resume conntrack") {
+						reply_out_bridgeflows[len(reply_out_bridgeflows)-1].br_type = "br-int"
+					}
+				}
+
+				for idx := range reply_out_bridgeflows {
+					reply_out_bridgeflows[idx].brFlowEntries = reply_out_bridgeflows[idx].parseFlowEntries()
+					reply_out_bridgeflows[idx].out_br_buff = reply_out_bridgeflows[idx].buildPacketTrace()
+				}
+
+				for _, br := range reply_out_bridgeflows {
+					if br.summary != nil && br.summary.PacketDropped {
+						if br.br_type == "br-access" {
+							fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n", ColorRed,
+								"br-access", br.summary.previousTable, wrapText(brAccessTableDescriptions[br.summary.previousTable], 60), dstPod.Spec.NodeName, ColorReset)
+							reply_egress_packetdropped = true
+						} else {
+							fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n", ColorRed,
+								"br-int", br.summary.previousTable, wrapText(brIntTableDescriptions[br.summary.previousTable], 60), dstPod.Spec.NodeName, ColorReset)
+							reply_egress_packetdropped = true
+						}
+					}
+				}
+
+				if !reply_egress_packetdropped {
+					if !src_pod_hostnetwork {
+						fmt.Printf("%s=> Reply packet sent out from node(%s)\n"+
+							"with epg %s(%s)\n"+
+							"to origin pod IP %s\n"+
+							"with destination_epg/VXLAN_Tunnel_ID:0x%s(decimal:%d)(%s) %s\n\n",
+							ColorGreen, dstPod.Spec.NodeName, reply_out_bridgeflows[len(reply_out_bridgeflows)-1].summary.TunnelID,
+							dst_ep.EndpointGroupName, srcPod.Status.PodIP, tun_id, tun_id_int, src_ep.EndpointGroupName, ColorReset)
+
+					} else {
+						fmt.Printf("%s=> Reply packet sent out from node(%s)\n"+
+							"with epg %s(%s)\n"+
+							"to origin pod IP %s\n"+
+							"on node(%s) network %s\n\n",
+							ColorGreen, dstPod.Spec.NodeName, reply_out_bridgeflows[len(reply_out_bridgeflows)-1].summary.TunnelID,
+							dst_ep.EndpointGroupName, srcPod.Status.PodIP, src_node.Name, ColorReset)
+					}
+				}
+			}
+		}
+	}
+
+	//////////////////  Reply Incoming Traffic  //////////////////
+
+	reply_in_bridgeflows := []Bridge{}
+	dest_buffer := new(bytes.Buffer)
+	if !request_egress_packetdropped && !request_ingress_packetdropped && !reply_egress_packetdropped {
+		if !src_pod_hostnetwork {
+			dst_mac := "00:22:bd:f8:19:ff"
+			if !dst_pod_hostnetwork {
+				dst_mac = dst_ep.Mac
+			}
+			if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+				if !proto.Enabled {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
+							"tun_id=0x%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'",
+							tun_id, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_mac, src_ep.Mac)}
+				} else {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
+							"tun_id=0x%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+							tun_id, proto.Protocol, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_mac,
+							src_ep.Mac, proto.DstPort, proto.DstPortVal, proto.SrcPort, proto.SrcPortVal)}
+				}
+			} else {
+				if !proto.Enabled {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s,"+
+							"tun_id=0x%s, ip, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s'",
+							dst_ep.Attributes.InterfaceName, tun_id, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_mac, src_ep.Mac)}
+				} else {
+					cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
+						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s,"+
+							"tun_id=0x%s, %s, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
+							dst_ep.Attributes.InterfaceName, tun_id, proto.Protocol, dstPod.Status.PodIP, srcPod.Status.PodIP,
+							dst_mac, src_ep.Mac, proto.DstPort, proto.DstPortVal, proto.SrcPort, proto.SrcPortVal)}
+				}
+				// Set conntrack state that allows reply traffic out in case of egress policy is
+				// enforced on the target.
+				cmd_args[len(cmd_args)-1] = fmt.Sprintf("%s --ct-next rpl,est,trk", cmd_args[len(cmd_args)-1])
+			}
+
+			log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
+			err = execKubectl(cmd_args, dest_buffer)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				return
+			}
+
+			sections = strings.Split(dest_buffer.String(), "bridge")
+
+			for idx, section := range sections {
+				if strings.Contains(section, "br-access") {
+					reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" + section,
+						nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+				} else if strings.Contains(section, "br-int") {
+					reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" + section,
+						nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+				}
+
+				if idx > 0 && strings.Contains(sections[idx-1], "br-access") && strings.Contains(sections[idx-1], "resume conntrack") {
+					reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-access"
+				}
+
+				if idx > 0 && strings.Contains(sections[idx-1], "br-int") && strings.Contains(sections[idx-1], "resume conntrack") {
+					reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-int"
+				}
+			}
+			for idx := range reply_in_bridgeflows {
+				reply_in_bridgeflows[idx].brFlowEntries = reply_in_bridgeflows[idx].parseFlowEntries()
+				reply_in_bridgeflows[idx].out_br_buff = reply_in_bridgeflows[idx].buildPacketTrace()
+			}
+			for _, br := range reply_in_bridgeflows {
+				if br.summary != nil && br.summary.PacketDropped {
+					if br.br_type == "br-int" {
+						fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n",
+							ColorRed, "br-int", br.summary.previousTable,
+							wrapText(brIntTableDescriptions[br.summary.previousTable], 60), srcPod.Spec.NodeName, ColorReset)
+						reply_ingress_packetdropped = true
+					} else {
+						fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node(%s)%s\n",
+							ColorRed, "br-access", br.summary.previousTable,
+							wrapText(brAccessTableDescriptions[br.summary.previousTable], 60), srcPod.Spec.NodeName, ColorReset)
+						reply_ingress_packetdropped = true
+					}
+				}
+			}
+			if !reply_ingress_packetdropped {
+				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+					fmt.Printf("%s=> Reply packet sent out from destination Pod %s(%s) of the node(%s)\n"+
+						"and received on source Pod %s(%s) on the node(%s) %s\n", ColorGreen,
+						dstPod.Name, dstPod.Status.PodIP, dstPod.Spec.NodeName, srcPod.Name, srcPod.Status.PodIP,
+						srcPod.Spec.NodeName, ColorReset)
+				} else {
+					fmt.Printf("%s=> Packet sent out from destination Pod %s(%s) and received on source Pod \n %s(%s)"+
+						"of same node(%s) %s\n\n", ColorGreen, dstPod.Name, dstPod.Status.PodIP,
+						srcPod.Name, srcPod.Status.PodIP, srcPod.Spec.NodeName, ColorReset)
+				}
+			}
+		} else {
+			if !dst_pod_hostnetwork {
+				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+					fmt.Printf("%s=> Reply packet sent out from destination pod IP (%s) on the node(%s)\n"+
+						"with node network to source pod IP (%s) on the node(%s) %s\n",
+						ColorGreen, dstPod.Status.PodIP, dstPod.Spec.NodeName, srcPod.Status.PodIP, srcPod.Spec.NodeName, ColorReset)
+				} else {
+					fmt.Printf("%s=> Packet sent out and received on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+				}
+			} else {
+				if srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+					fmt.Printf("%s=> Packet sent out from destination pod IP (%s) on the node(%s)\n"+
+						"with node network to source pod IP (%s) on the node(%s) network %s\n",
+						ColorGreen, dstPod.Status.PodIP, dstPod.Spec.NodeName, srcPod.Status.PodIP, srcPod.Spec.NodeName, ColorReset)
+
+				} else {
+					fmt.Printf("%s=> Packet sent out and received on same node: %s%s\n", ColorGreen, srcPod.Spec.NodeName, ColorReset)
+				}
+			}
+		}
 	}
 
 	if verbose {
 		if !src_pod_hostnetwork {
-			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "Outgoing Packet from node: ", src_node.Name, ColorReset)
-			for _, br := range out_bridgeflows {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ForwardPath Outgoing Packet from node: ", src_node.Name, ColorReset)
+			for _, br := range request_out_bridgeflows {
 				if br.br_type == "br-access" {
 					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
 					fmt.Println(br.out_br_buff)
@@ -1225,13 +1452,12 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
 					fmt.Println(br.out_br_buff)
 				}
-
 			}
 		}
 
-		if !dst_pod_hostnetwork && !egresspacketdropped && (srcPod.Spec.NodeName != dstPod.Spec.NodeName || src_pod_hostnetwork) {
-			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "Incoming Packet to node: ", dst_node.Name, ColorReset)
-			for _, br := range in_bridgeflows {
+		if !dst_pod_hostnetwork && !request_egress_packetdropped && dstPod != nil && srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ForwardPath Incoming Packet to node: ", dstPod.Spec.NodeName, ColorReset)
+			for _, br := range request_in_bridgeflows {
 				if br.br_type == "br-access" {
 					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
 					fmt.Println(br.out_br_buff)
@@ -1239,7 +1465,35 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
 					fmt.Println(br.out_br_buff)
 				}
+			}
+		}
 
+		if !dst_pod_hostnetwork && !request_egress_packetdropped && !request_ingress_packetdropped && dstPod != nil &&
+			srcPod.Spec.NodeName != dstPod.Spec.NodeName {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ReturnPath Outgoing Packet from node: ", dstPod.Spec.NodeName, ColorReset)
+			for _, br := range reply_out_bridgeflows {
+				if br.br_type == "br-access" {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				} else {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				}
+			}
+		}
+
+		if !src_pod_hostnetwork && !request_egress_packetdropped && !request_ingress_packetdropped &&
+			!reply_egress_packetdropped && ((dstPod != nil && srcPod.Spec.NodeName != dstPod.Spec.NodeName) ||
+			(destPodIp != "" && destNodeName != "" && src_node.Name != destNodeName)) {
+			fmt.Printf("\n\n%s%s%s%s\n", ColorGreen, "ReturnPath Incoming Packet to node: ", src_node.Name, ColorReset)
+			for _, br := range reply_in_bridgeflows {
+				if br.br_type == "br-access" {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-access:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				} else {
+					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
+					fmt.Println(br.out_br_buff)
+				}
 			}
 		}
 	}
@@ -1484,7 +1738,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 			}
 		}
 
-		for idx, _ := range request_out_bridgeflows {
+		for idx := range request_out_bridgeflows {
 			request_out_bridgeflows[idx].brFlowEntries = request_out_bridgeflows[idx].parseFlowEntries()
 			request_out_bridgeflows[idx].out_br_buff = request_out_bridgeflows[idx].buildPacketTrace()
 		}
