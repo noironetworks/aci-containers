@@ -1462,6 +1462,18 @@ func portProto(protocol *v1.Protocol) string {
 	return proto
 }
 
+func portMatches(portNum int, npPort *v1net.NetworkPolicyPort) bool {
+	if npPort == nil || npPort.Port == nil {
+		return true
+	}
+
+	if npPort.EndPort != nil {
+		return portNum >= npPort.Port.IntValue() && portNum <= int(*npPort.EndPort)
+	}
+
+	return portNum == npPort.Port.IntValue()
+}
+
 func portKey(p *v1net.NetworkPolicyPort) string {
 	portType := ""
 	port := ""
@@ -1634,20 +1646,59 @@ func (cont *AciController) getServiceAugmentByPort(
 
 	portkey := portKey(prs.port)
 	cont.indexMutex.Lock()
+
+	hasPortRange := prs.port.EndPort != nil && prs.port.Port != nil && prs.port.Port.Type == intstr.Int
 	entries := make(map[string]*portIndexEntry)
-	entry := cont.targetPortIndex[portkey]
-	if entry != nil && prs.port.Port.Type == intstr.String {
-		for _, port := range entry.port.ports {
-			portstring := strconv.Itoa(port)
-			key := portProto(prs.port.Protocol) + "-" + "num" + "-" + portstring
-			portEntry := cont.targetPortIndex[key]
-			if portEntry != nil {
-				entries[portstring] = portEntry
+
+	if hasPortRange {
+		startPort := prs.port.Port.IntValue()
+		endPort := int(*prs.port.EndPort)
+		rangeSize := endPort - startPort + 1
+		proto := portProto(prs.port.Protocol)
+
+		if rangeSize < len(cont.targetPortIndex) {
+			for port := startPort; port <= endPort; port++ {
+				portstring := strconv.Itoa(port)
+				key := proto + "-num-" + portstring
+				portEntry := cont.targetPortIndex[key]
+				if portEntry != nil {
+					entries[portstring] = portEntry
+				}
+			}
+		} else {
+			protoPrefix := proto + "-num-"
+			for portkey, portEntry := range cont.targetPortIndex {
+				if !strings.HasPrefix(portkey, protoPrefix) {
+					continue
+				}
+
+				portNumStr := strings.TrimPrefix(portkey, protoPrefix)
+				portNum, err := strconv.Atoi(portNumStr)
+				if err != nil {
+					continue
+				}
+
+				if portNum >= startPort && portNum <= endPort {
+					portstring := strconv.Itoa(portNum)
+					entries[portstring] = portEntry
+				}
 			}
 		}
-	} else if entry != nil {
-		if len(entry.port.ports) > 0 {
-			entries[strconv.Itoa(entry.port.ports[0])] = entry
+	} else {
+		entry := cont.targetPortIndex[portkey]
+		if entry != nil && prs.port.Port.Type == intstr.String {
+			for _, port := range entry.port.ports {
+				portstring := strconv.Itoa(port)
+				key := portProto(prs.port.Protocol) + "-" + "num" + "-" + portstring
+				portEntry := cont.targetPortIndex[key]
+				if portEntry != nil {
+					entries[portstring] = portEntry
+				}
+			}
+		} else if entry != nil {
+			if len(entry.port.ports) > 0 {
+				entries[strconv.Itoa(entry.port.ports[0])] = entry
+			}
 		}
 	}
 	for key, portentry := range entries {
@@ -2641,11 +2692,28 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 		func(endpointSliceobj interface{}) {
 			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
 			for _, svcPort := range service.Spec.Ports {
-				_, ok := portstrings[svcPort.TargetPort.String()]
-				if prs.port != nil &&
-					(svcPort.Protocol != *prs.port.Protocol || !ok) {
-					// egress rule does not match service target port
+				if prs.port != nil && svcPort.Protocol != *prs.port.Protocol {
 					continue
+				}
+
+				if prs.port != nil && prs.port.Port != nil {
+					if svcPort.TargetPort.Type == intstr.Int {
+						if prs.port.Port.Type == intstr.Int {
+							if !portMatches(svcPort.TargetPort.IntValue(), prs.port) {
+								continue
+							}
+						} else {
+							_, ok := portstrings[svcPort.TargetPort.String()]
+							if !ok {
+								continue
+							}
+						}
+					} else {
+						_, ok := portstrings[svcPort.TargetPort.String()]
+						if !ok {
+							continue
+						}
+					}
 				}
 				var foundEpPort *discovery.EndpointPort
 				for ix := range endpointSlices.Ports {
