@@ -344,7 +344,7 @@ type ipIndexEntry struct {
 
 type targetPort struct {
 	proto v1.Protocol
-	ports []int
+	ports map[int]bool
 }
 
 type portIndexEntry struct {

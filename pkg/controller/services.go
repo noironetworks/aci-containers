@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
@@ -2219,14 +2220,27 @@ func getEndpointsIps(endpoints *v1.Endpoints) map[string]bool {
 func getServiceTargetPorts(service *v1.Service) map[string]targetPort {
 	ports := make(map[string]targetPort)
 	for _, port := range service.Spec.Ports {
-		portNum := port.TargetPort.IntValue()
-		if portNum <= 0 {
-			portNum = int(port.Port)
+		var key string
+		portnums := make(map[int]bool)
+
+		if port.TargetPort.Type == intstr.String {
+			// Named port
+			key = portProto(&port.Protocol) + "-name-" + port.TargetPort.String()
+			// For named ports, we'll rely on the targetPortIndex to resolve the actual port numbers
+			// The portnums map will be empty initially and populated when pods are indexed
+		} else {
+			// Numeric port
+			portNum := port.TargetPort.IntValue()
+			if portNum <= 0 {
+				portNum = int(port.Port)
+			}
+			key = portProto(&port.Protocol) + "-num-" + strconv.Itoa(portNum)
+			portnums[portNum] = true
 		}
-		key := portProto(&port.Protocol) + "-num-" + strconv.Itoa(portNum)
+
 		ports[key] = targetPort{
 			proto: port.Protocol,
-			ports: []int{portNum},
+			ports: portnums,
 		}
 	}
 	return ports
