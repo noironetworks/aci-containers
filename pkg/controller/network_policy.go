@@ -1555,11 +1555,6 @@ func portServiceAugmentKey(proto, port string) string {
 	return proto + "-" + port
 }
 
-type protoPort struct {
-	proto string
-	port  string
-}
-
 type portServiceAugment struct {
 	proto string
 	port  string
@@ -2658,65 +2653,72 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 	npTargetPortsMap := cont.getPortNums(prs.port)
 	label := map[string]string{discovery.LabelServiceName: service.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(label)
-	incomplete := false
-	protoPortSet := make(map[protoPort]bool)
-	cache.ListAllByNamespace(cont.endpointSliceIndexer, service.ObjectMeta.Namespace, selector,
-		func(endpointSliceobj interface{}) {
-			if incomplete {
-				return
-			}
-			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
-			for _, svcPort := range service.Spec.Ports {
-				if prs.port != nil &&
-					(svcPort.Protocol != *prs.port.Protocol) {
-					// egress rule does not match service target port
-					continue
-				}
-				anyPort := prs.port == nil || prs.port.Port == nil
-				if !anyPort {
-					if svcPort.TargetPort.Type == intstr.String {
-						if prs.port.Port.Type == intstr.String && prs.port.Port.String() != svcPort.TargetPort.String() {
-							continue
-						}
-					} else {
-						if !npTargetPortsMap[int(svcPort.TargetPort.IntVal)] {
-							continue
-						}
-					}
-				}
-				var foundEpPort *discovery.EndpointPort
-				for ix := range endpointSlices.Ports {
-					if *endpointSlices.Ports[ix].Name == svcPort.Name ||
-						(len(service.Spec.Ports) == 1 &&
-							*endpointSlices.Ports[ix].Name == "") {
-						foundEpPort = &endpointSlices.Ports[ix]
-						cont.log.Debug("Found EpPort: ", foundEpPort)
-						break
-					}
-				}
 
-				if foundEpPort == nil {
+	endpointSliceList, err := cont.endpointSliceIndexer.ByIndex("namespace", service.ObjectMeta.Namespace)
+	if err != nil {
+		logger.Error("Could not list endpoint slices: ", err)
+		return
+	}
+	for _, svcPort := range service.Spec.Ports {
+		incomplete := false
+		hasValidatedSlice := false
+		if prs.port != nil &&
+			(svcPort.Protocol != *prs.port.Protocol) {
+			// egress rule does not match service target port
+			continue
+		}
+		// Match any port if no port is specified in the np
+		portMatched := prs.port == nil || prs.port.Port == nil
+
+		if !portMatched {
+			if svcPort.TargetPort.Type == intstr.String {
+				if prs.port.Port.Type == intstr.String && prs.port.Port.String() != svcPort.TargetPort.String() {
 					continue
 				}
-				if !anyPort && !npTargetPortsMap[int(*foundEpPort.Port)] {
+			} else {
+				if !npTargetPortsMap[int(svcPort.TargetPort.IntVal)] {
 					continue
 				}
-				// @FIXME for non ready address
-				for _, endpoint := range endpointSlices.Endpoints {
-					incomplete = incomplete || !checkEndpointslices(subnetIndex, endpoint.Addresses)
-				}
-				if incomplete {
-					return
-				}
-				proto := portProto(foundEpPort.Protocol)
-				port := strconv.Itoa(int(svcPort.Port))
-				protoPortSet[protoPort{proto, port}] = true
+				portMatched = true
 			}
-		})
-	if !incomplete {
-		for portEntry := range protoPortSet {
-			proto := portEntry.proto
-			port := portEntry.port
+		}
+
+		for _, endpointSliceobj := range endpointSliceList {
+			endpointSlices := endpointSliceobj.(*discovery.EndpointSlice)
+			if !selector.Matches(labels.Set(endpointSlices.Labels)) {
+				continue
+			}
+
+			var foundEpPort *discovery.EndpointPort
+			for ix := range endpointSlices.Ports {
+				if *endpointSlices.Ports[ix].Name == svcPort.Name ||
+					(len(service.Spec.Ports) == 1 &&
+						*endpointSlices.Ports[ix].Name == "") {
+					foundEpPort = &endpointSlices.Ports[ix]
+					cont.log.Debug("Found EpPort: ", foundEpPort)
+					break
+				}
+			}
+
+			if foundEpPort == nil {
+				continue
+			}
+			// for service with named target port and np with numbered target port, check if the port resolved from endpoint slice is in np target ports
+			if !portMatched && (foundEpPort.Port == nil || !npTargetPortsMap[int(*foundEpPort.Port)]) {
+				continue
+			}
+			// @FIXME for non ready address
+			for _, endpoint := range endpointSlices.Endpoints {
+				incomplete = incomplete || !checkEndpointslices(subnetIndex, endpoint.Addresses)
+			}
+			if incomplete {
+				break
+			}
+			hasValidatedSlice = true
+		}
+		if !incomplete && hasValidatedSlice {
+			proto := portProto(&svcPort.Protocol)
+			port := strconv.Itoa(int(svcPort.Port))
 			cont.log.Debug("updateServiceAugmentForService: ", service)
 			updateServiceAugmentForService(portAugments,
 				proto, port, service)
