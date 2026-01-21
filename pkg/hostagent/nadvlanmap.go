@@ -17,6 +17,9 @@ package hostagent
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	fabattclientset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,8 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
-	"strconv"
-	"strings"
 )
 
 type nadVlanMatchData struct {
@@ -37,12 +38,11 @@ type nadVlanMatchData struct {
 func (agent *HostAgent) initNadVlanInformerFromClient(client *fabattclientset.Clientset) {
 	agent.initNadVlanInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return client.AciV1().NadVlanMaps(metav1.NamespaceAll).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return client.AciV1().NadVlanMaps(metav1.NamespaceAll).List(ctx, options)
 			},
-
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return client.AciV1().NadVlanMaps(metav1.NamespaceAll).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return client.AciV1().NadVlanMaps(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }

@@ -16,6 +16,7 @@ package hostagent
 
 import (
 	"context"
+
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	fabattclientset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -54,12 +55,11 @@ func (agent *HostAgent) getFabricVlanPoolNamespaceLocked(namespace string) strin
 func (agent *HostAgent) initFabricVlanPoolsInformerFromClient(client *fabattclientset.Clientset) {
 	agent.initFabricVlanPoolsInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return client.AciV1().FabricVlanPools(metav1.NamespaceAll).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return client.AciV1().FabricVlanPools(metav1.NamespaceAll).List(ctx, options)
 			},
-
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return client.AciV1().FabricVlanPools(metav1.NamespaceAll).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return client.AciV1().FabricVlanPools(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }
