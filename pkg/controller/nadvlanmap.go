@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+
 	fabattv1 "github.com/noironetworks/aci-containers/pkg/fabricattachment/apis/aci.fabricattachment/v1"
 	fabattclset "github.com/noironetworks/aci-containers/pkg/fabricattachment/clientset/versioned"
 	"k8s.io/client-go/tools/cache"
@@ -80,12 +81,11 @@ func (cont *AciController) initNadVlanMapInformerBase(listWatch *cache.ListWatch
 func (cont *AciController) initNadVlanMapInformerFromClient(fabAttClient *fabattclset.Clientset) {
 	cont.initNadVlanMapInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return fabAttClient.AciV1().NadVlanMaps(metav1.NamespaceAll).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return fabAttClient.AciV1().NadVlanMaps(metav1.NamespaceAll).List(ctx, options)
 			},
-
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return fabAttClient.AciV1().NadVlanMaps(metav1.NamespaceAll).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return fabAttClient.AciV1().NadVlanMaps(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }

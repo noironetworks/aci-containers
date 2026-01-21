@@ -88,12 +88,11 @@ func networkFabricL3ConfigurationInit(cont *AciController, stopCh <-chan struct{
 func (cont *AciController) initNetworkFabricL3ConfigurationInformerFromClient(fabAttClient *fabattclset.Clientset) {
 	cont.initNetworkFabricL3ConfigurationInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return fabAttClient.AciV1().NetworkFabricL3Configurations().List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return fabAttClient.AciV1().NetworkFabricL3Configurations().List(ctx, options)
 			},
-
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return fabAttClient.AciV1().NetworkFabricL3Configurations().Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return fabAttClient.AciV1().NetworkFabricL3Configurations().Watch(ctx, options)
 			},
 		})
 }

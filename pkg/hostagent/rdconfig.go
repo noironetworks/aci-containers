@@ -42,19 +42,11 @@ func (agent *HostAgent) initRdConfigInformerFromClient(
 	rdConClient *rdConClSet.Clientset) {
 	agent.initRdConfigInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to list RdConfigs during initialization of RdConfigInformer")
-				}
-				return obj, err
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to watch RdConfigs during initialization of RdConfigInformer")
-				}
-				return obj, err
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return rdConClient.AciV1().RdConfigs(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }
