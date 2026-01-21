@@ -990,7 +990,11 @@ func (conn *ApicConnection) sendHTTPSRequestToAPIC(method string, uri string, bo
 			req.Header.Set("Content-Type", contentType)
 		}
 		conn.sign(req, uri, body)
-		conn.log.Debugf("Req: %+v", req)
+		if len(body) > 0 {
+			conn.log.Debugf("J: Request: %s %s, Body: %s", method, url, string(body))
+		} else {
+			conn.log.Debugf("J:Request: %s %s", method, url)
+		}
 
 		if retry > 0 {
 			conn.log.Infof("Retrying request : %s, Attempt %d ", req.URL.String(), retry)
