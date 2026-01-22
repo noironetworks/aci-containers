@@ -242,6 +242,14 @@ func New(log *logrus.Logger, apic []string, user string,
 	return conn, nil
 }
 
+func (conn *ApicConnection) addToQueue(queue workqueue.RateLimitingInterface, item interface{}) {
+	if conn.cnoEnabled {
+		queue.Add(item)
+	} else {
+		queue.AddRateLimited(item)
+	}
+}
+
 func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 	var subIds []string
 	switch ids := apicresp.SubscriptionId.(type) {
@@ -301,23 +309,23 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 						if conn.FilterOpflexDevice {
 							if conn.isPresentInOpflexOdevCache(dn, status, obj) {
 								conn.log.Info("Adding dn to odevQueue: ", dn)
-								conn.odevQueue.AddRateLimited(dn)
+								conn.addToQueue(conn.odevQueue, dn)
 							}
 						} else {
 							conn.log.Info("Adding dn to odevQueue: ", dn)
-							conn.odevQueue.AddRateLimited(dn)
+							conn.addToQueue(conn.odevQueue, dn)
 						}
 					} else if isPriorityObject(dn) {
 						conn.log.Debug("Adding dn to priorityQueue: ", dn)
-						conn.priorityQueue.AddRateLimited(dn)
+						conn.addToQueue(conn.priorityQueue, dn)
 					} else if isLLDPIfObject(dn) && conn.lldpIfQueue != nil {
 						if lldpIf, ok := body.Attributes["portDesc"].(string); ok {
 							conn.cachedLLDPIfs[dn] = lldpIf
 						}
 						conn.log.Debug("Adding dn to lldpIfQueue: ", dn)
-						conn.lldpIfQueue.AddRateLimited(dn)
+						conn.addToQueue(conn.lldpIfQueue, dn)
 					} else if conn.deltaQueue != nil {
-						conn.deltaQueue.AddRateLimited(dn)
+						conn.addToQueue(conn.deltaQueue, dn)
 					}
 					conn.indexMutex.Unlock()
 				}
