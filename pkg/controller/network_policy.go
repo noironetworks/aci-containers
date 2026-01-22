@@ -953,8 +953,6 @@ func (cont *AciController) updateTargetPortIndex(service bool, key string,
 		if service {
 			delete(entry.serviceKeys, key)
 		} else {
-
-			// index lock?
 			if strings.Contains(portkey, "-name-") {
 				parts := strings.Split(portkey, "-name-")
 				if len(parts) == 2 {
@@ -1668,6 +1666,59 @@ func (cont *AciController) getServiceAugmentByPort(
 			portEntry := cont.targetPortIndex[key]
 			if portEntry != nil {
 				entries[portstring] = portEntry
+			}
+		}
+	} else if prs.port.EndPort != nil {
+		startPort := prs.port.Port.IntValue()
+		endPort := int(*prs.port.EndPort)
+		rangeSize := endPort - startPort + 1
+		proto := portProto(prs.port.Protocol)
+		if rangeSize < len(cont.targetPortIndex) {
+			for port := startPort; port <= endPort; port++ {
+				portstring := strconv.Itoa(port)
+				key := proto + "-num-" + portstring
+				portEntry := cont.targetPortIndex[key]
+				if portEntry != nil {
+					entries[portstring] = portEntry
+				}
+			}
+		} else {
+			protoPrefix := proto + "-num-"
+			for portkey, portEntry := range cont.targetPortIndex {
+				if !strings.HasPrefix(portkey, protoPrefix) {
+					continue
+				}
+				portNumStr := strings.TrimPrefix(portkey, protoPrefix)
+				portNum, err := strconv.Atoi(portNumStr)
+				if err != nil {
+					continue
+				}
+				if portNum >= startPort && portNum <= endPort {
+					portstring := strconv.Itoa(portNum)
+					entries[portstring] = portEntry
+				}
+			}
+		}
+		// in case of port range, need to loop through a set of named target port services and if all the resolved target ports fall in the port range, then we need to add augment for that named port service as well:
+		// Look through services with named target ports as well
+		for serviceKey, namedSvcEntry := range cont.namedPortServiceIndex {
+			for _, svcPortEntry := range *namedSvcEntry {
+				// named ports that resolve to a single port number are already handled above while processing the -num- ports in targetPortIndex
+				if len(svcPortEntry.resolvedPorts) <= 1 {
+					continue
+				}
+				for resolvedPort := range svcPortEntry.resolvedPorts {
+					if resolvedPort >= startPort && resolvedPort <= endPort {
+						portstring := strconv.Itoa(resolvedPort)
+						if _, ok := entries[portstring]; !ok {
+							entries[portstring] = &portIndexEntry{
+								serviceKeys: map[string]bool{serviceKey: true},
+							}
+						} else {
+							entries[portstring].serviceKeys[serviceKey] = true
+						}
+					}
+				}
 			}
 		}
 	}
@@ -2651,6 +2702,17 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 	subnetIndex cidranger.Ranger, logger *logrus.Entry) {
 	cont := seps.cont
 	npTargetPortsMap := cont.getPortNums(prs.port)
+
+	// Helper function to check if a numeric port matches the NetworkPolicy port spec
+	checkNumericPortMatchesNetpol := func(port int) bool {
+		if prs.port.EndPort != nil {
+			// Port range matching: port must be within [Port, EndPort]
+			return port >= prs.port.Port.IntValue() && port <= int(*prs.port.EndPort)
+		}
+		// Single port matching: check if port is in the target ports map
+		return npTargetPortsMap[port]
+	}
+
 	label := map[string]string{discovery.LabelServiceName: service.ObjectMeta.Name}
 	selector := labels.SelectorFromSet(label)
 
@@ -2668,18 +2730,35 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 			continue
 		}
 		// Match any port if no port is specified in the np
-		portMatched := prs.port == nil || prs.port.Port == nil
+		anyPort := prs.port == nil || prs.port.Port == nil
 
-		if !portMatched {
+		if !anyPort {
 			if svcPort.TargetPort.Type == intstr.String {
 				if prs.port.Port.Type == intstr.String && prs.port.Port.String() != svcPort.TargetPort.String() {
 					continue
 				}
+				// For named service ports, check if ALL resolved ports match the NP target ports
+				if entry, ok := cont.namedPortServiceIndex[servicekey]; ok {
+					if portEntry, ok := (*entry)[svcPort.Name]; ok && portEntry != nil {
+						// All resolved ports must match the NP target ports
+						allMatch := true
+						for resolvedPort := range portEntry.resolvedPorts {
+							if !checkNumericPortMatchesNetpol(resolvedPort) {
+								allMatch = false
+								break
+							}
+						}
+						if !allMatch {
+							continue
+						}
+						// portMatched = true
+					}
+				}
 			} else {
-				if !npTargetPortsMap[int(svcPort.TargetPort.IntVal)] {
+				if !checkNumericPortMatchesNetpol(svcPort.TargetPort.IntValue()) {
 					continue
 				}
-				portMatched = true
+				// portMatched = true
 			}
 		}
 
@@ -2691,9 +2770,9 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 
 			var foundEpPort *discovery.EndpointPort
 			for ix := range endpointSlices.Ports {
-				if *endpointSlices.Ports[ix].Name == svcPort.Name ||
+				if endpointSlices.Ports[ix].Name != nil && *endpointSlices.Ports[ix].Name == svcPort.Name ||
 					(len(service.Spec.Ports) == 1 &&
-						*endpointSlices.Ports[ix].Name == "") {
+						endpointSlices.Ports[ix].Name != nil && *endpointSlices.Ports[ix].Name == "") {
 					foundEpPort = &endpointSlices.Ports[ix]
 					cont.log.Debug("Found EpPort: ", foundEpPort)
 					break
@@ -2703,10 +2782,11 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 			if foundEpPort == nil {
 				continue
 			}
-			// for service with named target port and np with numbered target port, check if the port resolved from endpoint slice is in np target ports
-			if !portMatched && (foundEpPort.Port == nil || !npTargetPortsMap[int(*foundEpPort.Port)]) {
-				continue
-			}
+			// // for service with named target port and np with numbered target port, check if the port resolved from endpoint slice is in np target ports
+			// if !portMatched && (foundEpPort.Port == nil || !checkNumericPortMatchesNetpol(int(*foundEpPort.Port))) {
+			// 	incomplete = true
+			// 	break
+			// }
 			// @FIXME for non ready address
 			for _, endpoint := range endpointSlices.Endpoints {
 				incomplete = incomplete || !checkEndpointslices(subnetIndex, endpoint.Addresses)
