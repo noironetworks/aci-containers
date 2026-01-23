@@ -2235,6 +2235,7 @@ func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey
 					targetPortName: port.TargetPort.String(),
 					resolvedPorts:  make(map[int]bool),
 				}
+				cont.namedPortServiceIndex[svcKey] = entry
 			} else if exists {
 				delete(*entry, port.Name)
 				if len(*entry) == 0 {
