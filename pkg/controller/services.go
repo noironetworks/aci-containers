@@ -2229,7 +2229,8 @@ func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey
 			entry, exists := cont.namedPortServiceIndex[svcKey]
 			if !old {
 				if !exists {
-					entry = new(namedPortServiceIndexEntry)
+					newEntry := make(namedPortServiceIndexEntry)
+					entry = &newEntry
 				}
 				(*entry)[port.Name] = &namedPortServiceIndexPort{
 					targetPortName: port.TargetPort.String(),
