@@ -1699,7 +1699,6 @@ func (cont *AciController) getServiceAugmentByPort(
 				}
 			}
 		}
-		// in case of port range, need to loop through a set of named target port services and if all the resolved target ports fall in the port range, then we need to add augment for that named port service as well:
 		// Look through services with named target ports as well
 		for serviceKey, namedSvcEntry := range cont.namedPortServiceIndex {
 			for _, svcPortEntry := range *namedSvcEntry {
@@ -1707,16 +1706,22 @@ func (cont *AciController) getServiceAugmentByPort(
 				if len(svcPortEntry.resolvedPorts) <= 1 {
 					continue
 				}
+				// Check if ALL resolved ports are within the range (all-or-nothing semantics)
+				allInRange := true
 				for resolvedPort := range svcPortEntry.resolvedPorts {
-					if resolvedPort >= startPort && resolvedPort <= endPort {
-						portstring := strconv.Itoa(resolvedPort)
-						if _, ok := entries[portstring]; !ok {
-							entries[portstring] = &portIndexEntry{
-								serviceKeys: map[string]bool{serviceKey: true},
-							}
-						} else {
-							entries[portstring].serviceKeys[serviceKey] = true
+					if resolvedPort < startPort || resolvedPort > endPort {
+						allInRange = false
+						break
+					}
+				}
+				if allInRange {
+					portstring := svcPortEntry.targetPortName
+					if _, ok := entries[portstring]; !ok {
+						entries[portstring] = &portIndexEntry{
+							serviceKeys: map[string]bool{serviceKey: true},
 						}
+					} else {
+						entries[portstring].serviceKeys[serviceKey] = true
 					}
 				}
 			}
