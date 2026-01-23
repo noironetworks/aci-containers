@@ -2749,28 +2749,31 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 
 		if !anyPort {
 			if svcPort.TargetPort.Type == intstr.String {
-				if prs.port.Port.Type == intstr.String && prs.port.Port.String() != svcPort.TargetPort.String() {
-					continue
-				}
-				// For named service ports, check if ALL resolved ports match the NP target ports
-				entry, entryExists := cont.namedPortServiceIndex[servicekey]
-				if !entryExists {
-					continue
-				}
-				portEntry, portEntryExists := (*entry)[svcPort.Name]
-				if !portEntryExists || portEntry == nil {
-					continue
-				}
-				// All resolved ports must match the NP target ports
-				allMatch := true
-				for resolvedPort := range portEntry.resolvedPorts {
-					if !checkNumericPortMatchesNetpol(resolvedPort) {
-						allMatch = false
-						break
+				if prs.port.Port.Type == intstr.String {
+					if prs.port.Port.String() != svcPort.TargetPort.String() {
+						continue
 					}
-				}
-				if !allMatch {
-					continue
+				} else {
+					// For named service ports, check if ALL resolved ports match the NP target ports
+					entry, entryExists := cont.namedPortServiceIndex[servicekey]
+					if !entryExists {
+						continue
+					}
+					portEntry, portEntryExists := (*entry)[svcPort.Name]
+					if !portEntryExists || portEntry == nil {
+						continue
+					}
+					// All resolved ports must match the NP target ports
+					allMatch := true
+					for resolvedPort := range portEntry.resolvedPorts {
+						if !checkNumericPortMatchesNetpol(resolvedPort) {
+							allMatch = false
+							break
+						}
+					}
+					if !allMatch {
+						continue
+					}
 				}
 			} else {
 				if !checkNumericPortMatchesNetpol(svcPort.TargetPort.IntValue()) {
