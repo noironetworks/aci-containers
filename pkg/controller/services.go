@@ -2224,7 +2224,6 @@ func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey
 		portnums := make(map[int]bool)
 
 		if port.TargetPort.Type == intstr.String {
-			// Named port
 			cont.indexMutex.Lock()
 			entry, exists := cont.namedPortServiceIndex[svcKey]
 			if !old {
@@ -2247,10 +2246,7 @@ func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey
 			}
 			cont.indexMutex.Unlock()
 			key = portProto(&port.Protocol) + "-name-" + port.TargetPort.String()
-			// For named ports, we'll rely on the targetPortIndex to resolve the actual port numbers
-			// The portnums map will be empty initially and populated when pods are indexed
 		} else {
-			// Numeric port
 			portNum := port.TargetPort.IntValue()
 			if portNum <= 0 {
 				portNum = int(port.Port)
@@ -2521,26 +2517,6 @@ func (cont *AciController) resolveServiceNamedPortFromEpSlice(epSlice *discovery
 		}
 	}
 }
-
-// func (cont *AciController) removeResolvedServiceNamedPort(epSlice *discovery.EndpointSlice, serviceKey string) {
-// 	indexEntry, ok := cont.namedPortServiceIndex[serviceKey]
-// 	if !ok {
-// 		return
-// 	}
-// 	for _, port := range epSlice.Ports {
-// 		if portEntry, ok := (*indexEntry)[*port.Name]; ok {
-// 			delete(portEntry.resolvedPorts, int(*port.Port))
-// 			key := portProto(port.Protocol) + "-num-" + strconv.Itoa(int(*port.Port))
-// 			targetPortIndexEntry := cont.targetPortIndex[key]
-// 			if len(portEntry.resolvedPorts) == 1 {
-// 				targetPortIndexEntry.serviceKeys[serviceKey] = true
-// 			} else {
-// 				delete(targetPortIndexEntry.serviceKeys, serviceKey)
-// 			}
-// 		}
-// 	}
-// }
-
 func (cont *AciController) endpointSliceAdded(obj interface{}) {
 	endpointslice, ok := obj.(*discovery.EndpointSlice)
 	if !ok {
