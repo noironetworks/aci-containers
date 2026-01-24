@@ -370,7 +370,9 @@ func (cont *AciController) deleteCtrNmPortForPod(pod *v1.Pod, podkey string) {
 						if len(pods) == 0 {
 							delete(ctrNmpEntry.ctrNmpToPods, key)
 							portkey := portProto(&ctrportspec.Protocol) + "-name-" + ctrportspec.Name
+							cont.log.Debugf("J: Numeric port no longer in ctrPortNameCache, removing targetPortIndex entry for portkey: %v, port: %v", portkey, ctrportspec.ContainerPort)
 							if entry, exists := cont.targetPortIndex[portkey]; exists {
+								cont.log.Debugf("J: Before deletion, targetPortIndex entry: %v", entry)
 								delete(entry.port.ports, int(ctrportspec.ContainerPort))
 							}
 						}
