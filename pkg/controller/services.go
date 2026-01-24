@@ -2218,27 +2218,51 @@ func getEndpointsIps(endpoints *v1.Endpoints) map[string]bool {
 }
 
 func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey string, old bool) map[string]targetPort {
+	cont.log.Infof("J: processServiceTargetPorts called for svcKey=%s, old=%v", svcKey, old)
 	ports := make(map[string]targetPort)
 	for _, port := range service.Spec.Ports {
 		var key string
 		portnums := make(map[int]bool)
 
 		if port.TargetPort.Type == intstr.String {
+			cont.log.Infof("J: processServiceTargetPorts: svcKey=%s has named targetPort: portName=%s, targetPortName=%s", svcKey, port.Name, port.TargetPort.String())
+			if len(cont.namedPortServiceIndex) > 0 {
+				cont.log.Infof("J: SetNpServiceAugmentForService: namedPortServiceIndex contents:")
+				for svcKey, portMap := range cont.namedPortServiceIndex {
+					for svcPortName, portInfo := range *portMap {
+						if portInfo != nil {
+							var ports []int
+							for port := range portInfo.resolvedPorts {
+								ports = append(ports, port)
+							}
+							cont.log.Infof("  service=%s, svcPortName=%s, targetPortName=%s, resolvedPorts=%v",
+								svcKey, svcPortName, portInfo.targetPortName, ports)
+						}
+					}
+				}
+			} else {
+				cont.log.Infof("J: SetNpServiceAugmentForService: namedPortServiceIndex is empty")
+			}
 			entry, exists := cont.namedPortServiceIndex[svcKey]
+			cont.log.Infof("J: processServiceTargetPorts: svcKey=%s namedPortServiceIndex exists=%v, old=%v", svcKey, exists, old)
 			if !old {
 				if !exists {
 					newEntry := make(namedPortServiceIndexEntry)
 					entry = &newEntry
+					cont.log.Infof("J: processServiceTargetPorts: svcKey=%s created new namedPortServiceIndexEntry", svcKey)
 				}
 				(*entry)[port.Name] = &namedPortServiceIndexPort{
 					targetPortName: port.TargetPort.String(),
 					resolvedPorts:  make(map[int]bool),
 				}
 				cont.namedPortServiceIndex[svcKey] = entry
+				cont.log.Infof("J: processServiceTargetPorts: svcKey=%s stored entry in namedPortServiceIndex, portName=%s, targetPortName=%s", svcKey, port.Name, port.TargetPort.String())
 			} else if exists {
+				cont.log.Infof("J: processServiceTargetPorts: svcKey=%s deleting portName=%s from entry (old=true)", svcKey, port.Name)
 				delete(*entry, port.Name)
 				if len(*entry) == 0 {
 					delete(cont.namedPortServiceIndex, svcKey)
+					cont.log.Infof("J: processServiceTargetPorts: svcKey=%s removed from namedPortServiceIndex (empty)", svcKey)
 				} else {
 					cont.namedPortServiceIndex[svcKey] = entry
 				}
@@ -2476,19 +2500,26 @@ func (cont *AciController) processDelayedEpSlices() {
 }
 
 func (cont *AciController) resolveServiceNamedPortFromEpSlice(epSlice *discovery.EndpointSlice, serviceKey string, old bool) {
+	cont.log.Infof("J: resolveServiceNamedPortFromEpSlice called for serviceKey=%s, old=%v, epSlice=%s", serviceKey, old, epSlice.Name)
 	indexEntry, ok := cont.namedPortServiceIndex[serviceKey]
 	if !ok {
+		cont.log.Infof("J: resolveServiceNamedPortFromEpSlice: serviceKey=%s NOT FOUND in namedPortServiceIndex", serviceKey)
 		return
 	}
+	cont.log.Infof("J: resolveServiceNamedPortFromEpSlice: serviceKey=%s FOUND in namedPortServiceIndex, entry has %d ports", serviceKey, len(*indexEntry))
 	for _, port := range epSlice.Ports {
 		if port.Name == nil || port.Port == nil {
+			cont.log.Infof("J: resolveServiceNamedPortFromEpSlice: serviceKey=%s skipping port with nil name or port", serviceKey)
 			continue
 		}
+		cont.log.Infof("J: resolveServiceNamedPortFromEpSlice: serviceKey=%s checking port name=%s, port=%d", serviceKey, *port.Name, *port.Port)
 		if portEntry, ok := (*indexEntry)[*port.Name]; ok && portEntry != nil {
 			portNum := int(*port.Port)
 			if old {
+				cont.log.Infof("J: resolveServiceNamedPortFromEpSlice: serviceKey=%s DELETING resolvedPort %d for portName=%s", serviceKey, portNum, *port.Name)
 				delete(portEntry.resolvedPorts, portNum)
 			} else {
+				cont.log.Infof("J: resolveServiceNamedPortFromEpSlice: serviceKey=%s ADDING resolvedPort %d for portName=%s", serviceKey, portNum, *port.Name)
 				portEntry.resolvedPorts[portNum] = true
 			}
 			key := portProto(port.Protocol) + "-num-" + strconv.Itoa(portNum)
@@ -2525,9 +2556,12 @@ func (cont *AciController) endpointSliceAdded(obj interface{}) {
 	if !valid {
 		return
 	}
+	cont.log.Infof("J: endpointSliceAdded: servicekey=%s, epSlice=%s", servicekey, endpointslice.Name)
 	ips := cont.getEndpointSliceIps(endpointslice)
+	cont.log.Infof("J: endpointSliceAdded: servicekey=%s, ips=%v", servicekey, ips)
 	cont.indexMutex.Lock()
 	cont.updateIpIndex(cont.endpointsIpIndex, nil, ips, servicekey)
+	cont.log.Infof("J: endpointSliceAdded: servicekey=%s calling resolveServiceNamedPortFromEpSlice", servicekey)
 	cont.resolveServiceNamedPortFromEpSlice(endpointslice, servicekey, false)
 	cont.queueIPNetPolUpdates(ips)
 	cont.indexMutex.Unlock()

@@ -1595,6 +1595,18 @@ func updateServiceAugmentForService(portAugments map[string]*portServiceAugment,
 func (cont *AciController) getServiceAugmentBySubnet(
 	prs *portRemoteSubnet, portAugments map[string]*portServiceAugment,
 	logger *logrus.Entry) {
+	cont.log.Infof("J: getServiceAugmentBySubnet called, subnetMap size=%d", len(prs.subnetMap))
+	if prs.port != nil {
+		if prs.port.EndPort != nil {
+			cont.log.Infof("J: getServiceAugmentBySubnet: port range %d-%d", prs.port.Port.IntValue(), *prs.port.EndPort)
+		} else if prs.port.Port != nil {
+			cont.log.Infof("J: getServiceAugmentBySubnet: port=%v (type=%d)", prs.port.Port, prs.port.Port.Type)
+		} else {
+			cont.log.Infof("J: getServiceAugmentBySubnet: port is nil (all ports)")
+		}
+	} else {
+		cont.log.Infof("J: getServiceAugmentBySubnet: prs.port is nil (all ports)")
+	}
 	matchedServices := make(map[string]bool)
 	subnetIndex := cidranger.NewPCTrieRanger()
 
@@ -1619,6 +1631,10 @@ func (cont *AciController) getServiceAugmentBySubnet(
 				matchedServices[servicekey] = true
 			}
 		}
+	}
+	cont.log.Infof("J: getServiceAugmentBySubnet: found %d matched services from subnet index", len(matchedServices))
+	for svcKey := range matchedServices {
+		cont.log.Infof("J: getServiceAugmentBySubnet: matched service: %s", svcKey)
 	}
 	cont.indexMutex.Unlock()
 
@@ -1646,29 +1662,40 @@ func (cont *AciController) getServiceAugmentBySubnet(
 func (cont *AciController) getServiceAugmentByPort(
 	prs *portRemoteSubnet, portAugments map[string]*portServiceAugment,
 	logger *logrus.Entry) {
+	cont.log.Infof("J: getServiceAugmentByPort called")
 	// nil port means it matches against all ports.  If we're here, it
 	// means this is a rule that matches all ports with all
 	// destinations, so there's no need to augment anything.
 	if prs.port == nil ||
 		prs.port.Port == nil {
+		cont.log.Infof("J: getServiceAugmentByPort: port is nil, returning early")
 		return
 	}
 
 	portkey := portKey(prs.port)
+	cont.log.Infof("J: getServiceAugmentByPort: portkey=%s, port=%v (type=%d)", portkey, prs.port.Port, prs.port.Port.Type)
+	if prs.port.EndPort != nil {
+		cont.log.Infof("J: getServiceAugmentByPort: port range detected: %d-%d", prs.port.Port.IntValue(), *prs.port.EndPort)
+	}
 	cont.indexMutex.Lock()
 	defer cont.indexMutex.Unlock()
 	entries := make(map[string]*portIndexEntry)
 	entry := cont.targetPortIndex[portkey]
+	cont.log.Infof("J: getServiceAugmentByPort: targetPortIndex[%s] exists=%v", portkey, entry != nil)
 	if entry == nil {
+		cont.log.Infof("J: getServiceAugmentByPort: no entry in targetPortIndex for %s, returning", portkey)
 		return
 	}
+	cont.log.Infof("J: getServiceAugmentByPort: entry.port.ports=%v, entry.serviceKeys=%v", entry.port.ports, entry.serviceKeys)
 	if prs.port.Port.Type == intstr.String {
+		cont.log.Infof("J: getServiceAugmentByPort: processing named port, entry.port.ports=%v", entry.port.ports)
 		for port := range entry.port.ports {
 			portstring := strconv.Itoa(port)
 			key := portProto(prs.port.Protocol) + "-" + "num" + "-" + portstring
 			portEntry := cont.targetPortIndex[key]
 			if portEntry != nil {
 				entries[portstring] = portEntry
+				cont.log.Infof("J: getServiceAugmentByPort: named port resolved to numeric key=%s, serviceKeys=%v", key, portEntry.serviceKeys)
 			}
 		}
 	} else if prs.port.EndPort != nil {
@@ -1676,6 +1703,7 @@ func (cont *AciController) getServiceAugmentByPort(
 		endPort := int(*prs.port.EndPort)
 		rangeSize := endPort - startPort + 1
 		proto := portProto(prs.port.Protocol)
+		cont.log.Infof("J: getServiceAugmentByPort: processing port range %d-%d, rangeSize=%d, targetPortIndex size=%d", startPort, endPort, rangeSize, len(cont.targetPortIndex))
 		if rangeSize < len(cont.targetPortIndex) {
 			for port := startPort; port <= endPort; port++ {
 				portstring := strconv.Itoa(port)
@@ -1683,6 +1711,7 @@ func (cont *AciController) getServiceAugmentByPort(
 				portEntry := cont.targetPortIndex[key]
 				if portEntry != nil {
 					entries[portstring] = portEntry
+					cont.log.Infof("J: getServiceAugmentByPort: range port %d found in targetPortIndex, serviceKeys=%v", port, portEntry.serviceKeys)
 				}
 			}
 		} else {
@@ -1699,16 +1728,19 @@ func (cont *AciController) getServiceAugmentByPort(
 				if portNum >= startPort && portNum <= endPort {
 					portstring := strconv.Itoa(portNum)
 					entries[portstring] = portEntry
+					cont.log.Infof("J: getServiceAugmentByPort: port %d in range via iteration, serviceKeys=%v", portNum, portEntry.serviceKeys)
 				}
 			}
 		}
 		// Look through services with named target ports as well
+		cont.log.Infof("J: getServiceAugmentByPort: checking namedPortServiceIndex for multi-port services, namedPortServiceIndex size=%d", len(cont.namedPortServiceIndex))
 		for serviceKey, namedSvcEntry := range cont.namedPortServiceIndex {
-			for _, svcPortEntry := range *namedSvcEntry {
+			for portName, svcPortEntry := range *namedSvcEntry {
 				// named ports that resolve to a single port number are already handled above while processing the -num- ports in targetPortIndex
 				if len(svcPortEntry.resolvedPorts) <= 1 {
 					continue
 				}
+				cont.log.Infof("J: getServiceAugmentByPort: checking service=%s portName=%s resolvedPorts=%v for range %d-%d", serviceKey, portName, svcPortEntry.resolvedPorts, startPort, endPort)
 				// Check if ALL resolved ports are within the range (all-or-nothing semantics)
 				allInRange := true
 				for resolvedPort := range svcPortEntry.resolvedPorts {
@@ -1717,14 +1749,17 @@ func (cont *AciController) getServiceAugmentByPort(
 						break
 					}
 				}
+				cont.log.Infof("J: getServiceAugmentByPort: service=%s portName=%s allInRange=%v", serviceKey, portName, allInRange)
 				if allInRange {
 					portstring := svcPortEntry.targetPortName
 					if _, ok := entries[portstring]; !ok {
 						entries[portstring] = &portIndexEntry{
 							serviceKeys: map[string]bool{serviceKey: true},
 						}
+						cont.log.Infof("J: getServiceAugmentByPort: created new entry for portstring=%s with service=%s", portstring, serviceKey)
 					} else {
 						entries[portstring].serviceKeys[serviceKey] = true
+						cont.log.Infof("J: getServiceAugmentByPort: added service=%s to existing entry for portstring=%s", serviceKey, portstring)
 					}
 				}
 			}
@@ -1733,8 +1768,17 @@ func (cont *AciController) getServiceAugmentByPort(
 	if len(entry.port.ports) > 0 {
 		portString := prs.port.Port.String()
 		entries[portString] = entry
+		cont.log.Infof("J: getServiceAugmentByPort: entry.port.ports has entries, adding portString=%s", portString)
 	}
+	cont.log.Infof("J: getServiceAugmentByPort: final entries count=%d, keys=%v", len(entries), func() []string {
+		keys := make([]string, 0, len(entries))
+		for k := range entries {
+			keys = append(keys, k)
+		}
+		return keys
+	}())
 	for key, portentry := range entries {
+		cont.log.Infof("J: getServiceAugmentByPort: processing entry key=%s with serviceKeys=%v", key, portentry.serviceKeys)
 		for servicekey := range portentry.serviceKeys {
 			serviceobj, _, err := cont.serviceIndexer.GetByKey(servicekey)
 			if err != nil {
@@ -1743,9 +1787,11 @@ func (cont *AciController) getServiceAugmentByPort(
 				continue
 			}
 			if serviceobj == nil {
+				cont.log.Infof("J: getServiceAugmentByPort: service %s not found in indexer", servicekey)
 				continue
 			}
 			service := serviceobj.(*v1.Service)
+			cont.log.Infof("J: getServiceAugmentByPort: found service %s/%s with %d ports", service.Namespace, service.Name, len(service.Spec.Ports))
 
 			for _, svcPort := range service.Spec.Ports {
 				if svcPort.Protocol != *prs.port.Protocol {
@@ -1757,6 +1803,7 @@ func (cont *AciController) getServiceAugmentByPort(
 						intKey, error := strconv.Atoi(key)
 						if error == nil && svcPortIdxEntry.resolvedPorts[intKey] {
 							match = true
+							cont.log.Infof("J: getServiceAugmentByPort: matched via namedPortServiceIndex, service=%s svcPort.Name=%s key=%s", servicekey, svcPort.Name, key)
 						}
 					}
 				}
@@ -1768,6 +1815,7 @@ func (cont *AciController) getServiceAugmentByPort(
 
 				updateServiceAugmentForService(portAugments,
 					proto, port, service)
+				cont.log.Infof("J: getServiceAugmentByPort: calling updateServiceAugmentForService proto=%s port=%s service=%s/%s", proto, port, service.Namespace, service.Name)
 
 				logger.WithFields(logrus.Fields{
 					"proto":   proto,
@@ -2719,7 +2767,37 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 	prs *portRemoteSubnet, portAugments map[string]*portServiceAugment,
 	subnetIndex cidranger.Ranger, logger *logrus.Entry) {
 	cont := seps.cont
+	cont.log.Infof("J: SetNpServiceAugmentForService called for servicekey=%s", servicekey)
 	npTargetPortsMap := cont.getPortNums(prs.port)
+	cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s npTargetPortsMap=%v", servicekey, npTargetPortsMap)
+	// Log the namedPortServiceIndex state
+	cont.indexMutex.Lock()
+	if len(cont.namedPortServiceIndex) > 0 {
+		cont.log.Infof("J: SetNpServiceAugmentForService: namedPortServiceIndex contents:")
+		for svcKey, portMap := range cont.namedPortServiceIndex {
+			for svcPortName, portInfo := range *portMap {
+				if portInfo != nil {
+					var ports []int
+					for port := range portInfo.resolvedPorts {
+						ports = append(ports, port)
+					}
+					cont.log.Infof("  service=%s, svcPortName=%s, targetPortName=%s, resolvedPorts=%v",
+						svcKey, svcPortName, portInfo.targetPortName, ports)
+				}
+			}
+		}
+	} else {
+		cont.log.Infof("J: SetNpServiceAugmentForService: namedPortServiceIndex is empty")
+	}
+	cont.indexMutex.Unlock()
+
+	if prs.port != nil {
+		if prs.port.EndPort != nil {
+			cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s NP port range: %d-%d", servicekey, prs.port.Port.IntValue(), *prs.port.EndPort)
+		} else if prs.port.Port != nil {
+			cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s NP single port: %v (type=%d)", servicekey, prs.port.Port, prs.port.Port.Type)
+		}
+	}
 
 	// Helper function to check if a numeric port matches the NetworkPolicy port spec
 	checkNumericPortMatchesNetpol := func(port int) bool {
@@ -2739,19 +2817,25 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 		logger.Error("Could not list endpoint slices: ", err)
 		return
 	}
+	cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s found %d endpointSlices in namespace", servicekey, len(endpointSliceList))
 	for _, svcPort := range service.Spec.Ports {
+		cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s checking svcPort name=%s, port=%d, targetPort=%v (type=%d)", servicekey, svcPort.Name, svcPort.Port, svcPort.TargetPort, svcPort.TargetPort.Type)
 		incomplete := false
 		hasValidatedSlice := false
 		if prs.port != nil &&
 			(svcPort.Protocol != *prs.port.Protocol) {
 			// egress rule does not match service target port
+			cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s svcPort %s protocol mismatch, skipping", servicekey, svcPort.Name)
 			continue
 		}
 		// Match any port if no port is specified in the np
 		portMatched := prs.port == nil || prs.port.Port == nil
+		cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s anyPort=%v", servicekey, portMatched)
 
 		if !portMatched {
 			if svcPort.TargetPort.Type == intstr.String {
+				cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s svcPort %s has named targetPort: %s", servicekey, svcPort.Name, svcPort.TargetPort.String())
+				cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s named port mismatch: NP wants %s, svc has %s. comp: %v", servicekey, prs.port.Port.String(), svcPort.TargetPort.String(), prs.port.Port.Type == intstr.String)
 				if prs.port.Port.Type == intstr.String {
 					if prs.port.Port.String() != svcPort.TargetPort.String() {
 						continue
@@ -2781,7 +2865,9 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 				// 	}
 				// }
 			} else {
-				if !checkNumericPortMatchesNetpol(svcPort.TargetPort.IntValue()) {
+				matches := checkNumericPortMatchesNetpol(svcPort.TargetPort.IntValue())
+				cont.log.Infof("J: SetNpServiceAugmentForService: servicekey=%s numeric targetPort %d matches NP: %v", servicekey, svcPort.TargetPort.IntValue(), matches)
+				if !matches {
 					continue
 				}
 				portMatched = true
