@@ -2224,7 +2224,6 @@ func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey
 		portnums := make(map[int]bool)
 
 		if port.TargetPort.Type == intstr.String {
-			cont.indexMutex.Lock()
 			entry, exists := cont.namedPortServiceIndex[svcKey]
 			if !old {
 				if !exists {
@@ -2244,7 +2243,6 @@ func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey
 					cont.namedPortServiceIndex[svcKey] = entry
 				}
 			}
-			cont.indexMutex.Unlock()
 			key = portProto(&port.Protocol) + "-name-" + port.TargetPort.String()
 		} else {
 			portNum := port.TargetPort.IntValue()
@@ -2349,8 +2347,8 @@ func (cont *AciController) serviceAdded(obj interface{}) {
 		return
 	}
 
-	ports := cont.processServiceTargetPorts(service, servicekey, true)
 	cont.indexMutex.Lock()
+	ports := cont.processServiceTargetPorts(service, servicekey, false)
 	cont.queuePortNetPolUpdates(ports)
 	cont.updateTargetPortIndex(true, servicekey, nil, ports)
 	cont.indexMutex.Unlock()
@@ -2368,9 +2366,9 @@ func (cont *AciController) serviceUpdated(oldSvc, newSvc interface{}) {
 		return
 	}
 	if !reflect.DeepEqual(oldservice.Spec.Ports, newservice.Spec.Ports) {
-		oldPorts := cont.processServiceTargetPorts(oldservice, servicekey, false)
-		newPorts := cont.processServiceTargetPorts(newservice, servicekey, true)
 		cont.indexMutex.Lock()
+		oldPorts := cont.processServiceTargetPorts(oldservice, servicekey, true)
+		newPorts := cont.processServiceTargetPorts(newservice, servicekey, false)
 		cont.queuePortNetPolUpdates(oldPorts)
 		cont.updateTargetPortIndex(true, servicekey, oldPorts, newPorts)
 		cont.queuePortNetPolUpdates(newPorts)
@@ -2402,8 +2400,8 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 		return
 	}
 
-	ports := cont.processServiceTargetPorts(service, servicekey, false)
 	cont.indexMutex.Lock()
+	ports := cont.processServiceTargetPorts(service, servicekey, true)
 	cont.updateTargetPortIndex(true, servicekey, ports, nil)
 	cont.queuePortNetPolUpdates(ports)
 	delete(cont.snatServices, servicekey)
