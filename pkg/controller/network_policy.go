@@ -2745,41 +2745,43 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 			continue
 		}
 		// Match any port if no port is specified in the np
-		anyPort := prs.port == nil || prs.port.Port == nil
+		portMatched := prs.port == nil || prs.port.Port == nil
 
-		if !anyPort {
+		if !portMatched {
 			if svcPort.TargetPort.Type == intstr.String {
 				if prs.port.Port.Type == intstr.String {
 					if prs.port.Port.String() != svcPort.TargetPort.String() {
 						continue
 					}
-				} else {
-					// For named service ports, check if ALL resolved ports match the NP target ports
-					entry, entryExists := cont.namedPortServiceIndex[servicekey]
-					if !entryExists {
-						continue
-					}
-					portEntry, portEntryExists := (*entry)[svcPort.Name]
-					if !portEntryExists || portEntry == nil {
-						continue
-					}
-					// All resolved ports must match the NP target ports
-					allMatch := true
-					for resolvedPort := range portEntry.resolvedPorts {
-						if !checkNumericPortMatchesNetpol(resolvedPort) {
-							allMatch = false
-							break
-						}
-					}
-					if !allMatch {
-						continue
-					}
+					portMatched = true
 				}
+				// else {
+				// 	// For named service ports, check if ALL resolved ports match the NP target ports
+				// 	entry, entryExists := cont.namedPortServiceIndex[servicekey]
+				// 	if !entryExists {
+				// 		continue
+				// 	}
+				// 	portEntry, portEntryExists := (*entry)[svcPort.Name]
+				// 	if !portEntryExists || portEntry == nil {
+				// 		continue
+				// 	}
+				// 	// All resolved ports must match the NP target ports
+				// 	allMatch := true
+				// 	for resolvedPort := range portEntry.resolvedPorts {
+				// 		if !checkNumericPortMatchesNetpol(resolvedPort) {
+				// 			allMatch = false
+				// 			break
+				// 		}
+				// 	}
+				// 	if !allMatch {
+				// 		continue
+				// 	}
+				// }
 			} else {
 				if !checkNumericPortMatchesNetpol(svcPort.TargetPort.IntValue()) {
 					continue
 				}
-				// portMatched = true
+				portMatched = true
 			}
 		}
 
@@ -2802,6 +2804,10 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 
 			if foundEpPort == nil {
 				continue
+			}
+			if !portMatched && (foundEpPort.Port == nil || !checkNumericPortMatchesNetpol(int(*foundEpPort.Port))) {
+				incomplete = true
+				break
 			}
 			// @FIXME for non ready address
 			for _, endpoint := range endpointSlices.Endpoints {
