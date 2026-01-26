@@ -1318,6 +1318,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 				"ipv6", "", "", "", remoteSubnets, addPodSubnetAsRemIp)
 		}
 	} else {
+		ruleCounter := 0
 		for j := range ports {
 			proto := portProto(ports[j].Protocol)
 			var portRanges []portRange
@@ -1354,33 +1355,35 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 					}
 				}
 			}
-			for i, pr := range portRanges {
+			for _, pr := range portRanges {
 				if !cont.configuredPodNetworkIps.V4.Empty() {
-					prefix := fmt.Sprintf("%s_%d-ipv4", ruleName, j+i)
+					prefix := fmt.Sprintf("%s_%d-ipv4", ruleName, ruleCounter)
 					policyRuleName := util.AciNameForKey(prefix, "", np.Name)
 					cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 						"ipv4", proto, pr.fromPort, pr.toPort, remoteSubnets, addPodSubnetAsRemIp)
 				}
 				if !cont.configuredPodNetworkIps.V6.Empty() {
-					prefix := fmt.Sprintf("%s_%d-ipv6", ruleName, j+i)
+					prefix := fmt.Sprintf("%s_%d-ipv6", ruleName, ruleCounter)
 					policyRuleName := util.AciNameForKey(prefix, "", np.Name)
 					cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 						"ipv6", proto, pr.fromPort, pr.toPort, remoteSubnets, addPodSubnetAsRemIp)
 				}
+				ruleCounter++
 			}
 			if len(portRanges) == 0 && proto != "" {
 				if !cont.configuredPodNetworkIps.V4.Empty() {
-					prefix := fmt.Sprintf("%s_%d-ipv4", ruleName, j)
+					prefix := fmt.Sprintf("%s_%d-ipv4", ruleName, ruleCounter)
 					policyRuleName := util.AciNameForKey(prefix, "", np.Name)
 					cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 						"ipv4", proto, "", "", remoteSubnets, addPodSubnetAsRemIp)
 				}
 				if !cont.configuredPodNetworkIps.V6.Empty() {
-					prefix := fmt.Sprintf("%s_%d-ipv6", ruleName, j)
+					prefix := fmt.Sprintf("%s_%d-ipv6", ruleName, ruleCounter)
 					policyRuleName := util.AciNameForKey(prefix, "", np.Name)
 					cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 						"ipv6", proto, "", "", remoteSubnets, addPodSubnetAsRemIp)
 				}
+				ruleCounter++
 			}
 		}
 	}
