@@ -69,6 +69,7 @@ type PrimaryCNIType string
 
 const (
 	PrimaryCNISRIOV           = "sriov"
+	PrimaryCNIBOND            = "bond"
 	PrimaryCNIMACVLAN         = "macvlan"
 	PrimaryCNIBridge          = "bridge"
 	PrimaryCNIOpenShiftBridge = "cnv-bridge"
@@ -776,6 +777,11 @@ func (agent *HostAgent) parseChainedPlugins(config Config, netattData *NetworkAt
 					netattData.PluginVlan = fmt.Sprintf("%d", plugin.Vlan)
 					agent.handlePluginVlan(netattData)
 				}
+			case "bond":
+				{
+					netattData.PrimaryCNI = PrimaryCNIBOND
+					agent.log.Infof("Primary CNI set to bond")
+				}
 			case "macvlan", "ipvlan":
 				{
 					netattData.PrimaryCNI = PrimaryCNIMACVLAN
@@ -923,6 +929,10 @@ func (agent *HostAgent) networkAttDefChanged(ntd *netpolicy.NetworkAttachmentDef
 				netattdata.FabricAttachmentData = prevnetattdata.FabricAttachmentData
 			}
 			agent.netattdefmap[netAttDefKey] = &netattdata
+			if netattdata.PrimaryCNI == PrimaryCNIBOND {
+				agent.log.Info("Skip Programming for bond CNI")
+				return
+			}
 			for _, iface := range netattdata.Ifaces {
 				agent.netattdefifacemap[iface] = &netattdata
 				if fabAttData, err := agent.GetFabricDiscoveryNeighborDataLocked(iface); err == nil {
