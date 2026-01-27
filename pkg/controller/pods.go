@@ -369,6 +369,10 @@ func (cont *AciController) deleteCtrNmPortForPod(pod *v1.Pod, podkey string) {
 						delete(pods, podkey)
 						if len(pods) == 0 {
 							delete(ctrNmpEntry.ctrNmpToPods, key)
+							portkey := portProto(&ctrportspec.Protocol) + "-name-" + ctrportspec.Name
+							if entry, exists := cont.targetPortIndex[portkey]; exists {
+								delete(entry.port.ports, int(ctrportspec.ContainerPort))
+							}
 						}
 					}
 					if len(ctrNmpEntry.ctrNmpToPods) == 0 {

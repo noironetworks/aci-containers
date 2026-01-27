@@ -160,6 +160,8 @@ type AciController struct {
 	endpointsIpIndex cidranger.Ranger
 	// index of service target ports
 	targetPortIndex map[string]*portIndexEntry
+	// index of services with named target ports
+	namedPortServiceIndex map[string]*namedPortServiceIndexEntry
 	// index of ip blocks referenced by network policy egress rules
 	netPolSubnetIndex cidranger.Ranger
 	// index of pods matched by erspan policies
@@ -344,7 +346,7 @@ type ipIndexEntry struct {
 
 type targetPort struct {
 	proto v1.Protocol
-	ports []int
+	ports map[int]bool
 }
 
 type portIndexEntry struct {
@@ -352,6 +354,13 @@ type portIndexEntry struct {
 	serviceKeys       map[string]bool
 	networkPolicyKeys map[string]bool
 }
+
+type namedPortServiceIndexPort struct {
+	targetPortName string
+	resolvedPorts  map[int]bool
+}
+
+type namedPortServiceIndexEntry map[string]*namedPortServiceIndexPort
 
 type portRangeSnat struct {
 	start int

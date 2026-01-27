@@ -34,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
@@ -2216,17 +2217,47 @@ func getEndpointsIps(endpoints *v1.Endpoints) map[string]bool {
 	return ips
 }
 
-func getServiceTargetPorts(service *v1.Service) map[string]targetPort {
+func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey string, old bool) map[string]targetPort {
 	ports := make(map[string]targetPort)
 	for _, port := range service.Spec.Ports {
-		portNum := port.TargetPort.IntValue()
-		if portNum <= 0 {
-			portNum = int(port.Port)
+		var key string
+		portnums := make(map[int]bool)
+
+		if port.TargetPort.Type == intstr.String {
+			entry, exists := cont.namedPortServiceIndex[svcKey]
+			if !old {
+				if !exists {
+					cont.log.Debugf("Creating named port index for service: %s, port: %s", svcKey, port.Name)
+					newEntry := make(namedPortServiceIndexEntry)
+					entry = &newEntry
+				}
+				(*entry)[port.Name] = &namedPortServiceIndexPort{
+					targetPortName: port.TargetPort.String(),
+					resolvedPorts:  make(map[int]bool),
+				}
+				cont.namedPortServiceIndex[svcKey] = entry
+			} else if exists {
+				delete(*entry, port.Name)
+				cont.log.Debugf("Removed named port index for service: %s port: %s, entry: %v", svcKey, port.Name, entry)
+				if len(*entry) == 0 {
+					delete(cont.namedPortServiceIndex, svcKey)
+				} else {
+					cont.namedPortServiceIndex[svcKey] = entry
+				}
+			}
+			key = portProto(&port.Protocol) + "-name-" + port.TargetPort.String()
+		} else {
+			portNum := port.TargetPort.IntValue()
+			if portNum <= 0 {
+				portNum = int(port.Port)
+			}
+			key = portProto(&port.Protocol) + "-num-" + strconv.Itoa(portNum)
+			portnums[portNum] = true
 		}
-		key := portProto(&port.Protocol) + "-num-" + strconv.Itoa(portNum)
+
 		ports[key] = targetPort{
 			proto: port.Protocol,
-			ports: []int{portNum},
+			ports: portnums,
 		}
 	}
 	return ports
@@ -2318,8 +2349,8 @@ func (cont *AciController) serviceAdded(obj interface{}) {
 		return
 	}
 
-	ports := getServiceTargetPorts(service)
 	cont.indexMutex.Lock()
+	ports := cont.processServiceTargetPorts(service, servicekey, false)
 	cont.queuePortNetPolUpdates(ports)
 	cont.updateTargetPortIndex(true, servicekey, nil, ports)
 	cont.indexMutex.Unlock()
@@ -2336,10 +2367,10 @@ func (cont *AciController) serviceUpdated(oldSvc, newSvc interface{}) {
 			Error("Could not create service key: ", err)
 		return
 	}
-	oldPorts := getServiceTargetPorts(oldservice)
-	newPorts := getServiceTargetPorts(newservice)
-	if !reflect.DeepEqual(oldPorts, newPorts) {
+	if !reflect.DeepEqual(oldservice.Spec.Ports, newservice.Spec.Ports) {
 		cont.indexMutex.Lock()
+		oldPorts := cont.processServiceTargetPorts(oldservice, servicekey, true)
+		newPorts := cont.processServiceTargetPorts(newservice, servicekey, false)
 		cont.queuePortNetPolUpdates(oldPorts)
 		cont.updateTargetPortIndex(true, servicekey, oldPorts, newPorts)
 		cont.queuePortNetPolUpdates(newPorts)
@@ -2371,8 +2402,8 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 		return
 	}
 
-	ports := getServiceTargetPorts(service)
 	cont.indexMutex.Lock()
+	ports := cont.processServiceTargetPorts(service, servicekey, true)
 	cont.updateTargetPortIndex(true, servicekey, ports, nil)
 	cont.queuePortNetPolUpdates(ports)
 	delete(cont.snatServices, servicekey)
@@ -2446,6 +2477,48 @@ func (cont *AciController) processDelayedEpSlices() {
 	}
 }
 
+func (cont *AciController) resolveServiceNamedPortFromEpSlice(epSlice *discovery.EndpointSlice, serviceKey string, old bool) {
+	indexEntry, ok := cont.namedPortServiceIndex[serviceKey]
+	if !ok {
+		return
+	}
+	for _, port := range epSlice.Ports {
+		if port.Name == nil || port.Port == nil {
+			continue
+		}
+		if portEntry, ok := (*indexEntry)[*port.Name]; ok && portEntry != nil {
+			portNum := int(*port.Port)
+			if old {
+				delete(portEntry.resolvedPorts, portNum)
+				cont.log.Debugf("Deleting port: %d from service %s resolved target port. Resolved ports: %v", portNum, serviceKey, portEntry.resolvedPorts)
+			} else {
+				portEntry.resolvedPorts[portNum] = true
+				cont.log.Debugf("Adding port: %d to service %s resolved target port. Resolved ports: %v", portNum, serviceKey, portEntry.resolvedPorts)
+			}
+			key := portProto(port.Protocol) + "-num-" + strconv.Itoa(portNum)
+			targetPortIndexEntry := cont.targetPortIndex[key]
+			if targetPortIndexEntry == nil && len(portEntry.resolvedPorts) == 1 {
+				targetPortIndexEntry = &portIndexEntry{
+					port: targetPort{
+						proto: *port.Protocol,
+						ports: make(map[int]bool),
+					},
+					serviceKeys:       make(map[string]bool),
+					networkPolicyKeys: make(map[string]bool),
+				}
+				targetPortIndexEntry.port.ports[portNum] = true
+				cont.targetPortIndex[key] = targetPortIndexEntry
+			}
+			if targetPortIndexEntry != nil {
+				if len(portEntry.resolvedPorts) == 1 {
+					targetPortIndexEntry.serviceKeys[serviceKey] = true
+				} else {
+					delete(targetPortIndexEntry.serviceKeys, serviceKey)
+				}
+			}
+		}
+	}
+}
 func (cont *AciController) endpointSliceAdded(obj interface{}) {
 	endpointslice, ok := obj.(*discovery.EndpointSlice)
 	if !ok {
@@ -2459,6 +2532,7 @@ func (cont *AciController) endpointSliceAdded(obj interface{}) {
 	ips := cont.getEndpointSliceIps(endpointslice)
 	cont.indexMutex.Lock()
 	cont.updateIpIndex(cont.endpointsIpIndex, nil, ips, servicekey)
+	cont.resolveServiceNamedPortFromEpSlice(endpointslice, servicekey, false)
 	cont.queueIPNetPolUpdates(ips)
 	cont.indexMutex.Unlock()
 
@@ -2489,6 +2563,7 @@ func (cont *AciController) endpointSliceDeleted(obj interface{}) {
 	ips := cont.getEndpointSliceIps(endpointslice)
 	cont.indexMutex.Lock()
 	cont.updateIpIndex(cont.endpointsIpIndex, ips, nil, servicekey)
+	cont.resolveServiceNamedPortFromEpSlice(endpointslice, servicekey, true)
 	cont.queueIPNetPolUpdates(ips)
 	cont.indexMutex.Unlock()
 	cont.queueEndpointSliceNetPolUpdates(endpointslice)
@@ -2608,6 +2683,8 @@ func (cont *AciController) doendpointSliceUpdated(oldendpointslice *discovery.En
 	newIps := cont.getEndpointSliceIps(newendpointslice)
 	if !reflect.DeepEqual(oldIps, newIps) {
 		cont.indexMutex.Lock()
+		cont.resolveServiceNamedPortFromEpSlice(oldendpointslice, servicekey, true)
+		cont.resolveServiceNamedPortFromEpSlice(newendpointslice, servicekey, false)
 		cont.queueIPNetPolUpdates(oldIps)
 		cont.updateIpIndex(cont.endpointsIpIndex, oldIps, newIps, servicekey)
 		cont.queueIPNetPolUpdates(newIps)
