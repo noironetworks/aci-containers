@@ -121,6 +121,7 @@ func (conn *ApicConnection) login() (string, error) {
 			return "", err
 		}
 	}
+	conn.log.Infof("Req: %+v", &struct{ Method, URI string }{method, uri})
 	resp, err := conn.sendHTTPSRequestToAPIC(method, uri, raw, "application/json", false, nil)
 	if err != nil {
 		return "", err
@@ -972,7 +973,6 @@ func (conn *ApicConnection) checkLeafReboot() {
 func (conn *ApicConnection) sendHTTPSRequestToAPIC(method string, uri string, body []byte, contentType string,
 	restart bool, exceptionStatusCode []int) (*http.Response, error) {
 	url := fmt.Sprintf("https://%s%s", conn.Apic[conn.ApicIndex], uri)
-	conn.log.Info("APIC connection URL: ", url)
 	retry := 0
 
 	for {
@@ -990,7 +990,6 @@ func (conn *ApicConnection) sendHTTPSRequestToAPIC(method string, uri string, bo
 			req.Header.Set("Content-Type", contentType)
 		}
 		conn.sign(req, uri, body)
-		conn.log.Debugf("Req: %+v", req)
 
 		if retry > 0 {
 			conn.log.Infof("Retrying request : %s, Attempt %d ", req.URL.String(), retry)
@@ -1139,6 +1138,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 	}
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/mo/%s.json?%s", dn, strings.Join(args, "&"))
+	conn.log.Debugf("URL: %v", uri)
 	resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", true, nil)
 	if err != nil {
 		return
@@ -1441,6 +1441,7 @@ func (conn *ApicConnection) SetSubscriptionHooks(value string,
 
 func (conn *ApicConnection) GetApicResponse(uri string) (ApicResponse, error) {
 	conn.log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
+	conn.log.Debug("Apic Get url: ", uri)
 	var apicresp ApicResponse
 	resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", false, nil)
 	if err != nil {
@@ -1460,6 +1461,7 @@ func (conn *ApicConnection) doSubscribe(args []string,
 	// properly encoding the URI query parameters breaks APIC
 	uri := fmt.Sprintf("/api/%s/%s.json?subscription=yes&%s%s",
 		kind, value, refresh_interval, strings.Join(args, "&"))
+	conn.log.Info("APIC connection URL: ", uri)
 	resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", false, nil)
 	if err != nil {
 		return false
@@ -1759,6 +1761,7 @@ func getRootDn(dn, rootClass string) string {
 
 func (conn *ApicConnection) PostApicObjects(uri string, payload ApicSlice) error {
 	conn.log.Debug("apicIndex: ", conn.Apic[conn.ApicIndex], " uri: ", uri)
+	conn.log.Debug("Apic POST url: ", uri)
 
 	if conn.token == "" {
 		token, err := conn.login()
@@ -1774,6 +1777,7 @@ func (conn *ApicConnection) PostApicObjects(uri string, payload ApicSlice) error
 		conn.log.Error("Could not serialize object: ", err)
 		return err
 	}
+	conn.log.Infof("Post: %+v", &struct{ Method, URI string }{"POST", uri})
 	resp, err := conn.sendHTTPSRequestToAPIC("POST", uri, raw, "application/json", false, nil)
 	if err != nil {
 		return err
