@@ -69,11 +69,11 @@ func (cont *AciController) initAaepMonitorInformerFromClient(
 	aaepMonitorClient *aaepmonitorclientset.Clientset) {
 	cont.initAaepMonitorInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return aaepMonitorClient.AciV1().AaepMonitors().List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return aaepMonitorClient.AciV1().AaepMonitors().List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return aaepMonitorClient.AciV1().AaepMonitors().Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return aaepMonitorClient.AciV1().AaepMonitors().Watch(ctx, options)
 			},
 		})
 }
