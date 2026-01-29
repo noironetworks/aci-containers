@@ -4895,7 +4895,7 @@ func TestBuildServiceAugment(t *testing.T) {
 		cont.targetPortIndex[portkey] = &portIndexEntry{
 			port: targetPort{
 				proto: "tcp",
-				ports: []int{8080},
+				ports: map[int]bool{8080: true},
 			},
 		}
 
