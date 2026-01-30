@@ -79,7 +79,6 @@ func TestInitFlags(t *testing.T) {
 		EnableOpflexAgentReconnect:        false,
 		OpflexDeviceReconnectWaitTimeout:  0,
 		InstallIstio:                      false,
-		EnabledEndpointSlice:              false,
 		Flavor:                            "",
 		EnableVmmInjectedLabels:           false,
 		OpflexDeviceDeleteTimeout:         0,

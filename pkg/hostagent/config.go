@@ -254,8 +254,6 @@ type HostAgentConfig struct {
 	// Delay between dhcp release and renew in seconds
 	DhcpDelay int `json:"dhcp-delay,omitempty"`
 
-	// enable EndpointSlice
-	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
 	// Cluster Flavour
 	Flavor string `json:"flavor,omitempty"`
 	// Installer lb Ip provisioned for Openshift on Esx
