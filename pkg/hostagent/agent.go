@@ -55,6 +55,8 @@ const (
 
 var GbpConfig *GBPConfig
 
+type nodeUpdateFunc func(*v1.Node) (*v1.Node, error)
+
 type HostAgent struct {
 	log    *logrus.Logger
 	config *HostAgentConfig
@@ -155,6 +157,7 @@ type HostAgent struct {
 	podNameToTimeStamps map[string]*epTimeStamps
 	completedSyncTypes  map[string]struct{}
 	taintRemoved        atomic.Value
+	updateNode          nodeUpdateFunc
 }
 
 type ServiceEndPointType interface {

@@ -140,6 +140,9 @@ type HostAgentConfig struct {
 	// Multicast groups file used by OpFlex agent
 	OpFlexMcastFile string `json:"opflex-mcast-file,omitempty"`
 
+	// Directory for events
+	OpFlexEventDir string `json:"opflex-event-dir,omitempty"`
+
 	// File for writing Opflex server configuration
 	OpFlexServerConfigFile string `json:"opflex-server-config-file,omitempty"`
 
@@ -254,6 +257,9 @@ type HostAgentConfig struct {
 	// Delay between dhcp release and renew in seconds
 	DhcpDelay int `json:"dhcp-delay,omitempty"`
 
+	// Aging time for the platform config delete event in seconds
+	PlatformConfigDeleteEventAge int `json:"platform-config-delete-event-age,omitempty"`
+
 	// enable EndpointSlice
 	EnabledEndpointSlice bool `json:"enable_endpointslice,omitempty"`
 	// Cluster Flavour
@@ -329,6 +335,7 @@ func (config *HostAgentConfig) InitFlags() {
 
 	flag.StringVar(&config.OpFlexConfigPath, "opflex-config-path", "/usr/local/etc/opflex-agent-ovs/base-conf.d", "Directory for writing Opflex configuration")
 	flag.StringVar(&config.OpFlexEndpointDir, "opflex-endpoint-dir", "/usr/local/var/lib/opflex-agent-ovs/endpoints/", "Directory for writing OpFlex endpoint metadata")
+	flag.StringVar(&config.OpFlexEventDir, "opflex-event-dir", "/usr/local/var/lib/opflex-agent-ovs/events/", "Directory for events")
 	flag.StringVar(&config.OpFlexServiceDir, "opflex-service-dir", "/usr/local/var/lib/opflex-agent-ovs/services/", "Directory for writing OpFlex anycast service metadata")
 	flag.StringVar(&config.OpFlexSnatDir, "opflex-snat-dir", "/usr/local/var/lib/opflex-agent-ovs/snats/", "Directory for writing OpFlex snat metadata")
 	flag.StringVar(&config.OpFlexNetPolDir, "opflex-netpol-dir", "/usr/local/var/lib/opflex-agent-ovs/netpols/", "Directory for writing OpFlex network policy metadata")
@@ -380,6 +387,7 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.UintVar(&config.DropLogExpiryTime, "drop-log-expiry", 10, "Expiry time for droplogs in the pipeline in minutes")
 	flag.UintVar(&config.DropLogRepeatIntervalTime, "drop-log-repeat-intvl", 2, "Deduplication interval for droplogs of the same event in minutes")
 	flag.IntVar(&config.DhcpDelay, "dhcp-delay", 5, "Delay between dhcp release and dhcp renew in seconds")
+	flag.IntVar(&config.PlatformConfigDeleteEventAge, "platform-config-delete-event-age", 120, "Aging time for the platform config delete event in seconds")
 	flag.IntVar(&config.DhcpRenewMaxRetryCount, "dhcp-renew-max-retry-count", 5, "max number of times dhcp renew should be executed before giving up")
 	flag.StringVar(&config.Flavor, "flavor", "", "Cluster flavor where it is running on")
 	flag.StringVar(&config.InstallerProvlbIp, "installer-provisioned-lb-ip", "", "Installer lb ip provisioned for OpenShift on ESX")
