@@ -91,12 +91,11 @@ func (cont *AciController) initFabricVlanPoolInformerBase(listWatch *cache.ListW
 func (cont *AciController) initFabricVlanPoolInformerFromClient(fabAttClient *fabattclset.Clientset) {
 	cont.initFabricVlanPoolInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return fabAttClient.AciV1().FabricVlanPools(metav1.NamespaceAll).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return fabAttClient.AciV1().FabricVlanPools(metav1.NamespaceAll).List(ctx, options)
 			},
-
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return fabAttClient.AciV1().FabricVlanPools(metav1.NamespaceAll).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return fabAttClient.AciV1().FabricVlanPools(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }

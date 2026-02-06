@@ -45,19 +45,11 @@ func (cont *AciController) initSnatLocalInfoInformerFromClient(
 	snatClient *snatlocalinfoclset.Clientset) {
 	cont.initSnatLocalInfoInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := snatClient.AciV1().SnatLocalInfos(metav1.NamespaceAll).List(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatal("Failed to list SnatLocalInfos during initialization of SnatLocalInfoInformer ", err)
-				}
-				return obj, err
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return snatClient.AciV1().SnatLocalInfos(metav1.NamespaceAll).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := snatClient.AciV1().SnatLocalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatal("Failed to watch SnatLocalInfos during initialization SnatLocalInfoInformer ", err)
-				}
-				return obj, err
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return snatClient.AciV1().SnatLocalInfos(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }
@@ -80,19 +72,11 @@ func (cont *AciController) initSnatNodeInformerFromClient(
 	snatClient *nodeinfoclset.Clientset) {
 	cont.initSnatNodeInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatal("Failed to list NodeInfos during initialization of SnatNodeInformer")
-				}
-				return obj, err
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatal("Failed to watch NodeInfos during initialization SnatNodeInformer")
-				}
-				return obj, err
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return snatClient.AciV1().NodeInfos(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }
@@ -121,23 +105,15 @@ func (cont *AciController) initSnatCfgFromClient(
 	kubeClient kubernetes.Interface) {
 	cont.initSnatCfgInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
-				obj, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").List(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatal("Failed to list ConfigMap during initialization of SnatCfg")
-				}
-				return obj, err
+				return kubeClient.CoreV1().ConfigMaps("aci-containers-system").List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector =
 					fields.Set{"metadata.name": "snat-operator-config"}.String()
-				obj, err := kubeClient.CoreV1().ConfigMaps("aci-containers-system").Watch(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatal("Failed to watch NodeInfos during initialization SnatNodeInformer")
-				}
-				return obj, err
+				return kubeClient.CoreV1().ConfigMaps("aci-containers-system").Watch(ctx, options)
 			},
 		})
 }
