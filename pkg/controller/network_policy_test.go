@@ -4327,6 +4327,120 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 	}
 }
 
+// TestNetworkPolicyMultipleNPsSharedHPPNamedPorts tests the scenario where
+// multiple NetworkPolicies with identical rules but different PodSelectors
+// share the same HPP, and use named ports that resolve to different port numbers
+func TestNetworkPolicyMultipleNPsSharedHPPNamedPorts(t *testing.T) {
+	// Simple test to verify the fix works in hpp-optimization mode
+	cont := testController()
+	cont.config.HppOptimization = true
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+	cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+		map[string]string{"test": "testv"}))
+
+	// Create two pods with different named ports
+	pod1 := podOnNode("testns", "pod1", "test-node")
+	pod1.ObjectMeta.Labels = map[string]string{"app": "web1"}
+	pod1.Spec.Containers = []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 80}}}}
+
+	pod2 := podOnNode("testns", "pod2", "test-node")
+	pod2.ObjectMeta.Labels = map[string]string{"app": "web2"}
+	pod2.Spec.Containers = []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 8080}}}}
+
+	// Two NetworkPolicies with same rules but different PodSelectors
+	np1 := netpol("testns", "np1",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web1"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	np2 := netpol("testns", "np2",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web2"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	// Add pods first, then run controller, then add network policies
+	// This matches the pattern used in other tests in this file
+	cont.fakePodSource.Add(pod1)
+	cont.fakePodSource.Add(pod2)
+	cont.run()
+	cont.fakeNetworkPolicySource.Add(np1)
+	cont.fakeNetworkPolicySource.Add(np2)
+
+	// Wait for controller to process the network policies
+	hash, _ := util.CreateHashFromNetPol(np1)
+	labelKey := cont.aciNameForKey("np", hash)
+
+	foundNp1Rule := false
+	foundNp2Rule := false
+
+	tu.WaitFor(t, "multiple-nps-shared-hpp-named-ports", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			desiredState := cont.apicConn.GetDesiredState(labelKey)
+			if len(desiredState) == 0 {
+				return false, nil
+			}
+
+			// Verify rules exist for both NPs
+			hppObj := desiredState[0]
+			hppMap, ok := hppObj["hostprotPol"]
+			if !ok || hppMap == nil {
+				return false, nil
+			}
+
+			foundNp1Rule = false
+			foundNp2Rule = false
+
+			for _, child := range hppMap.Children {
+				if subj, ok := child["hostprotSubj"]; ok {
+					if subj != nil && subj.Attributes["name"] == "networkpolicy-ingress" {
+						for _, ruleChild := range subj.Children {
+							if rule, ok := ruleChild["hostprotRule"]; ok {
+								if rule != nil {
+									if name, ok := rule.Attributes["name"].(string); ok {
+										if strings.Contains(name, "__np1") {
+											foundNp1Rule = true
+											// NP1 should have port 80 (or named port "http" before resolution)
+											fromPort := rule.Attributes["fromPort"]
+											if fromPort != "80" && fromPort != "http" {
+												t.Errorf("NP1 should resolve to port 80, got: %v", fromPort)
+											}
+										}
+										if strings.Contains(name, "__np2") {
+											foundNp2Rule = true
+											// NP2 should have port 8080
+											if rule.Attributes["fromPort"] != "8080" {
+												t.Errorf("NP2 should resolve to port 8080, got: %v", rule.Attributes["fromPort"])
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			return foundNp1Rule && foundNp2Rule, nil
+		})
+
+	cont.stop()
+}
+
 func TestCreateStaticNetPolCrs(t *testing.T) {
 	initCont := func() *testAciController {
 		cont := testController()
@@ -4682,7 +4796,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, "test-rule_0-ipv4", subj.HostprotRule[0].Name)
+	assert.Equal(t, "test-rule_0-ipv4__test-network-policy", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -4729,7 +4843,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 				Protocol:            "unspecified",
 				FromPort:            "unspecified",
 				ToPort:              "unspecified",
-				Name:                "test-rule-ipv4",
+				Name:                "test-rule-ipv4__test-network-policy",
 				RsRemoteIpContainer: []string{"test-namespace"},
 				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 					{
@@ -4761,7 +4875,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "unspecified",
 			FromPort:            "unspecified",
 			ToPort:              "unspecified",
-			Name:                "test-rule-ipv4",
+			Name:                "test-rule-ipv4__test-network-policy",
 			RsRemoteIpContainer: []string{},
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
@@ -4819,7 +4933,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "tcp",
 			FromPort:            "8080",
 			ToPort:              "unspecified",
-			Name:                "test-rule_0-ipv4",
+			Name:                "test-rule_0-ipv4__test-network-policy",
 			RsRemoteIpContainer: []string{},
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
