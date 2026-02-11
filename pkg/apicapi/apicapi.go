@@ -412,18 +412,28 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 		}
 	} else {
 		if hasPendingChange {
-			if pending.kind == pendingChangeDelete {
-				for _, handler := range deleteHandlers {
-					handler(dn)
+			if pending.kind == pendingChangeSyncDelete {
+				// Ownership already verified by sync/reconcile;
+				// delete without an extra APIC lookup.
+				requeue = conn.Delete(dn)
+			} else {
+				if pending.kind == pendingChangeDelete {
+					for _, handler := range deleteHandlers {
+						handler(dn)
+					}
+				}
+
+				if (pending.kind != pendingChangeDelete) || (dn != rootDn) {
+					conn.log.Debug("getSubtreeDn for:", rootDn)
+					conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 				}
 			}
-
-			if (pending.kind != pendingChangeDelete) || (dn != rootDn) {
-				conn.log.Debug("getSubtreeDn for:", rootDn)
-				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
-			}
 		} else {
-			requeue = conn.Delete(dn)
+			if conn.isOwnedByController(dn) {
+				requeue = conn.Delete(dn)
+			} else {
+				conn.log.Debug("Skipping delete for unowned dn: ", dn)
+			}
 		}
 	}
 
@@ -1750,6 +1760,30 @@ var tagRegexp = regexp.MustCompile(`[a-zA-Z0-9_]{1,31}-[a-f0-9]{32}`)
 func (conn *ApicConnection) isSyncTag(tag string) bool {
 	return tagRegexp.MatchString(tag) &&
 		strings.HasPrefix(tag, conn.prefix+"-")
+}
+
+// isOwnedByController fetches the object from APIC and checks whether
+// its tagAnnotation matches this controller's sync tag. Returns true
+// only when the object exists on APIC and carries this controller's tag.
+func (conn *ApicConnection) isOwnedByController(dn string) bool {
+	uri := fmt.Sprintf("/api/mo/%s.json?rsp-subtree-class=tagAnnotation", dn)
+	resp, err := conn.GetApicResponse(uri)
+	if err != nil {
+		conn.log.Warning("Failed to fetch object for tag check: ", dn, " err: ", err)
+		return false
+	}
+	if len(resp.Imdata) == 0 {
+		// Object no longer exists on APIC; nothing to protect.
+		conn.log.Debug("Object not found on APIC for tag check: ", dn)
+		return false
+	}
+	tag := resp.Imdata[0].GetTag()
+	if conn.isSyncTag(tag) {
+		return true
+	}
+	conn.log.Debug("Object tag does not match controller prefix, skipping: ",
+		dn, " tag: ", tag)
+	return false
 }
 
 func getRootDn(dn, rootClass string) string {

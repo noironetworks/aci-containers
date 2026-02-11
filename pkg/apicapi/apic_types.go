@@ -95,8 +95,9 @@ type leafCacheEntry struct {
 }
 
 const (
-	pendingChangeDelete = iota
-	pendingChangeUpdate = iota
+	pendingChangeDelete     = iota
+	pendingChangeUpdate     = iota
+	pendingChangeSyncDelete = iota
 )
 
 type pendingChange struct {
