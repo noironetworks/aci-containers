@@ -90,6 +90,15 @@ func servicePort(name string, proto v1.Protocol, port int32, targetPort int) v1.
 	}
 }
 
+func servicePortNamed(name string, proto v1.Protocol, port int32, targetPortName string) v1.ServicePort {
+	return v1.ServicePort{
+		Name:       name,
+		Protocol:   proto,
+		Port:       port,
+		TargetPort: intstr.FromString(targetPortName),
+	}
+}
+
 func endpointPort(proto v1.Protocol, port int32, name string) v1.EndpointPort {
 	return v1.EndpointPort{
 		Name:     name,
@@ -5422,4 +5431,1598 @@ func TestHandleNetPolUpdate(t *testing.T) {
 
 	assert.Equal(t, labelKey, label_key)
 	assert.True(t, ref)
+}
+
+// TestNetworkPolicyEgressMultipleNamedPortsUniqueRuleNames tests that when a
+// network policy has multiple named ports in the same egress rule, each port
+// generates unique hostprotRule names (testing the ruleCounter fix).
+// This tests the fix for the bug where multiple named ports in the same egress
+// rule would generate duplicate rule names when the first named port resolves
+// to multiple target ports.
+func TestNetworkPolicyEgressMultipleNamedPortsUniqueRuleNames(t *testing.T) {
+	// NetworkPolicy with multiple named ports in the same egress rule
+	test_np := netpol("testns", "np1", &metav1.LabelSelector{},
+		nil, []v1net.NetworkPolicyEgressRule{
+			egressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+				},
+				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "https"},
+				},
+			}, nil),
+		}, allPolicyTypes)
+
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	// Pod1 with http (80) and https (443) container ports
+	ports1 := []v1.ContainerPort{
+		{Name: "http", ContainerPort: int32(80)},
+		{Name: "https", ContainerPort: int32(443)},
+	}
+
+	// Pod2 with http on different port (8080) to trigger multiple port resolution
+	ports2 := []v1.ContainerPort{
+		{Name: "http", ContainerPort: int32(8080)},
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+
+	service := npservice("testns", "service1", "9.0.0.42",
+		[]v1.ServicePort{
+			servicePort("http", v1.ProtocolTCP, 9080, 80),
+			servicePort("https", v1.ProtocolTCP, 9443, 443),
+		})
+
+	epSlice := makeEpSlice("testns", "service1-slice",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"1.1.1.1"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod1",
+				},
+			},
+			{
+				Addresses: []string{"2.2.2.2"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod2",
+				},
+			},
+		},
+		[]discovery.EndpointPort{
+			endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+			endpointSlicePort(v1.ProtocolTCP, 443, "https"),
+		},
+		"service1")
+
+	cont := initCont()
+	// Add two pods: one with http=80, another with http=8080
+	// This makes the "http" named port resolve to multiple target ports
+	addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports1)
+	addPod(cont, "testns", "pod2", map[string]string{"l1": "v1"}, ports2)
+	cont.fakeServiceSource.Add(service)
+	cont.fakeEndpointSliceSource.Add(epSlice)
+	cont.run()
+	cont.fakeNetworkPolicySource.Add(test_np)
+
+	tu.WaitFor(t, "network-policy", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			key := cont.aciNameForKey("np", test_np.Namespace+"_"+test_np.Name)
+			slice := cont.apicConn.GetDesiredState(key)
+
+			if len(slice) == 0 {
+				if last {
+					t.Error("No network policy object found")
+				}
+				return false, nil
+			}
+
+			// Get egress rules from the policy
+			obj := slice[0]
+			hppPol, ok := obj["hostprotPol"]
+			if !ok {
+				if last {
+					t.Error("No hostprotPol found in object")
+				}
+				return false, nil
+			}
+
+			var egressSubj *apicapi.ApicObjectBody
+			for _, child := range hppPol.Children {
+				if subj, ok := child["hostprotSubj"]; ok {
+					if name, ok := subj.Attributes["name"].(string); ok && name == "networkpolicy-egress" {
+						egressSubj = subj
+						break
+					}
+				}
+			}
+
+			if egressSubj == nil {
+				if last {
+					t.Error("No egress subject found")
+				}
+				return false, nil
+			}
+
+			// Collect all rule names to check for duplicates
+			ruleNames := make(map[string]bool)
+			var duplicateFound bool
+
+			for _, rule := range egressSubj.Children {
+				if ruleObj, ok := rule["hostprotRule"]; ok {
+					if ruleName, ok := ruleObj.Attributes["name"].(string); ok {
+						if ruleNames[ruleName] {
+							t.Errorf("Duplicate rule name found: %s", ruleName)
+							duplicateFound = true
+						}
+						ruleNames[ruleName] = true
+					}
+				}
+			}
+
+			// We expect at least 5 rules:
+			// - 3 for the named port targets (80, 8080, 443)
+			// - 2 for service augmentation (9080, 9443)
+			if len(ruleNames) < 5 {
+				if last {
+					t.Errorf("Expected at least 5 unique rules, got %d: %v", len(ruleNames), ruleNames)
+				}
+				return false, nil
+			}
+
+			if duplicateFound {
+				return false, fmt.Errorf("duplicate rule names found")
+			}
+
+			return true, nil
+		})
+
+	cont.log.Info("Starting delete")
+	cont.fakeNetworkPolicySource.Delete(test_np)
+	checkDelete(t, npTest{netPol: test_np}, cont)
+	cont.stop()
+}
+
+// TestNamedPortServiceIndexBasic verifies `namedPortServiceIndex` behavior
+// for services with named target ports. It validates that:
+// 1. Adding a service with named ports populates `namedPortServiceIndex`.
+// 2. Deleting the service removes its entries from `namedPortServiceIndex`.
+func TestNamedPortServiceIndexBasic(t *testing.T) {
+	cont := testController()
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+
+	// Create service with named target port
+	service := npservice("testns", "web-service", "10.0.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 80, "http"),
+		})
+	svcKey := "testns/web-service"
+
+	// Add service
+	cont.processServiceTargetPorts(service, svcKey, false)
+
+	// Verify namedPortServiceIndex is populated
+	cont.indexMutex.Lock()
+	webSvcEntry := cont.namedPortServiceIndex[svcKey]
+	assert.NotNil(t, webSvcEntry, "Service should be in namedPortServiceIndex")
+	if webSvcEntry != nil {
+		httpPort := (*webSvcEntry)["http"]
+		assert.NotNil(t, httpPort, "http port should be indexed")
+		if httpPort != nil {
+			assert.Equal(t, "http", httpPort.targetPortName, "targetPortName should be http")
+			assert.NotNil(t, httpPort.resolvedPorts, "resolvedPorts map should exist")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Delete service
+	cont.processServiceTargetPorts(service, svcKey, true)
+
+	// Verify namedPortServiceIndex is cleaned up
+	cont.indexMutex.Lock()
+	_, exists := cont.namedPortServiceIndex[svcKey]
+	assert.False(t, exists, "Service should be removed from namedPortServiceIndex")
+	cont.indexMutex.Unlock()
+}
+
+// TestNamedPortMultipleServicesIndex tests multiple services with same named port
+func TestNamedPortMultipleServicesIndex(t *testing.T) {
+	cont := testController()
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+
+	// Create two services with same named target port
+	service1 := npservice("testns", "web-service", "10.0.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 80, "http"),
+		})
+	service2 := npservice("testns", "api-service", "10.0.0.2",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 8080, "http"),
+		})
+
+	svcKey1 := "testns/web-service"
+	svcKey2 := "testns/api-service"
+
+	// Add both services
+	cont.processServiceTargetPorts(service1, svcKey1, false)
+	cont.processServiceTargetPorts(service2, svcKey2, false)
+
+	// Verify both are in namedPortServiceIndex
+	cont.indexMutex.Lock()
+	assert.NotNil(t, cont.namedPortServiceIndex[svcKey1], "web-service should be in namedPortServiceIndex")
+	assert.NotNil(t, cont.namedPortServiceIndex[svcKey2], "api-service should be in namedPortServiceIndex")
+	cont.indexMutex.Unlock()
+
+	// Add endpoint slices to resolve ports
+	epSlice1 := makeEpSlice("testns", "web-service-abc",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"1.1.1.1"},
+				TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "testns", Name: "pod1"},
+			},
+		},
+		[]discovery.EndpointPort{endpointSlicePort(v1.ProtocolTCP, 80, "http")},
+		"web-service")
+
+	epSlice2 := makeEpSlice("testns", "api-service-abc",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"2.2.2.2"},
+				TargetRef: &v1.ObjectReference{Kind: "Pod", Namespace: "testns", Name: "pod2"},
+			},
+		},
+		[]discovery.EndpointPort{endpointSlicePort(v1.ProtocolTCP, 8080, "http")},
+		"api-service")
+
+	cont.resolveServiceNamedPortFromEpSlice(epSlice1, svcKey1, false)
+	cont.resolveServiceNamedPortFromEpSlice(epSlice2, svcKey2, false)
+
+	// Verify resolved ports
+	cont.indexMutex.Lock()
+	webEntry := cont.namedPortServiceIndex[svcKey1]
+	if webEntry != nil && (*webEntry)["http"] != nil {
+		assert.True(t, (*webEntry)["http"].resolvedPorts[80], "Port 80 should be resolved for web-service")
+	}
+	apiEntry := cont.namedPortServiceIndex[svcKey2]
+	if apiEntry != nil && (*apiEntry)["http"] != nil {
+		assert.True(t, (*apiEntry)["http"].resolvedPorts[8080], "Port 8080 should be resolved for api-service")
+	}
+	cont.indexMutex.Unlock()
+
+	// Delete one service
+	cont.processServiceTargetPorts(service2, svcKey2, true)
+
+	// Verify only deleted service is removed
+	cont.indexMutex.Lock()
+	_, exists := cont.namedPortServiceIndex[svcKey2]
+	assert.False(t, exists, "api-service should be removed")
+	assert.NotNil(t, cont.namedPortServiceIndex[svcKey1], "web-service should still exist")
+	cont.indexMutex.Unlock()
+
+	// Delete remaining service
+	cont.processServiceTargetPorts(service1, svcKey1, true)
+
+	cont.indexMutex.Lock()
+	assert.Equal(t, 0, len(cont.namedPortServiceIndex), "namedPortServiceIndex should be empty")
+	cont.indexMutex.Unlock()
+}
+
+// TestTargetPortIndexServiceReferenceTracking tests that targetPortIndex
+// correctly tracks service references
+func TestTargetPortIndexServiceReferenceTracking(t *testing.T) {
+	cont := testController()
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+
+	svcKey1 := "testns/web-service"
+	svcKey2 := "testns/api-service"
+	portKey := "tcp-name-http"
+
+	// Add services and update targetPortIndex
+	service1 := npservice("testns", "web-service", "10.0.0.1",
+		[]v1.ServicePort{servicePortNamed("http", v1.ProtocolTCP, 80, "http")})
+	service2 := npservice("testns", "api-service", "10.0.0.2",
+		[]v1.ServicePort{servicePortNamed("http", v1.ProtocolTCP, 8080, "http")})
+
+	cont.processServiceTargetPorts(service1, svcKey1, false)
+	cont.processServiceTargetPorts(service2, svcKey2, false)
+
+	// Manually update targetPortIndex to track service references
+	cont.indexMutex.Lock()
+	ports := &portIndexEntry{
+		port:              targetPort{ports: make(map[int]bool)},
+		serviceKeys:       make(map[string]bool),
+		networkPolicyKeys: make(map[string]bool),
+	}
+	ports.port.ports[80] = true
+	ports.port.ports[8080] = true
+	ports.serviceKeys[svcKey1] = true
+	ports.serviceKeys[svcKey2] = true
+	cont.targetPortIndex[portKey] = ports
+	cont.indexMutex.Unlock()
+
+	// Verify both services are tracked
+	cont.indexMutex.Lock()
+	entry := cont.targetPortIndex[portKey]
+	assert.NotNil(t, entry, "targetPortIndex entry should exist")
+	if entry != nil {
+		assert.True(t, entry.serviceKeys[svcKey1], "web-service should be tracked")
+		assert.True(t, entry.serviceKeys[svcKey2], "api-service should be tracked")
+		assert.Equal(t, 2, len(entry.serviceKeys), "Should have 2 service references")
+	}
+	cont.indexMutex.Unlock()
+
+	// Remove one service reference
+	cont.indexMutex.Lock()
+	delete(cont.targetPortIndex[portKey].serviceKeys, svcKey2)
+	cont.indexMutex.Unlock()
+
+	// Verify reference is removed
+	cont.indexMutex.Lock()
+	entry = cont.targetPortIndex[portKey]
+	if entry != nil {
+		assert.False(t, entry.serviceKeys[svcKey2], "api-service should be removed")
+		assert.True(t, entry.serviceKeys[svcKey1], "web-service should still be tracked")
+		assert.Equal(t, 1, len(entry.serviceKeys), "Should have 1 service reference")
+	}
+	cont.indexMutex.Unlock()
+}
+
+// TestTargetPortIndexCleanupOnLastReference tests that targetPortIndex
+// entry is properly cleaned up when all references are removed.
+func TestTargetPortIndexCleanupOnLastReference(t *testing.T) {
+	cont := testController()
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+
+	svcKey := "testns/web-service"
+	npKey := "testns/np1"
+	portKey := "tcp-name-http"
+
+	// Create targetPortIndex entry with service and netpol references
+	cont.indexMutex.Lock()
+	ports := &portIndexEntry{
+		port:              targetPort{ports: make(map[int]bool)},
+		serviceKeys:       make(map[string]bool),
+		networkPolicyKeys: make(map[string]bool),
+	}
+	ports.port.ports[80] = true
+	ports.serviceKeys[svcKey] = true
+	ports.networkPolicyKeys[npKey] = true
+	cont.targetPortIndex[portKey] = ports
+	cont.indexMutex.Unlock()
+
+	// Verify entry exists with both references
+	cont.indexMutex.Lock()
+	entry := cont.targetPortIndex[portKey]
+	assert.NotNil(t, entry, "Entry should exist")
+	assert.Equal(t, 1, len(entry.serviceKeys), "Should have 1 service reference")
+	assert.Equal(t, 1, len(entry.networkPolicyKeys), "Should have 1 netpol reference")
+	cont.indexMutex.Unlock()
+
+	// Remove netpol reference
+	cont.indexMutex.Lock()
+	delete(cont.targetPortIndex[portKey].networkPolicyKeys, npKey)
+	cont.indexMutex.Unlock()
+
+	// Verify entry still exists (service reference remains)
+	cont.indexMutex.Lock()
+	entry = cont.targetPortIndex[portKey]
+	assert.NotNil(t, entry, "Entry should still exist")
+	assert.Equal(t, 0, len(entry.networkPolicyKeys), "Should have 0 netpol references")
+	assert.Equal(t, 1, len(entry.serviceKeys), "Should still have 1 service reference")
+	cont.indexMutex.Unlock()
+
+	// Remove service reference
+	cont.indexMutex.Lock()
+	delete(cont.targetPortIndex[portKey].serviceKeys, svcKey)
+	// When all references are gone, entry should be deleted
+	if len(cont.targetPortIndex[portKey].serviceKeys) == 0 &&
+		len(cont.targetPortIndex[portKey].networkPolicyKeys) == 0 {
+		delete(cont.targetPortIndex, portKey)
+	}
+	cont.indexMutex.Unlock()
+
+	// Verify entry is removed
+	cont.indexMutex.Lock()
+	_, exists := cont.targetPortIndex[portKey]
+	assert.False(t, exists, "Entry should be removed when all references are gone")
+	cont.indexMutex.Unlock()
+}
+
+// TestNetworkPolicyEgressNamedPortWithPodSelector tests egress with named port
+// and a specific pod selector in the To field - should only apply to selected pods.
+func TestNetworkPolicyEgressNamedPortWithPodSelector(t *testing.T) {
+	// NetworkPolicy with named port "http" and pod selector targeting app=backend
+	test_np := netpol("testns", "np1", &metav1.LabelSelector{},
+		nil, []v1net.NetworkPolicyEgressRule{
+			egressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+				},
+			}, []v1net.NetworkPolicyPeer{
+				{
+					PodSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "backend"},
+					},
+				},
+			}),
+		}, allPolicyTypes)
+
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnE := fmt.Sprintf("%s/subj-networkpolicy-egress", baseDn)
+
+	// Rule for named port "http" targeting selected pods
+	rule_1_0 := apicapi.NewHostprotRule(np1SDnE, "0_0-ipv4__np1")
+	rule_1_0.SetAttr("direction", "egress")
+	rule_1_0.SetAttr("ethertype", "ipv4")
+	rule_1_0.SetAttr("protocol", "tcp")
+	rule_1_0.SetAttr("fromPort", "http")
+	rule_1_0.AddChild(apicapi.NewHostprotRemoteIp(rule_1_0.GetDn(), "1.1.1.1"))
+
+	// Service augmentation rule - only for services backing selected pods
+	rule_1_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
+	rule_1_s.SetAttr("direction", "egress")
+	rule_1_s.SetAttr("ethertype", "ipv4")
+	rule_1_s.SetAttr("protocol", "tcp")
+	rule_1_s.SetAttr("fromPort", "8080")
+	rule_1_s.AddChild(apicapi.NewHostprotRemoteIp(rule_1_s.GetDn(), "9.0.0.42"))
+
+	var npTests = []npTest{
+		{test_np,
+			makeNp(nil, apicapi.ApicSlice{rule_1_0, rule_1_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePortNamed("http", v1.ProtocolTCP, 8080, "http"),
+						}),
+				},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1-abc",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						},
+						[]discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+						}, "service1"),
+				},
+			}, "egress-named-port-with-pod-selector"},
+	}
+
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	ports := []v1.ContainerPort{
+		{Name: "http", ContainerPort: int32(80)},
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+			Status: v1.PodStatus{
+				PodIP: "1.1.1.1",
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+
+	for ix := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
+		// Add pod with app=backend label to match the selector
+		addPod(cont, "testns", "pod1", map[string]string{"app": "backend"}, ports)
+		addServices(cont, npTests[ix].augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
+		checkDelete(t, npTests[0], cont)
+		cont.stop()
+	}
+}
+
+// TestNetworkPolicyNamedPortEndpointSliceLifecycle tests that EndpointSlice changes
+// properly trigger network policy updates when services use named target ports.
+// This verifies the integration between EndpointSlices, services with named ports,
+// and network policies.
+// TestNetworkPolicyNamedPortEndpointSliceLifecycle tests that EndpointSlice
+// changes correctly update the namedPortServiceIndex's resolvedPorts.
+// Uses direct function calls to processServiceTargetPorts and resolveServiceNamedPortFromEpSlice.
+func TestNetworkPolicyNamedPortEndpointSliceLifecycle(t *testing.T) {
+	cont := testController()
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+
+	// Create service with named target port
+	service := npservice("testns", "service1", "9.0.0.42",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 8080, "http-port"),
+		})
+	svcKey := "testns/service1"
+
+	// Step 1: Call processServiceTargetPorts to populate namedPortServiceIndex
+	cont.processServiceTargetPorts(service, svcKey, false)
+
+	// Verify namedPortServiceIndex is populated with named port
+	cont.indexMutex.Lock()
+	svcEntry := cont.namedPortServiceIndex[svcKey]
+	assert.NotNil(t, svcEntry, "Service should be in namedPortServiceIndex")
+	if svcEntry != nil {
+		portEntry := (*svcEntry)["http"]
+		assert.NotNil(t, portEntry, "Named port 'http' should be indexed")
+		if portEntry != nil {
+			assert.Equal(t, "http-port", portEntry.targetPortName, "Target port name should be 'http-port'")
+			assert.NotNil(t, portEntry.resolvedPorts, "resolvedPorts should be initialized")
+			assert.Equal(t, 0, len(portEntry.resolvedPorts), "resolvedPorts should be empty before EndpointSlice")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 2: Add first EndpointSlice and call resolveServiceNamedPortFromEpSlice
+	epSlice1 := makeEpSlice("testns", "service1-slice1",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"1.1.1.1"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod1",
+				},
+			},
+		},
+		[]discovery.EndpointPort{
+			endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+		},
+		"service1")
+	cont.resolveServiceNamedPortFromEpSlice(epSlice1, svcKey, false)
+
+	// Verify port 80 is now resolved
+	cont.indexMutex.Lock()
+	svcEntry = cont.namedPortServiceIndex[svcKey]
+	assert.NotNil(t, svcEntry, "Service should still be in namedPortServiceIndex")
+	if svcEntry != nil {
+		portEntry := (*svcEntry)["http"]
+		assert.NotNil(t, portEntry, "Named port 'http' should still be indexed")
+		if portEntry != nil {
+			assert.True(t, portEntry.resolvedPorts[80], "Port 80 should be resolved from EndpointSlice")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 3: Add second EndpointSlice with different port
+	epSlice2 := makeEpSlice("testns", "service1-slice2",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"1.1.1.2"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod2",
+				},
+			},
+		},
+		[]discovery.EndpointPort{
+			endpointSlicePort(v1.ProtocolTCP, 8080, "http"),
+		},
+		"service1")
+	cont.resolveServiceNamedPortFromEpSlice(epSlice2, svcKey, false)
+
+	// Verify both ports are resolved
+	cont.indexMutex.Lock()
+	svcEntry = cont.namedPortServiceIndex[svcKey]
+	if svcEntry != nil {
+		portEntry := (*svcEntry)["http"]
+		if portEntry != nil {
+			assert.True(t, portEntry.resolvedPorts[80], "Port 80 should still be resolved")
+			assert.True(t, portEntry.resolvedPorts[8080], "Port 8080 should be resolved from second EndpointSlice")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 4: Delete first EndpointSlice (old=true removes ports)
+	cont.resolveServiceNamedPortFromEpSlice(epSlice1, svcKey, true)
+
+	// Verify port 80 is removed, 8080 remains
+	cont.indexMutex.Lock()
+	svcEntry = cont.namedPortServiceIndex[svcKey]
+	if svcEntry != nil {
+		portEntry := (*svcEntry)["http"]
+		if portEntry != nil {
+			assert.False(t, portEntry.resolvedPorts[80], "Port 80 should be removed after EndpointSlice deletion")
+			assert.True(t, portEntry.resolvedPorts[8080], "Port 8080 should still be resolved")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 5: Delete second EndpointSlice
+	cont.resolveServiceNamedPortFromEpSlice(epSlice2, svcKey, true)
+
+	// Verify all ports are removed but entry still exists
+	cont.indexMutex.Lock()
+	svcEntry = cont.namedPortServiceIndex[svcKey]
+	assert.NotNil(t, svcEntry, "Service entry should still exist (defined by service spec)")
+	if svcEntry != nil {
+		portEntry := (*svcEntry)["http"]
+		assert.NotNil(t, portEntry, "Port entry should still exist")
+		if portEntry != nil {
+			assert.Equal(t, 0, len(portEntry.resolvedPorts), "All resolved ports should be removed")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 6: Delete service
+	cont.processServiceTargetPorts(service, svcKey, true)
+
+	// Verify service entry is removed
+	cont.indexMutex.Lock()
+	_, exists := cont.namedPortServiceIndex[svcKey]
+	assert.False(t, exists, "Service should be removed from namedPortServiceIndex")
+	cont.indexMutex.Unlock()
+}
+
+// TestNetworkPolicyNamedPortServiceLifecycle tests that service updates
+// (add, modify, delete) correctly update the namedPortServiceIndex.
+// Uses direct function calls to processServiceTargetPorts.
+func TestNetworkPolicyNamedPortServiceLifecycle(t *testing.T) {
+	cont := testController()
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+
+	svcKey := "testns/service1"
+
+	// Step 1: Add service with named target port
+	service := npservice("testns", "service1", "9.0.0.42",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 8080, "http-port"),
+		})
+	cont.processServiceTargetPorts(service, svcKey, false)
+
+	// Verify namedPortServiceIndex is populated
+	cont.indexMutex.Lock()
+	namedEntry, exists := cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should be in namedPortServiceIndex")
+	if exists {
+		portEntry, portExists := (*namedEntry)["http"]
+		assert.True(t, portExists, "Port 'http' should be in namedPortServiceIndex")
+		if portExists {
+			assert.Equal(t, "http-port", portEntry.targetPortName, "Target port name should be 'http-port'")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 2: Update service to change target port name
+	// First remove old entry, then add new one (simulating service update)
+	cont.processServiceTargetPorts(service, svcKey, true)
+	serviceUpdated := npservice("testns", "service1", "9.0.0.42",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 8080, "new-http-port"),
+		})
+	cont.processServiceTargetPorts(serviceUpdated, svcKey, false)
+
+	// Verify namedPortServiceIndex is updated
+	cont.indexMutex.Lock()
+	namedEntryAfter, existsAfter := cont.namedPortServiceIndex[svcKey]
+	assert.True(t, existsAfter, "Service should still be in namedPortServiceIndex")
+	if existsAfter {
+		portEntryAfter, portExistsAfter := (*namedEntryAfter)["http"]
+		assert.True(t, portExistsAfter, "Port 'http' should still be in namedPortServiceIndex")
+		if portExistsAfter {
+			assert.Equal(t, "new-http-port", portEntryAfter.targetPortName, "Target port name should be updated to 'new-http-port'")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 3: Add multiple ports to service
+	cont.processServiceTargetPorts(serviceUpdated, svcKey, true)
+	serviceMultiPort := npservice("testns", "service1", "9.0.0.42",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 8080, "new-http-port"),
+			servicePortNamed("https", v1.ProtocolTCP, 8443, "https-port"),
+		})
+	cont.processServiceTargetPorts(serviceMultiPort, svcKey, false)
+
+	// Verify both ports are indexed
+	cont.indexMutex.Lock()
+	namedEntryMulti := cont.namedPortServiceIndex[svcKey]
+	assert.NotNil(t, namedEntryMulti, "Service should be in namedPortServiceIndex")
+	if namedEntryMulti != nil {
+		assert.Equal(t, 2, len(*namedEntryMulti), "Should have 2 named ports")
+		httpEntry := (*namedEntryMulti)["http"]
+		httpsEntry := (*namedEntryMulti)["https"]
+		assert.NotNil(t, httpEntry, "http port should exist")
+		assert.NotNil(t, httpsEntry, "https port should exist")
+		if httpEntry != nil {
+			assert.Equal(t, "new-http-port", httpEntry.targetPortName)
+		}
+		if httpsEntry != nil {
+			assert.Equal(t, "https-port", httpsEntry.targetPortName)
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 4: Delete service
+	cont.processServiceTargetPorts(serviceMultiPort, svcKey, true)
+
+	// Verify namedPortServiceIndex entry is removed
+	cont.indexMutex.Lock()
+	_, existsAfterDelete := cont.namedPortServiceIndex[svcKey]
+	assert.False(t, existsAfterDelete, "Service should be removed from namedPortServiceIndex after deletion")
+	cont.indexMutex.Unlock()
+}
+
+// TestNetworkPolicyNamedPortMultipleEndpoints validates network policy behavior when
+// a service references a named port ("http") that resolves to different numeric ports
+// across multiple endpoints.
+//
+// Test Setup:
+// - Network policy with egress rule allowing TCP traffic to named port "http"
+// - Service "service1" (ClusterIP: 9.0.0.42) with port 9090 targeting named port "http"
+// - Two endpoints (pod1: 1.1.1.1, pod2: 1.1.1.2) both exposing "http" on port 80
+//
+// Expected Behavior:
+// Two distinct egress rules should be generated:
+// 1. Rule "0_0-ipv4__np1": Allows TCP traffic to named port "http" (cluster-wide resolution)
+// 2. Rule "service_tcp_9090-ipv4": Allows TCP traffic to service ClusterIP 9.0.0.42:9090
+//
+// This validates that:
+// - Named ports are resolved across all matching pods in the cluster
+// - Service-specific rules are created with the service's ClusterIP and port
+// - Multiple endpoints backing a service are handled correctly
+func TestNetworkPolicyNamedPortMultipleEndpoints(t *testing.T) {
+	test_np := netpol("testns", "np1", &metav1.LabelSelector{},
+		nil, []v1net.NetworkPolicyEgressRule{
+			egressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+				},
+			}, nil),
+		}, allPolicyTypes)
+
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnE := fmt.Sprintf("%s/subj-networkpolicy-egress", baseDn)
+
+	rule_80 := apicapi.NewHostprotRule(np1SDnE, "0_0-ipv4__np1")
+	rule_80.SetAttr("direction", "egress")
+	rule_80.SetAttr("ethertype", "ipv4")
+	rule_80.SetAttr("protocol", "tcp")
+	rule_80.SetAttr("fromPort", "http")
+
+	rule_svc := apicapi.NewHostprotRule(np1SDnE, "service_tcp_9090-ipv4")
+	rule_svc.SetAttr("direction", "egress")
+	rule_svc.SetAttr("ethertype", "ipv4")
+	rule_svc.SetAttr("protocol", "tcp")
+	rule_svc.SetAttr("fromPort", "9090")
+	rule_svc.AddChild(apicapi.NewHostprotRemoteIp(rule_svc.GetDn(), "9.0.0.42"))
+
+	var npTests = []npTest{
+		{test_np,
+			makeNp(nil, apicapi.ApicSlice{rule_80, rule_svc}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePortNamed("web", v1.ProtocolTCP, 9090, "http"),
+						}),
+				},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1-slice1",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+							{
+								Addresses: []string{"1.1.1.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						},
+						[]discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+						},
+						"service1"),
+				},
+			}, "egress-named-port-multiple-endpoints"},
+	}
+
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+
+		return cont
+	}
+
+	ports := []v1.ContainerPort{
+		{Name: "http", ContainerPort: int32(80)},
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+
+	for ix := range npTests {
+		cont := initCont()
+		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
+		addPod(cont, "testns", "pod2", map[string]string{"l1": "v1"}, ports)
+		addServices(cont, npTests[ix].augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
+		checkDelete(t, npTests[0], cont)
+		cont.stop()
+	}
+}
+
+// TestNetworkPolicyEgressEmptyToWithNamedPort tests egress with empty 'to' field
+// and named port - should augment all services matching the named port.
+func TestNetworkPolicyEgressEmptyToWithNamedPort(t *testing.T) {
+	// NetworkPolicy with empty 'to' and named port "http"
+	test_np := netpol("testns", "np1", &metav1.LabelSelector{},
+		nil, []v1net.NetworkPolicyEgressRule{
+			{
+				Ports: []v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+					},
+				},
+				// Empty 'To' field - allows all destinations on this port
+			},
+		}, allPolicyTypes)
+
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnE := fmt.Sprintf("%s/subj-networkpolicy-egress", baseDn)
+
+	// Rule for named port "http"
+	rule_1_0 := apicapi.NewHostprotRule(np1SDnE, "0_0-ipv4__np1")
+	rule_1_0.SetAttr("direction", "egress")
+	rule_1_0.SetAttr("ethertype", "ipv4")
+	rule_1_0.SetAttr("protocol", "tcp")
+	rule_1_0.SetAttr("fromPort", "http")
+
+	// Service augmentation rule
+	rule_1_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
+	rule_1_s.SetAttr("direction", "egress")
+	rule_1_s.SetAttr("ethertype", "ipv4")
+	rule_1_s.SetAttr("protocol", "tcp")
+	rule_1_s.SetAttr("fromPort", "8080")
+	rule_1_s.AddChild(apicapi.NewHostprotRemoteIp(rule_1_s.GetDn(), "9.0.0.42"))
+
+	var npTests = []npTest{
+		{test_np,
+			makeNp(nil, apicapi.ApicSlice{rule_1_0, rule_1_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePortNamed("http", v1.ProtocolTCP, 8080, "http"),
+						}),
+				},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1-abc",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						},
+						[]discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+						}, "service1"),
+				},
+			}, "egress-empty-to-named-port"},
+	}
+
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	ports := []v1.ContainerPort{
+		{Name: "http", ContainerPort: int32(80)},
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+
+	for ix := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
+		addPod(cont, "testns", "pod1", map[string]string{"l1": "v1"}, ports)
+		addServices(cont, npTests[ix].augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
+		checkDelete(t, npTests[0], cont)
+		cont.stop()
+	}
+}
+
+// TestNetworkPolicyIngressNamedPort tests ingress with named port.
+func TestNetworkPolicyIngressNamedPort(t *testing.T) {
+	// NetworkPolicy with ingress named port "http"
+	test_np := netpol("testns", "np1", &metav1.LabelSelector{
+		MatchLabels: map[string]string{"app": "target"},
+	},
+		[]v1net.NetworkPolicyIngressRule{
+			{
+				Ports: []v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+					},
+				},
+				From: []v1net.NetworkPolicyPeer{
+					{
+						PodSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "client"},
+						},
+					},
+				},
+			},
+		}, nil, allPolicyTypes)
+
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnI := fmt.Sprintf("%s/subj-networkpolicy-ingress", baseDn)
+
+	// Rule for named port "http" on ingress - resolves to pod's container port 8080
+	rule_1_0 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4__np1")
+	rule_1_0.SetAttr("direction", "ingress")
+	rule_1_0.SetAttr("ethertype", "ipv4")
+	rule_1_0.SetAttr("protocol", "tcp")
+	rule_1_0.SetAttr("fromPort", "8080")
+	rule_1_0.AddChild(apicapi.NewHostprotRemoteIp(rule_1_0.GetDn(), "1.1.1.1"))
+
+	var npTests = []npTest{
+		{test_np,
+			makeNp(apicapi.ApicSlice{rule_1_0}, nil, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{},
+				[]*discovery.EndpointSlice{},
+			}, "ingress-named-port"},
+	}
+
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	targetPorts := []v1.ContainerPort{
+		{Name: "http", ContainerPort: int32(8080)},
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+			Status: v1.PodStatus{
+				PodIP: "1.1.1.1",
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+
+	for ix := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
+		addPod(cont, "testns", "target-pod", map[string]string{"app": "target"}, targetPorts)
+		addPod(cont, "testns", "client-pod", map[string]string{"app": "client"}, nil)
+		addServices(cont, npTests[ix].augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
+		checkDelete(t, npTests[0], cont)
+		cont.stop()
+	}
+}
+
+// TestNetworkPolicyIngressMultipleNamedPorts tests ingress with multiple named ports.
+func TestNetworkPolicyIngressMultipleNamedPorts(t *testing.T) {
+	// NetworkPolicy with multiple ingress named ports
+	test_np := netpol("testns", "np1", &metav1.LabelSelector{
+		MatchLabels: map[string]string{"app": "target"},
+	},
+		[]v1net.NetworkPolicyIngressRule{
+			{
+				Ports: []v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+					},
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "admin"},
+					},
+				},
+				From: []v1net.NetworkPolicyPeer{
+					{
+						PodSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "client"},
+						},
+					},
+				},
+			},
+		}, nil, allPolicyTypes)
+
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnI := fmt.Sprintf("%s/subj-networkpolicy-ingress", baseDn)
+
+	// Rules for multiple named ports with unique names - resolve to pod container ports
+	rule_1_0 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4__np1")
+	rule_1_0.SetAttr("direction", "ingress")
+	rule_1_0.SetAttr("ethertype", "ipv4")
+	rule_1_0.SetAttr("protocol", "tcp")
+	rule_1_0.SetAttr("fromPort", "8080")
+	rule_1_0.AddChild(apicapi.NewHostprotRemoteIp(rule_1_0.GetDn(), "1.1.1.1"))
+
+	rule_1_1 := apicapi.NewHostprotRule(np1SDnI, "0_1-ipv4__np1")
+	rule_1_1.SetAttr("direction", "ingress")
+	rule_1_1.SetAttr("ethertype", "ipv4")
+	rule_1_1.SetAttr("protocol", "tcp")
+	rule_1_1.SetAttr("fromPort", "9000")
+	rule_1_1.AddChild(apicapi.NewHostprotRemoteIp(rule_1_1.GetDn(), "1.1.1.1"))
+
+	var npTests = []npTest{
+		{test_np,
+			makeNp(apicapi.ApicSlice{rule_1_0, rule_1_1}, nil, name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
+				[]*v1.Service{},
+				[]*discovery.EndpointSlice{},
+			}, "ingress-multiple-named-ports"},
+	}
+
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	targetPorts := []v1.ContainerPort{
+		{Name: "http", ContainerPort: int32(8080)},
+		{Name: "admin", ContainerPort: int32(9000)},
+	}
+
+	addPod := func(cont *testAciController, namespace string,
+		name string, labels map[string]string, ports []v1.ContainerPort) {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName: "test-node",
+				Containers: []v1.Container{
+					{
+						Ports: ports,
+					},
+				},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      name,
+				Labels:    labels,
+			},
+			Status: v1.PodStatus{
+				PodIP: "1.1.1.1",
+			},
+		}
+		cont.fakePodSource.Add(pod)
+	}
+
+	for ix := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
+		addPod(cont, "testns", "target-pod", map[string]string{"app": "target"}, targetPorts)
+		addPod(cont, "testns", "client-pod", map[string]string{"app": "client"}, nil)
+		addServices(cont, npTests[ix].augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+		cont.log.Info("Starting delete ", npTests[ix].desc)
+		cont.fakeNetworkPolicySource.Delete(npTests[ix].netPol)
+		checkDelete(t, npTests[0], cont)
+		cont.stop()
+	}
+}
+
+// TestBuildLocalNetPolSubjRulesEgressNamedPort tests that buildLocalNetPolSubjRules
+// correctly resolves a named egress port to numeric ports in HppDirect mode.
+// The named port "http" is resolved via targetPortIndex to port 80, producing
+// a local HostprotRule with fromPort="80".
+func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	np := netpol("testns", "np1", &metav1.LabelSelector{},
+		nil, []v1net.NetworkPolicyEgressRule{
+			egressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+				},
+			}, nil),
+		}, allPolicyTypes)
+
+	// Populate targetPortIndex so named port "http" resolves to port 80
+	portkey := "tcp-name-http"
+	cont.indexMutex.Lock()
+	cont.targetPortIndex[portkey] = &portIndexEntry{
+		port: targetPort{
+			proto: "tcp",
+			ports: map[int]bool{80: true},
+		},
+		serviceKeys:       make(map[string]bool),
+		networkPolicyKeys: make(map[string]bool),
+	}
+	cont.indexMutex.Unlock()
+
+	subj := &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules("0", subj, "egress",
+		nil, nil, np.Spec.Egress[0].Ports, cont.log.WithField("test", "egress-named-port"),
+		"testns/np1", np, nil)
+
+	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule for resolved named port")
+	assert.Equal(t, "0_0-ipv4", subj.HostprotRule[0].Name)
+	assert.Equal(t, "egress", subj.HostprotRule[0].Direction)
+	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
+	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
+	assert.Equal(t, "80", subj.HostprotRule[0].FromPort)
+}
+
+// TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts tests that
+// buildLocalNetPolSubjRules produces unique rule names when multiple named ports
+// resolve to multiple numeric ports in HppDirect mode. This mirrors the
+// TestNetworkPolicyEgressMultipleNamedPortsUniqueRuleNames test for the local path.
+func TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	np := netpol("testns", "np1", &metav1.LabelSelector{},
+		nil, []v1net.NetworkPolicyEgressRule{
+			egressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+				},
+				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "https"},
+				},
+			}, nil),
+		}, allPolicyTypes)
+
+	// "http" resolves to ports 80 and 8080 (two pods with different container ports)
+	cont.indexMutex.Lock()
+	cont.targetPortIndex["tcp-name-http"] = &portIndexEntry{
+		port: targetPort{
+			proto: "tcp",
+			ports: map[int]bool{80: true, 8080: true},
+		},
+		serviceKeys:       make(map[string]bool),
+		networkPolicyKeys: make(map[string]bool),
+	}
+	// "https" resolves to port 443
+	cont.targetPortIndex["tcp-name-https"] = &portIndexEntry{
+		port: targetPort{
+			proto: "tcp",
+			ports: map[int]bool{443: true},
+		},
+		serviceKeys:       make(map[string]bool),
+		networkPolicyKeys: make(map[string]bool),
+	}
+	cont.indexMutex.Unlock()
+
+	subj := &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules("0", subj, "egress",
+		nil, nil, np.Spec.Egress[0].Ports, cont.log.WithField("test", "egress-multi-named"),
+		"testns/np1", np, nil)
+
+	// Expect 3 rules: http→80, http→8080, https→443
+	assert.Equal(t, 3, len(subj.HostprotRule),
+		"Should have 3 rules: http resolves to 80+8080, https to 443")
+
+	// Verify all rule names are unique
+	ruleNames := make(map[string]bool)
+	for _, rule := range subj.HostprotRule {
+		assert.False(t, ruleNames[rule.Name], "Duplicate rule name: %s", rule.Name)
+		ruleNames[rule.Name] = true
+		assert.Equal(t, "egress", rule.Direction)
+		assert.Equal(t, "tcp", rule.Protocol)
+	}
+
+	// Verify all expected ports are present
+	ports := make(map[string]bool)
+	for _, rule := range subj.HostprotRule {
+		ports[rule.FromPort] = true
+	}
+	assert.True(t, ports["80"], "Port 80 should be present")
+	assert.True(t, ports["8080"], "Port 8080 should be present")
+	assert.True(t, ports["443"], "Port 443 should be present")
+}
+
+// TestBuildLocalNetPolSubjRulesIngressNamedPort tests that buildLocalNetPolSubjRules
+// correctly resolves a named ingress port via pod selector in HppDirect mode.
+// The named port "http" resolves to 8080 from matching pods' container ports.
+func TestBuildLocalNetPolSubjRulesIngressNamedPort(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	np := netpol("testns", "np1", &metav1.LabelSelector{
+		MatchLabels: map[string]string{"app": "target"},
+	},
+		[]v1net.NetworkPolicyIngressRule{
+			{
+				Ports: []v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+					},
+				},
+				From: []v1net.NetworkPolicyPeer{
+					{
+						PodSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "client"},
+						},
+					},
+				},
+			},
+		}, nil, allPolicyTypes)
+
+	// Add pod matching the network policy's podSelector
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: "test-node",
+			Containers: []v1.Container{
+				{
+					Ports: []v1.ContainerPort{
+						{Name: "http", ContainerPort: int32(8080)},
+					},
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "testns",
+			Name:      "target-pod",
+			Labels:    map[string]string{"app": "target"},
+		},
+	}
+	cont.fakePodSource.Add(pod)
+	cont.fakeNetworkPolicySource.Add(np)
+
+	// Wait for pod/np to be processed and port cache to be populated
+	tu.WaitFor(t, "port-cache", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			cont.indexMutex.Lock()
+			defer cont.indexMutex.Unlock()
+			if len(cont.ctrPortNameCache) == 0 {
+				return false, nil
+			}
+			return true, nil
+		})
+
+	npKey := "testns/np1"
+	podKeys := cont.netPolPods.GetPodForObj(npKey)
+	portMap := cont.getPortNumsFromPortName(podKeys, "http")
+
+	peerSelectors := []*metav1.LabelSelector{
+		np.Spec.Ingress[0].From[0].PodSelector,
+	}
+
+	subj := &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules("0", subj, "ingress",
+		[]string{"testns"}, peerSelectors, np.Spec.Ingress[0].Ports,
+		cont.log.WithField("test", "ingress-named-port"), npKey, np, nil)
+
+	// Named port "http" should resolve to 8080 from pod's container port
+	assert.True(t, portMap[8080], "Port 8080 should be in portMap from pod")
+	if len(subj.HostprotRule) > 0 {
+		assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
+		assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
+		assert.Equal(t, "8080", subj.HostprotRule[0].FromPort)
+	}
+}
+
+// TestBuildLocalServiceAugmentNamedPort tests that buildServiceAugment correctly
+// produces local HostprotRule entries (not APIC objects) for service augmentation
+// with named ports in HppDirect mode.
+func TestBuildLocalServiceAugmentNamedPort(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	logger := cont.log.WithField("test", "local-svc-augment-named-port")
+
+	// Set up service in the indexer
+	service := npservice("testns", "service1", "9.0.0.42",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 8080, "http"),
+		})
+	cont.fakeServiceSource.Add(service)
+
+	// Wait for service to be indexed
+	tu.WaitFor(t, "service-index", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			obj, _, err := cont.serviceIndexer.GetByKey("testns/service1")
+			if err != nil || obj == nil {
+				return false, nil
+			}
+			return true, nil
+		})
+
+	svcKey := "testns/service1"
+
+	// Populate targetPortIndex with named port entry that references the service
+	cont.indexMutex.Lock()
+	cont.targetPortIndex["tcp-name-http"] = &portIndexEntry{
+		port: targetPort{
+			proto: "tcp",
+			ports: map[int]bool{80: true},
+		},
+		serviceKeys:       map[string]bool{svcKey: true},
+		networkPolicyKeys: make(map[string]bool),
+	}
+	// Also add numeric port entry for the resolved port
+	cont.targetPortIndex["tcp-num-80"] = &portIndexEntry{
+		port: targetPort{
+			proto: "tcp",
+			ports: map[int]bool{80: true},
+		},
+		serviceKeys:       map[string]bool{svcKey: true},
+		networkPolicyKeys: make(map[string]bool),
+	}
+	// Set up namedPortServiceIndex
+	httpEntry := &namedPortServiceIndexPort{
+		targetPortName: "http",
+		resolvedPorts:  map[int]bool{80: true},
+	}
+	svcEntry := &namedPortServiceIndexEntry{"http": httpEntry}
+	cont.namedPortServiceIndex[svcKey] = svcEntry
+	cont.indexMutex.Unlock()
+
+	// Build service augment with named port
+	localsubj := &hppv1.HostprotSubj{}
+	portRemoteSubs := map[string]*portRemoteSubnet{
+		"tcp-name-http": {
+			port: &v1net.NetworkPolicyPort{
+				Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+				Port:     &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+			},
+			subnetMap:      map[string]bool{"0.0.0.0/0": true},
+			hasNamedTarget: true,
+		},
+	}
+
+	cont.buildServiceAugment(nil, localsubj, portRemoteSubs, logger)
+
+	// Should produce a local rule for service ClusterIP:port
+	assert.GreaterOrEqual(t, len(localsubj.HostprotRule), 1,
+		"Should have at least 1 service augment rule")
+
+	// Find the service augment rule
+	found := false
+	for _, rule := range localsubj.HostprotRule {
+		if rule.FromPort == "8080" && rule.Protocol == "tcp" {
+			found = true
+			assert.Equal(t, "egress", rule.Direction)
+			assert.Equal(t, "ipv4", rule.Ethertype)
+			// In HppDirect mode, remote IPs go to HostprotServiceRemoteIps
+			assert.Contains(t, rule.HostprotServiceRemoteIps, "9.0.0.42",
+				"Service ClusterIP should be in remote IPs")
+			break
+		}
+	}
+	assert.True(t, found, "Should find service augment rule with port 8080")
 }
