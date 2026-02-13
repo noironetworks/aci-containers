@@ -12,3 +12,6 @@ __pycache__
 coverage.out
 cscope.*
 covprof*
+
+# Local tools installed by Make (setup-envtest etc.)
+/tools/bin/
