@@ -84,6 +84,34 @@ STATIC_BUILD_RACE_CMD ?= CGO_ENABLED=1 GOOS=linux ${BUILD_CMD_RACE} \
         -X ${PKG_NAME_ACI_CONTAINERS_OPERATOR}.gitCommit=${GIT_COMMIT} \
          -s -w" -a -installsuffix cgo
 
+
+## Setup for kubebuilder envtest
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/tools/bin
+$(LOCALBIN):
+	mkdir -p "$(LOCALBIN)"
+## Tool Binaries
+ENVTEST ?= $(LOCALBIN)/setup-envtest
+## Tool Versions
+#ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
+ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
+#ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
+ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
+
+.PHONY: setup-envtest
+setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.
+	@echo "Setting up envtest binaries for Kubernetes version $(ENVTEST_K8S_VERSION)..."
+	@$(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) || { \
+		echo "Error: Failed to set up envtest binaries for version $(ENVTEST_K8S_VERSION)."; \
+		exit 1; \
+	}
+	
+.PHONY: envtest
+envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
+$(ENVTEST): $(LOCALBIN)
+	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
+
+
 .PHONY: clean goinstall check all
 
 all: dist/aci-containers-host-agent dist/opflex-agent-cni \
@@ -278,8 +306,8 @@ check-index:
 	${TEST_CMD} -coverprofile=covprof-index ${BASE}/pkg/index ${TEST_ARGS}
 check-apicapi:
 	${TEST_CMD} -coverprofile=covprof-apicapi ${BASE}/pkg/apicapi ${TEST_ARGS} && ./exclude-covprof.sh covprof-apicapi exclude-covprof.conf
-check-hostagent: test-tools
-	KUBEBUILDER_ASSETS=/tmp/kubebuilder/bin ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS} && ./exclude-covprof.sh covprof-hostagent exclude-covprof.conf
+check-hostagent: setup-envtest
+	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" ${TEST_CMD} -coverprofile=covprof-hostagent ${BASE}/pkg/hostagent ${TEST_ARGS} && ./exclude-covprof.sh covprof-hostagent exclude-covprof.conf
 check-controller:
 	${TEST_CMD} -coverprofile=covprof-controller ${BASE}/pkg/controller ${TEST_ARGS} && ./exclude-covprof.sh covprof-controller exclude-covprof.conf
 check-gbpserver:
@@ -290,11 +318,6 @@ check-certmanager:
 	${TEST_CMD} -coverprofile=covprof-certmanager ${BASE}/cmd/certmanager ${TEST_ARGS} && ./exclude-covprof.sh covprof-certmanager exclude-covprof.conf
 check-acicontainersoperator:
 	${TEST_CMD} -coverprofile=covprof-acicontainersoperator ${BASE}/cmd/acicontainersoperator ${TEST_ARGS} && ./exclude-covprof.sh covprof-acicontainersoperator exclude-covprof.conf
-
-.PHONY: test-tools
-test-tools:
-	. ./tools/setup-envtest.bash ; setup_envs
-	echo ${TEST_ASSET_KUBECTL}
 
 DEB_PKG_DIR=build-deb-pkg
 dsc: dist
@@ -316,3 +339,20 @@ deb: dist
 		dpkg-buildpackage -us -uc -rfakeroot -b
 	cp $(DEB_PKG_DIR)/*.deb .
 	rm -rf $(DEB_PKG_DIR)
+
+
+# go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
+# $1 - target path with name of binary
+# $2 - package url which can be installed
+# $3 - specific version of package
+define go-install-tool
+@[ -f "$(1)-$(3)" ] && [ "$$(readlink -- "$(1)" 2>/dev/null)" = "$(1)-$(3)" ] || { \
+set -e; \
+package=$(2)@$(3) ;\
+echo "Downloading $${package}" ;\
+rm -f "$(1)" ;\
+GOBIN="$(LOCALBIN)" go install $${package} ;\
+mv "$(LOCALBIN)/$$(basename "$(1)")" "$(1)-$(3)" ;\
+} ;\
+ln -sf "$$(realpath "$(1)-$(3)")" "$(1)"
+endef
