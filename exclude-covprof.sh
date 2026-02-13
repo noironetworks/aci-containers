@@ -1,22 +1,50 @@
 #!/bin/bash
 
-if [ "$#" -ne 2 ]; then
+# Script to filter coverage profile based on exclusion file
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <coverage_profile> <exclusion_file>"
     exit 1
 fi
 
-file1="$1"
-file2="$2"
+file1="$1"  # coverage profile
+file2="$2"  # exclusion file
 
-if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
-    exit 1
-fi
-
-# Create a temporary file to store the result
+# Create temporary file for filtered output
 temp_file=$(mktemp)
 
-# Use grep to find lines in file1 that do not match any line in file2
-grep -v -F -f "$file2" "$file1" > "$temp_file"
+# Start with the mode line
+head -1 "$file1" > "$temp_file"
 
-# Replace file1 with the contents of the temporary file
+# Get the coverage lines (skip mode line)
+coverage_lines=$(mktemp)
+tail -n +2 "$file1" > "$coverage_lines"
+
+# Apply exclusions
+while IFS= read -r exclusion || [[ -n "$exclusion" ]]; do
+    # Skip comments and empty lines
+    if [[ "$exclusion" =~ ^[[:space:]]*# ]] || [[ -z "${exclusion// }" ]]; then
+        continue
+    fi
+    
+    # Remove lines matching the exclusion pattern
+    if [[ "$exclusion" == *":"*":"* ]]; then
+        # Function exclusion format: file:line:func
+        grep -v "^$exclusion" "$coverage_lines" > "${coverage_lines}.tmp" && mv "${coverage_lines}.tmp" "$coverage_lines"
+    else
+        # File exclusion - exclude entire file
+        grep -v "^$exclusion:" "$coverage_lines" > "${coverage_lines}.tmp" && mv "${coverage_lines}.tmp" "$coverage_lines"
+    fi
+done < "$file2"
+
+# Append filtered coverage to output
+cat "$coverage_lines" >> "$temp_file"
+
+# Clean up
+rm -f "$coverage_lines"
+
+# Replace original file with filtered content
 mv "$temp_file" "$file1"
+
+echo "Exclusions applied to $file1"
 
