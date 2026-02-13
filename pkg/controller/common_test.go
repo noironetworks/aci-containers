@@ -249,6 +249,7 @@ func (cont *testAciController) InitController() {
 	cont.initErspanPolPodIndex()
 	cont.endpointsIpIndex = cidranger.NewPCTrieRanger()
 	cont.targetPortIndex = make(map[string]*portIndexEntry)
+	cont.namedPortServiceIndex = make(map[string]*namedPortServiceIndexEntry)
 	cont.netPolSubnetIndex = cidranger.NewPCTrieRanger()
 
 }
