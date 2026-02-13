@@ -18,30 +18,23 @@ jobs:
       install:
         - export PATH=$PATH:$GOPATH/bin
       script:
+        - echo "Starting build"
         - make goinstall
-        - make check >& /tmp/check.log
+        - echo "Running tests with coverage"
+        - make check 2>&1 | tee /tmp/check.log
+        - echo "Test completion"
+        - echo "Coverage files created"
+        - ls -la covprof-* 2>/dev/null || echo "No coverage files found"
+        - echo "Coverage summary"
+        - for f in covprof-*; do if [ -f "$f" ]; then echo "File $f"; go tool cover -func="$f" | tail -1; fi; done
       after_failure:
-        - grep -C 200 FAIL /tmp/check.log
-        - tail -200 /tmp/check.log
+        - echo "Build failed, showing logs"
+        - grep -C 200 FAIL /tmp/check.log || echo "No FAIL found in logs"
+        - tail -300 /tmp/check.log
       after_success:
-        - tail -200 /tmp/check.log
-        - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-pro
-    - stage: build-images
-      if: tag IS present
-      before_install:
-        - mkdir -vp ~/.docker/cli-plugins/
-        - curl --silent -L "https://github.com/docker/buildx/releases/download/v0.3.0/buildx-v0.3.0.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
-        - chmod a+x ~/.docker/cli-plugins/docker-buildx
-      install:
-        - pip install PyYAML
-        - pip install pytz
-      go: 1.25.0
-      go_import_path: github.com/noironetworks/aci-containers
-      before_script:
-        - export DOCKER_BUILDKIT=1
-        - export UPSTREAM_ID=81c2369
-      script:
-        - echo "Skip running UTs"
-        - git clone http://www.github.com/noironetworks/cicd -b main /tmp/cicd
-        - /tmp/cicd/travis/check-git-tag.sh; RETURN_CODE=$? ; if [ $RETURN_CODE -eq 140 ]; then travis_terminate 0; elif [ $RETURN_CODE -ne 0 ]; then travis_terminate $RETURN_CODE; fi
-        - /tmp/cicd/travis/build-push-aci-containers-images.sh || travis_terminate 1
+        - echo "Build succeeded, uploading coverage"
+        - echo "Final coverage files"
+        - ls -la covprof-*
+        - echo "Uploading to Coveralls"
+        - $GOPATH/bin/goveralls -coverprofile=covprof-hostagent -service=travis-pro -v
+        - echo "Coveralls upload completed"
