@@ -39,21 +39,13 @@ func (cont *AciController) initRdConfigInformerFromClient(
 	name := os.Getenv("ACI_RDCONFIG_NAME")
 	cont.initRdConfigInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 				options.FieldSelector = fields.Set{"metadata.name": name}.String()
-				obj, err := rdConfigClient.AciV1().RdConfigs(ns).List(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatalf("Failed to list RdConfigs during initialization of RdConfigInformer with err: %v", err)
-				}
-				return obj, err
+				return rdConfigClient.AciV1().RdConfigs(ns).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 				options.FieldSelector = fields.Set{"metadata.name": name}.String()
-				obj, err := rdConfigClient.AciV1().RdConfigs(ns).Watch(context.TODO(), options)
-				if err != nil {
-					cont.log.Fatalf("Failed to watch RdConfigs during initialization RdConfigsInformer with err: %v", err)
-				}
-				return obj, err
+				return rdConfigClient.AciV1().RdConfigs(ns).Watch(ctx, options)
 			},
 		})
 }

@@ -43,11 +43,11 @@ func (cont *AciController) initIstioInformerFromClient(
 	istioClient *istioclient.Clientset) {
 	cont.initIstioInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return istioClient.AciV1().AciIstioOperators(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }
