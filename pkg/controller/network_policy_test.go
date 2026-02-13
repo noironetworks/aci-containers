@@ -90,13 +90,6 @@ func servicePort(name string, proto v1.Protocol, port int32, targetPort int) v1.
 	}
 }
 
-func endpointPort(proto v1.Protocol, port int32, name string) v1.EndpointPort {
-	return v1.EndpointPort{
-		Name:     name,
-		Protocol: proto,
-		Port:     port,
-	}
-}
 func endpointSlicePort(proto v1.Protocol, port int32, name string) discovery.EndpointPort {
 	return discovery.EndpointPort{
 		Name:     func() *string { a := name; return &a }(),
@@ -246,28 +239,26 @@ func makeNp(ingress apicapi.ApicSlice,
 	return np1
 }
 
-func makeEps(namespace string, name string,
-	addrs []v1.EndpointAddress, ports []v1.EndpointPort) *v1.Endpoints {
-	return &v1.Endpoints{
-		Subsets: []v1.EndpointSubset{
-			{
-				Addresses: addrs,
-				Ports:     ports,
-			},
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   namespace,
-			Name:        name,
-			Annotations: map[string]string{},
-		},
-	}
-}
-
 // endpointslice.
 func makeEpSlice(namespace string, name string, endpoints []discovery.Endpoint,
 	ports []discovery.EndpointPort, servicename string) *discovery.EndpointSlice {
 	return &discovery.EndpointSlice{
 		AddressType: discovery.AddressTypeIPv4,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Labels:      map[string]string{discovery.LabelServiceName: servicename},
+			Annotations: map[string]string{},
+		},
+		Endpoints: endpoints,
+		Ports:     ports,
+	}
+}
+
+func makeEpSliceV6(namespace string, name string, endpoints []discovery.Endpoint,
+	ports []discovery.EndpointPort, servicename string) *discovery.EndpointSlice {
+	return &discovery.EndpointSlice{
+		AddressType: discovery.AddressTypeIPv6,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
@@ -703,58 +694,7 @@ func TestNetworkPolicy(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_11_0, rule_11_s}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service3",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -769,7 +709,55 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+					makeEpSlice("testns", "service3xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service3"),
+				},
 			}, "egress-allow-http-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -786,36 +774,7 @@ func TestNetworkPolicy(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_11_0, rule_11_s}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -826,7 +785,34 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (no matching IPs)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-augment-namedport"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -835,36 +821,7 @@ func TestNetworkPolicy(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_14_0, rule_14_s}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 81, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -875,7 +832,34 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 81, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-all-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -887,39 +871,7 @@ func TestNetworkPolicy(t *testing.T) {
 			makeNp(nil,
 				apicapi.ApicSlice{rule_12_0, rule_12_s_0, rule_12_s_1}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.3",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod3",
-								},
-							},
-							{
-								IP: "1.1.1.4",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod4",
-								},
-							},
-							{
-								IP: "1.1.1.5",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns2",
-									Name:      "pod5",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, "http"),
-							endpointPort(v1.ProtocolTCP, 443, "https"),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.44",
 						[]v1.ServicePort{
@@ -927,7 +879,38 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.3"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod3",
+								},
+							},
+							{
+								Addresses: []string{"1.1.1.4"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod4",
+								},
+							},
+							{
+								Addresses: []string{"1.1.1.5"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns2",
+									Name:      "pod5",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+							endpointSlicePort(v1.ProtocolTCP, 443, "https"),
+						}, "service1"),
+				},
 			}, "egress-allow-subnet-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -935,29 +918,28 @@ func TestNetworkPolicy(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_13_0}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+				},
 			}, "egress-allow-all-augment"},
 		{netpol("testns", "np1", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -970,36 +952,7 @@ func TestNetworkPolicy(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_11_0_portrange, rule_11_s_portrange}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -1010,12 +963,41 @@ func TestNetworkPolicy(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (no matching IPs)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-portrange-augment"},
 	}
 	initCont := func() *testAciController {
 		cont := testController()
 		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
@@ -1630,58 +1612,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		{test16_np,
 			makeNp(nil, apicapi.ApicSlice{test16_rule1, test16_rule2}, test16_np_name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service3",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -1696,41 +1627,60 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*discovery.EndpointSlice{},
-			}, "egress-allow-http-augment"},
-		{test17_np,
-			makeNp(nil, apicapi.ApicSlice{test17_rule1, test17_rule2}, test17_np_name),
-			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
 							{
-								IP: "1.1.1.1",
+								Addresses: []string{"1.1.1.1"},
 								TargetRef: &v1.ObjectReference{
 									Kind:      "Pod",
 									Namespace: "testns",
 									Name:      "pod1",
 								},
 							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
 							{
-								IP: "2.2.2.2",
+								Addresses: []string{"2.2.2.2"},
 								TargetRef: &v1.ObjectReference{
 									Kind:      "Pod",
 									Namespace: "testns",
 									Name:      "pod2",
 								},
 							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+					makeEpSlice("testns", "service3xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service3"),
 				},
+			}, "egress-allow-http-augment"},
+		{test17_np,
+			makeNp(nil, apicapi.ApicSlice{test17_rule1, test17_rule2}, test17_np_name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -1741,41 +1691,39 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (no matching IPs)
 				},
-				[]*discovery.EndpointSlice{},
-			}, "egress-allow-http-augment-namedport"},
-		{test18_np,
-			makeNp(nil, apicapi.ApicSlice{test18_rule1, test18_rule2}, test18_np_name),
-			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
 							{
-								IP: "1.1.1.1",
+								Addresses: []string{"1.1.1.1"},
 								TargetRef: &v1.ObjectReference{
 									Kind:      "Pod",
 									Namespace: "testns",
 									Name:      "pod1",
 								},
 							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
 							{
-								IP: "2.2.2.2",
+								Addresses: []string{"2.2.2.2"},
 								TargetRef: &v1.ObjectReference{
 									Kind:      "Pod",
 									Namespace: "testns",
 									Name:      "pod2",
 								},
 							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 81, ""),
-						}),
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
 				},
+			}, "egress-allow-http-augment-namedport"},
+		{test18_np,
+			makeNp(nil, apicapi.ApicSlice{test18_rule1, test18_rule2}, test18_np_name),
+			&npTestAugment{
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -1786,45 +1734,40 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 81, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-all-augment"},
 		{test19_np,
 			makeNp(nil,
 				apicapi.ApicSlice{test19_rule1, test19_rule2, test19_rule3}, test19_np_name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.3",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod3",
-								},
-							},
-							{
-								IP: "1.1.1.4",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod4",
-								},
-							},
-							{
-								IP: "1.1.1.5",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns2",
-									Name:      "pod5",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, "http"),
-							endpointPort(v1.ProtocolTCP, 443, "https"),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.44",
 						[]v1.ServicePort{
@@ -1832,34 +1775,64 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.3"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod3",
+								},
+							},
+							{
+								Addresses: []string{"1.1.1.4"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod4",
+								},
+							},
+							{
+								Addresses: []string{"1.1.1.5"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns2",
+									Name:      "pod5",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+							endpointSlicePort(v1.ProtocolTCP, 443, "https"),
+						}, "service1"),
+				},
 			}, "egress-allow-subnet-augment"},
 		{test20_np,
 			makeNp(nil, apicapi.ApicSlice{test20_rule}, test20_np_name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+				},
 			}, "egress-allow-all-augment"},
 		{test21_np,
 			makeNp(nil, apicapi.ApicSlice{test21_rule}, test21_np_name),
@@ -1867,36 +1840,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		{test22_np,
 			makeNp(nil, apicapi.ApicSlice{test22_rule1, test22_rule2}, test22_np_name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -1907,13 +1851,42 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (no matching IPs)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-portrange-augment"},
 	}
 	initCont := func() *testAciController {
 		cont := testController()
 		cont.config.HppOptimization = true
 		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
@@ -2303,58 +2276,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_11_0_v6, rule_11_s_v6}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testnsv6", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testnsv6", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2002:2::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testnsv6", "service3",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod1",
-								},
-							},
-							{
-								IP: "2002:2::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testnsv6", "service1", "fd00::1234",
 						[]v1.ServicePort{
@@ -2369,7 +2291,55 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testnsv6", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSliceV6("testnsv6", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2002:2::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+					makeEpSliceV6("testnsv6", "service3xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod1",
+								},
+							},
+							{
+								Addresses: []string{"2002:2::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service3"),
+				},
 			}, "egress-allow-http-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -2378,36 +2348,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_14_0_v6, rule_14_s_v6}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testnsv6", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2002::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 81, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "fd00::1234",
 						[]v1.ServicePort{
@@ -2418,7 +2359,34 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testnsv6", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSliceV6("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2002::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 81, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-all-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -2430,39 +2398,7 @@ func TestNetworkPolicyv6(t *testing.T) {
 			makeNp(nil,
 				apicapi.ApicSlice{rule_12_0_v6, rule_12_s_0_v6, rule_12_s_1_v6}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testnsv6", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::4",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod3",
-								},
-							},
-							{
-								IP: "2001::5",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod4",
-								},
-							},
-							{
-								IP: "2001::6",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns2",
-									Name:      "pod5",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, "http"),
-							endpointPort(v1.ProtocolTCP, 443, "https"),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testnsv6", "service1", "fd00::1236",
 						[]v1.ServicePort{
@@ -2470,7 +2406,38 @@ func TestNetworkPolicyv6(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testnsv6", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::4"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod3",
+								},
+							},
+							{
+								Addresses: []string{"2001::5"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod4",
+								},
+							},
+							{
+								Addresses: []string{"2001::6"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns2",
+									Name:      "pod5",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+							endpointSlicePort(v1.ProtocolTCP, 443, "https"),
+						}, "service1"),
+				},
 			}, "egress-allow-subnet-augment"},
 		{netpol("testnsv6", "npv6", &metav1.LabelSelector{},
 			nil, []v1net.NetworkPolicyEgressRule{
@@ -2478,35 +2445,36 @@ func TestNetworkPolicyv6(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_13_0_v6}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "fd00::1234",
 						[]v1.ServicePort{
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+				},
 			}, "egress-allow-all-augment"},
 	}
 
 	initCont := func() *testAciController {
 		cont := testController()
 		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("2002::2"), End: net.ParseIP("2002::3")},
 		}
@@ -2882,58 +2850,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		{test14_np_v6,
 			makeNp(nil, apicapi.ApicSlice{test14_rule1_v6, test14_rule2_v6}, test14_np_name_v6),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testnsv6", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testnsv6", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2002:2::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testnsv6", "service3",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod1",
-								},
-							},
-							{
-								IP: "2002:2::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testnsv6",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testnsv6", "service1", "fd00::1234",
 						[]v1.ServicePort{
@@ -2948,41 +2865,60 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}), // should not match (incomplete IPs)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testnsv6", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSliceV6("testnsv6", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2002:2::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service2"),
+					makeEpSliceV6("testnsv6", "service3xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod1",
+								},
+							},
+							{
+								Addresses: []string{"2002:2::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testnsv6",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service3"),
+				},
 			}, "egress-allow-http-augment"},
 		{test15_np_v6,
 			makeNp(nil, apicapi.ApicSlice{test15_rule1_v6, test15_rule2_v6}, test15_np_name_v6),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testnsv6", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2002::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 81, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "fd00::1234",
 						[]v1.ServicePort{
@@ -2993,45 +2929,40 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8080, 81),
 						}), // should not match (port wrong)
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testnsv6", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSliceV6("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2002::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 81, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-all-augment"},
 		{test16_np_v6,
 			makeNp(nil,
 				apicapi.ApicSlice{test16_rule1_v6, test16_rule2_v6, test16_rule3_v6}, test16_np_name_v6),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testnsv6", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::4",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod3",
-								},
-							},
-							{
-								IP: "2001::5",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns1",
-									Name:      "pod4",
-								},
-							},
-							{
-								IP: "2001::6",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "ns2",
-									Name:      "pod5",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, "http"),
-							endpointPort(v1.ProtocolTCP, 443, "https"),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testnsv6", "service1", "fd00::1236",
 						[]v1.ServicePort{
@@ -3039,34 +2970,64 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 							servicePort("https", v1.ProtocolTCP, 8443, 443),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testnsv6", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::4"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod3",
+								},
+							},
+							{
+								Addresses: []string{"2001::5"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns1",
+									Name:      "pod4",
+								},
+							},
+							{
+								Addresses: []string{"2001::6"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "ns2",
+									Name:      "pod5",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, "http"),
+							endpointSlicePort(v1.ProtocolTCP, 443, "https"),
+						}, "service1"),
+				},
 			}, "egress-allow-subnet-augment"},
 		{test17_np_v6,
 			makeNp(nil, apicapi.ApicSlice{test17_rule_v6}, test17_np_name_v6),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "2001::2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "fd00::1234",
 						[]v1.ServicePort{
 							servicePort("", v1.ProtocolTCP, 8080, 80),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSliceV6("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2001::2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+				},
 			}, "egress-allow-all-augment"},
 	}
 
@@ -3074,6 +3035,8 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		cont := testController()
 		cont.config.HppOptimization = true
 		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("2002::2"), End: net.ParseIP("2002::3")},
 		}
@@ -4044,36 +4007,7 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 			}, allPolicyTypes),
 			makeNp(nil, apicapi.ApicSlice{rule_1_0, rule_1_s}, name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 81, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -4084,12 +4018,41 @@ func TestNetworkPolicyEgressNmPort(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8081, 81),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 81, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-all-augment-namedport-mathing-diffrent-ports"},
 	}
 	initCont := func() *testAciController {
 		cont := testController()
 		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
@@ -4197,36 +4160,7 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 		{test1_np,
 			makeNp(nil, apicapi.ApicSlice{test1_rule1, test1_rule2}, test1_np_name),
 			&npTestAugment{
-				[]*v1.Endpoints{
-					makeEps("testns", "service1",
-						[]v1.EndpointAddress{
-							{
-								IP: "1.1.1.1",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod1",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 80, ""),
-						}),
-					makeEps("testns", "service2",
-						[]v1.EndpointAddress{
-							{
-								IP: "2.2.2.2",
-								TargetRef: &v1.ObjectReference{
-									Kind:      "Pod",
-									Namespace: "testns",
-									Name:      "pod2",
-								},
-							},
-						},
-						[]v1.EndpointPort{
-							endpointPort(v1.ProtocolTCP, 81, ""),
-						}),
-				},
+				[]*v1.Endpoints{},
 				[]*v1.Service{
 					npservice("testns", "service1", "9.0.0.42",
 						[]v1.ServicePort{
@@ -4237,13 +4171,42 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 							servicePort("", v1.ProtocolTCP, 8081, 81),
 						}),
 				},
-				[]*discovery.EndpointSlice{},
+				[]*discovery.EndpointSlice{
+					makeEpSlice("testns", "service1xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"1.1.1.1"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 80, ""),
+						}, "service1"),
+					makeEpSlice("testns", "service2xyz",
+						[]discovery.Endpoint{
+							{
+								Addresses: []string{"2.2.2.2"},
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod2",
+								},
+							},
+						}, []discovery.EndpointPort{
+							endpointSlicePort(v1.ProtocolTCP, 81, ""),
+						}, "service2"),
+				},
 			}, "egress-allow-http-all-augment-namedport-mathing-diffrent-ports"},
 	}
 	initCont := func() *testAciController {
 		cont := testController()
 		cont.config.HppOptimization = true
 		cont.config.AciPolicyTenant = "test-tenant"
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 		cont.config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}

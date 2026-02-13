@@ -23,6 +23,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	discovery "k8s.io/api/discovery/v1"
 
 	qospolicy "github.com/noironetworks/aci-containers/pkg/qospolicy/apis/aci.qos/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,8 +36,9 @@ import (
 )
 
 type qrTestAugment struct {
-	endpoints []*v1.Endpoints
-	services  []*v1.Service
+	endpoints      []*v1.Endpoints
+	services       []*v1.Service
+	endpointslices []*discovery.EndpointSlice
 }
 
 type qrTest struct {
@@ -55,6 +57,9 @@ func addQosServices(cont *testAciController, augment *qrTestAugment) {
 	}
 	for _, e := range augment.endpoints {
 		cont.fakeEndpointsSource.Add(e)
+	}
+	for _, e := range augment.endpointslices {
+		cont.fakeEndpointSliceSource.Add(e)
 	}
 }
 
