@@ -15,11 +15,14 @@
 package hostagent
 
 import (
+	"context"
 	"errors"
 	"os"
 
 	netClientSet "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
 	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -185,7 +188,10 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 			env.agent.initProactiveConfInformerFromClient(env.proactiveConfClient)
 		}
 		// Create file-based subscription of opflex for the platformconfig delete notifications
-		env.agent.createPlatformSubscriptionJson()
+		// only when aci-multipod flag is set.
+		if env.agent.config.AciMultipod {
+			env.agent.createPlatformSubscriptionJson()
+		}
 	}
 	env.agent.initNetPolPodIndex()
 	env.agent.initDepPodIndex()
@@ -197,6 +203,10 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	if agent.config.EnableHppDirect {
 		env.agent.initHppInformerFromClient(env.hppClient)
 		env.agent.initHostprotRemoteIpContainerInformerFromClient(env.hppClient)
+	}
+	agent.updateNode = func(node *v1.Node) (*v1.Node, error) {
+		return env.kubeClient.CoreV1().Nodes().Update(
+			context.TODO(), node, metav1.UpdateOptions{})
 	}
 	return nil
 }

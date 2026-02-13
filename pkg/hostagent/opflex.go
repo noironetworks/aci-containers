@@ -39,9 +39,8 @@ const (
 	DHCLIENT_LEASE_DIR         = "/usr/local/var/lib/dhclient"
 	DHCLIENT_CONF              = "/usr/local/etc/dhclient.conf"
 	MCAST_ROUTE_DEST           = "224.0.0.0/4"
-	PLATFORM_SUBSCRIPTION_FILE = "/usr/local/var/lib/opflex-agent-ovs/events/platformconfig.subscriptions"
-	PLATFORM_NOTIFICATION_FILE = "/usr/local/var/lib/opflex-agent-ovs/events/platformconfig.notifications"
-	MAX_PLATFORM_EVENT_AGE     = 120 * time.Second
+	PLATFORM_SUBSCRIPTION_FILE = "platformconfig.subscriptions"
+	PLATFORM_NOTIFICATION_FILE = "platformconfig.notifications"
 )
 
 type opflexFault struct {
@@ -140,7 +139,8 @@ func (agent *HostAgent) createPlatformSubscriptionJson() {
 		return
 	}
 
-	if err := os.WriteFile(PLATFORM_SUBSCRIPTION_FILE, data, 0644); err != nil {
+	eventSubfile := filepath.Join(agent.config.OpFlexEventDir, PLATFORM_SUBSCRIPTION_FILE)
+	if err := os.WriteFile(eventSubfile, data, 0644); err != nil {
 		agent.log.WithError(err).Error("Failed to write subscription file")
 		return
 	}
@@ -149,7 +149,8 @@ func (agent *HostAgent) createPlatformSubscriptionJson() {
 }
 
 func (agent *HostAgent) isPlatformConfigDeleteEventReceivedByOpflex() bool {
-	data, err := os.ReadFile(PLATFORM_NOTIFICATION_FILE)
+	eventNotfile := filepath.Join(agent.config.OpFlexEventDir, PLATFORM_NOTIFICATION_FILE)
+	data, err := os.ReadFile(eventNotfile)
 	if err != nil {
 		agent.log.WithError(err).Error(
 			"Failed to read PlatformConfigDeleteNotification file")
@@ -170,7 +171,8 @@ func (agent *HostAgent) isPlatformConfigDeleteEventReceivedByOpflex() bool {
 	event := notification.Events[0]
 	diff := time.Since(event.Timestamp)
 	agent.log.Debug("Found PlatformConfigDeleteNotification with timestamp: ", event.Timestamp)
-	return diff >= 0 && diff <= MAX_PLATFORM_EVENT_AGE
+	maxEventAge := time.Duration(agent.config.PlatformConfigDeleteEventAge) * time.Second
+	return diff >= 0 && diff <= maxEventAge
 }
 
 func (agent *HostAgent) isMultiCastRoutePresent(link netlink.Link) bool {
@@ -771,10 +773,7 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
         "domain": "{{print "comp/prov-" .AciVmmDomainType "/ctrlr-[" .AciVmmDomain "]-" .AciVmmController "/sw-InsiemeLSOid" | js}}",
         "peers": [
             {"hostname": "{{.OpflexPeerIp | js}}", "port": "8009"}
-        ],
-        "notif": {
-            "enabled": true
-        }
+        ]
     } ,
     "endpoint-sources": {
         "filesystem": ["{{.OpFlexEndpointDir | js}}"]
@@ -798,7 +797,7 @@ var opflexConfigBase = initTempl("opflex-config-base", `{
         "filesystem": ["{{.OpFlexFaultDir | js}}"]
     },
     "event-notifications": {
-        "filesystem": "/usr/local/var/lib/opflex-agent-ovs/events"
+        "filesystem": "{{.OpFlexEventDir | js}}"
     }
 }
 `)

@@ -18,7 +18,9 @@ package hostagent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,6 +29,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	kubeerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -92,6 +95,7 @@ func (agent *HostAgent) initNodeInformerBase(listWatch *cache.ListWatch) {
 
 func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 	updateServices := false
+	nodeUpdated := false
 	var node *v1.Node
 	if len(obj) == 2 {
 		oldnode := obj[0].(*v1.Node)
@@ -137,6 +141,11 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 				agent.doDhcpRenew(aciPod)
 			}
 			agent.aciPodAnnotation = aciPod
+			if eventReceived {
+				node.ObjectMeta.Annotations[metadata.AciPodAnnotation] = "recheck"
+				agent.log.Info("ACI pod annotation on node ", node.ObjectMeta.Name, "changed from ", aciPod, " to recheck")
+				nodeUpdated = true
+			}
 		}
 	}
 
@@ -193,6 +202,25 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 
 	if updateServices {
 		agent.updateAllServices()
+	}
+	if nodeUpdated {
+		_, err := agent.updateNode(node)
+		if err != nil {
+			var serr *kubeerr.StatusError
+			if errors.As(err, &serr) {
+				if serr.ErrStatus.Code == http.StatusConflict {
+					agent.log.Debug("Conflict updating node; ",
+						"will retry on next update")
+					return
+				}
+			}
+			agent.log.Error("Failed to update node: ", err)
+		} else {
+			agent.log.WithFields(logrus.Fields{
+				"AciPodAnnotation": node.
+					ObjectMeta.Annotations[metadata.AciPodAnnotation],
+			}).Info("Updated node annotations")
+		}
 	}
 }
 

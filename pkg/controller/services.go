@@ -354,6 +354,27 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	return subnet, nil
 }
 
+func (cont *AciController) getOpflexOdevDevices(nodeName string) (apicapi.ApicSlice, error) {
+	var newDevices apicapi.ApicSlice
+	opflexODevFilter := fmt.Sprintf("query-target-filter=and(eq(opflexODev.hostName,\"%s\"))", nodeName)
+	opflexODevArgs := []string{
+		opflexODevFilter,
+	}
+	url := fmt.Sprintf("/api/node/class/opflexODev.json?%s", strings.Join(opflexODevArgs, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Error("Failed to get APIC response, err: ", err.Error())
+		return newDevices, err
+	}
+	if apicresp.TotalCount == 0 {
+		return newDevices, fmt.Errorf("no OpflexODev devices found for node: %s", nodeName)
+	}
+	for _, obj := range apicresp.Imdata {
+		newDevices = append(newDevices, obj)
+	}
+	return newDevices, nil
+}
+
 func (cont *AciController) isSingleOpflexOdev(fabricPathDn string) (bool, error) {
 	pathSlice := strings.Split(fabricPathDn, "/")
 	if len(pathSlice) > 2 {
@@ -1613,7 +1634,6 @@ func (cont *AciController) infraRtAttEntPChanged(obj apicapi.ApicObject) {
 	if updated {
 		cont.updateDeviceCluster()
 	}
-	return
 }
 
 func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
