@@ -1750,7 +1750,7 @@ func (conn *ApicConnection) isSyncTag(tag string) bool {
 // its tagAnnotation matches this controller's sync tag. Returns true
 // only when the object exists on APIC and carries this controller's tag.
 func (conn *ApicConnection) isOwnedByController(dn string) bool {
-	uri := fmt.Sprintf("/api/mo/%s.json?rsp-subtree-class=tagAnnotation", dn)
+	uri := fmt.Sprintf("/api/mo/%s.json?rsp-subtree=children&rsp-subtree-class=tagAnnotation", dn)
 	resp, err := conn.GetApicResponse(uri)
 	if err != nil {
 		conn.log.Warning("Failed to fetch object for tag check: ", dn, " err: ", err)
