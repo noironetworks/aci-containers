@@ -647,7 +647,18 @@ func TestFullSync(t *testing.T) {
 				response: test.existing,
 			})
 		rec := &recorder{}
-		server.mux.Handle("/api/mo/uni/tn-common/", rec)
+
+		// Create a handler that supports both GET (for ownership check) and DELETE/POST
+		objHandler := &methodMux{
+			methods: map[string]http.Handler{
+				"GET": &subHandler{
+					response: test.existing,
+				},
+				"POST":   rec,
+				"DELETE": rec,
+			},
+		}
+		server.mux.Handle("/api/mo/uni/tn-common/", objHandler)
 		server.mux.Handle("/api/mo/comp/", rec)
 
 		conn, err := server.testConn(nil)
