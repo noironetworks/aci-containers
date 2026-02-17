@@ -736,7 +736,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	var err error
 	var privKey []byte
 	var apicCert []byte
-
+	cont.log.Info("Test image: 17-02-2026 17:46 IST")
 	cont.config.AciVrfDn = "uni/tn-" + cont.config.AciVrfTenant + "/ctx-" + cont.config.AciVrf
 
 	if cont.config.ApicPrivateKeyPath != "" {
