@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/gorilla/websocket"
+	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 )
@@ -202,6 +203,11 @@ func New(log *logrus.Logger, apic []string, user string,
 		Timeout:   5 * time.Minute,
 	}
 
+	// Probe whether AciNameForKey retains the prefix in generated names.
+	// When prefix is very long, AciNameForKey produces a pure hash with no
+	// prefix embedded, making DN-based prefix filtering impossible.
+	prefixFilterable := strings.Contains(util.AciNameForKey(prefix, "t", "k"), prefix+"_")
+
 	conn := &ApicConnection{
 		ReconnectInterval:       time.Duration(5) * time.Second,
 		ReconnectRetryLimit:     5,
@@ -210,19 +216,20 @@ func New(log *logrus.Logger, apic []string, user string,
 		RefreshTickerAdjust:     time.Duration(refreshTickerAdjust) * time.Second,
 		SubscriptionDelay:       time.Duration(subscriptionDelay) * time.Millisecond,
 
-		SyncDone:   false,
-		signer:     signer,
-		dialer:     dialer,
-		logger:     log,
-		log:        log.WithField("mod", "APICAPI"),
-		Apic:       apic,
-		user:       user,
-		password:   password,
-		prefix:     prefix,
-		client:     client,
-		vrfTenant:  vrfTenant,
-		lldpIfHldr: lldpIfHldr,
-		cnoEnabled: cnoEnabled,
+		SyncDone:         false,
+		signer:           signer,
+		dialer:           dialer,
+		logger:           log,
+		log:              log.WithField("mod", "APICAPI"),
+		Apic:             apic,
+		user:             user,
+		password:         password,
+		prefix:           prefix,
+		prefixFilterable: prefixFilterable,
+		client:           client,
+		vrfTenant:        vrfTenant,
+		lldpIfHldr:       lldpIfHldr,
+		cnoEnabled:       cnoEnabled,
 		subscriptions: subIndex{
 			subs: make(map[string]*subscription),
 			ids:  make(map[string]string),
@@ -262,30 +269,45 @@ func (conn *ApicConnection) handleSocketUpdate(apicresp *ApicResponse) {
 		}
 	}
 
-	nameAttrClass := map[string]bool{"vnsLDevVip": true, "vnsAbsGraph": true, "vzFilter": true, "vzBrCP": true, "l3extInstP": true, "vnsSvcRedirectPol": true, "vnsRedirectHealthGroup": true, "fvIPSLAMonitoringPol": true}
+	// Check if any subscription in this message has hooks (updateHook/deleteHook).
+	// Subscriptions with hooks handle all notifications regardless of ownership
+	// (e.g., fvSubnet class subscription tracking subnets across all BDs).
+	// The prefix filter must be bypassed for these.
+	hasHooks := false
+	if !conn.cnoEnabled && conn.prefixFilterable && conn.vrfTenant != "" {
+		conn.indexMutex.Lock()
+		for _, id := range subIds {
+			if value, ok := conn.subscriptions.ids[id]; ok {
+				if sub, ok := conn.subscriptions.subs[value]; ok {
+					if sub.updateHook != nil || sub.deleteHook != nil {
+						hasHooks = true
+						break
+					}
+				}
+			}
+		}
+		conn.indexMutex.Unlock()
+	}
 
 	for _, obj := range apicresp.Imdata {
 		for key, body := range obj {
 			if dn, ok := body.Attributes["dn"].(string); ok {
 				if status, isStr := body.Attributes["status"].(string); isStr {
 					dnSlice := strings.Split(dn, "/")
-					if len(dnSlice) > 1 && conn.vrfTenant != "" && strings.Contains(dnSlice[1], conn.vrfTenant) {
-						var attr string
-						if nameAttrClass[key] {
-							_, ok := body.Attributes["name"]
-							if ok {
-								attr = body.Attributes["name"].(string)
-							}
-						} else if key == "tagAnnotation" {
-							_, ok := body.Attributes["value"]
-							if ok {
-								attr = body.Attributes["value"].(string)
-							}
-						}
-						if attr != "" && !strings.Contains(attr, conn.prefix) {
-							conn.log.Debug("Skipping websocket notification for :", dn)
-							continue
-						}
+					// Filter out notifications from other controllers sharing the same vrfTenant.
+					// In normal mode, all MOs created by this controller have names generated via
+					// AciNameForKey(prefix, ktype, key) which always produces "{prefix}_{ktype}_{...}",
+					// so the DN will contain "{prefix}_" in one of its segments. Skip notifications
+					// under our vrfTenant that don't carry our prefix — they belong to other controllers.
+					// This filter is bypassed in CNO/chained mode, when AciNameForKey produces
+					// pure-hash names (prefixFilterable is false), and when the subscription has
+					// hooks that need to process all notifications regardless of ownership.
+					if !hasHooks && !conn.cnoEnabled && conn.prefixFilterable &&
+						len(dnSlice) > 1 && conn.vrfTenant != "" &&
+						dnSlice[1] == "tn-"+conn.vrfTenant &&
+						!strings.Contains(dn, "-"+conn.prefix+"_") {
+						conn.log.Debug("Skipping websocket notification for dn: ", dn, " class: ", key)
+						continue
 					}
 					var pendingKind int
 					if status == "deleted" {
@@ -412,18 +434,28 @@ func (conn *ApicConnection) handleQueuedDn(dn string) bool {
 		}
 	} else {
 		if hasPendingChange {
-			if pending.kind == pendingChangeDelete {
-				for _, handler := range deleteHandlers {
-					handler(dn)
+			if pending.kind == pendingChangeSyncDelete {
+				// Ownership already verified by sync/reconcile;
+				// delete without an extra APIC lookup.
+				requeue = conn.Delete(dn)
+			} else {
+				if pending.kind == pendingChangeDelete {
+					for _, handler := range deleteHandlers {
+						handler(dn)
+					}
+				}
+
+				if (pending.kind != pendingChangeDelete) || (dn != rootDn) {
+					conn.log.Debug("getSubtreeDn for:", rootDn)
+					conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
 				}
 			}
-
-			if (pending.kind != pendingChangeDelete) || (dn != rootDn) {
-				conn.log.Debug("getSubtreeDn for:", rootDn)
-				conn.getSubtreeDn(rootDn, respClasses, updateHandlers)
-			}
 		} else {
-			requeue = conn.Delete(dn)
+			if conn.isOwnedByController(dn) {
+				requeue = conn.Delete(dn)
+			} else {
+				conn.log.Debug("Skipping delete for unowned dn: ", dn)
+			}
 		}
 	}
 
@@ -1750,6 +1782,30 @@ var tagRegexp = regexp.MustCompile(`[a-zA-Z0-9_]{1,31}-[a-f0-9]{32}`)
 func (conn *ApicConnection) isSyncTag(tag string) bool {
 	return tagRegexp.MatchString(tag) &&
 		strings.HasPrefix(tag, conn.prefix+"-")
+}
+
+// isOwnedByController fetches the object from APIC and checks whether
+// its tagAnnotation matches this controller's sync tag. Returns true
+// only when the object exists on APIC and carries this controller's tag.
+func (conn *ApicConnection) isOwnedByController(dn string) bool {
+	uri := fmt.Sprintf("/api/mo/%s.json?rsp-subtree=children&rsp-subtree-class=tagAnnotation", dn)
+	resp, err := conn.GetApicResponse(uri)
+	if err != nil {
+		conn.log.Warning("Failed to fetch object for tag check: ", dn, " err: ", err)
+		return false
+	}
+	if len(resp.Imdata) == 0 {
+		// Object no longer exists on APIC; nothing to protect.
+		conn.log.Debug("Object not found on APIC for tag check: ", dn)
+		return false
+	}
+	tag := resp.Imdata[0].GetTag()
+	if conn.isSyncTag(tag) {
+		return true
+	}
+	conn.log.Debug("Object tag does not match controller prefix, skipping: ",
+		dn, " tag: ", tag)
+	return false
 }
 
 func getRootDn(dn, rootClass string) string {

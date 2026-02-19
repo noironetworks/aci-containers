@@ -302,6 +302,12 @@ func (conn *ApicConnection) applyDiff(updates ApicSlice, deletes []string,
 	for _, delete := range deletes {
 		conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": delete, "context": context}).
 			Debug("Applying APIC object delete")
+		conn.indexMutex.Lock()
+		conn.pendingSubDnUpdate[delete] = pendingChange{
+			kind:    pendingChangeSyncDelete,
+			isDirty: false,
+		}
+		conn.indexMutex.Unlock()
 		if isPriorityObject(delete) {
 			conn.queuePriorityDn(delete)
 		} else {
