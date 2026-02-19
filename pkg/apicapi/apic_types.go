@@ -95,8 +95,9 @@ type leafCacheEntry struct {
 }
 
 const (
-	pendingChangeDelete = iota
-	pendingChangeUpdate = iota
+	pendingChangeDelete     = iota
+	pendingChangeUpdate     = iota
+	pendingChangeSyncDelete = iota
 )
 
 type pendingChange struct {
@@ -106,13 +107,14 @@ type pendingChange struct {
 }
 
 type ApicConnection struct {
-	Apic      []string
-	ApicIndex int
-	user      string
-	password  string
-	prefix    string
-	vrfTenant string
-	version   string // APIC version
+	Apic             []string
+	ApicIndex        int
+	user             string
+	password         string
+	prefix           string
+	prefixFilterable bool
+	vrfTenant        string
+	version          string // APIC version
 
 	VersionUpdateHook   VersionUpdateHandler
 	VMMLiteSyncHook     VMMLiteSyncHandler

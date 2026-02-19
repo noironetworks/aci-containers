@@ -1056,9 +1056,9 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	}
 
 	if !cont.isCNOEnabled() {
-		// When a new class is added for subscriptio, check if its name attribute
-		// is in the format aciPrefix-<some value>, if so add it in nameAttrClass
-		// in apicapi.go
+		// Websocket notifications for objects under vrfTenant are filtered in
+		// handleSocketUpdate() using DN-based prefix matching (conn.prefix + "_").
+		// All MO names created via AciNameForKey contain this prefix pattern.
 		subscribeMo := []string{"fvBD", "vnsLDevVip", "vnsAbsGraph", "vnsLDevCtx",
 			"vzFilter", "vzBrCP", "l3extInstP", "vnsSvcRedirectPol",
 			"vnsRedirectHealthGroup", "fvIPSLAMonitoringPol"}
