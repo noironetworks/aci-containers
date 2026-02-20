@@ -240,11 +240,11 @@ func (h *retryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func TestGetSetTag(t *testing.T) {
-	bd := NewFvBD("common", "testbd1")
+	bd := NewFvBD("common", "kube_bd_test1")
 	bd.SetTag("tagTest")
 	assert.Equal(t, "tagTest", bd.GetTag())
 
-	bd = NewFvBD("common", "testbd3")
+	bd = NewFvBD("common", "kube_bd_test3")
 	bd.AddChild(NewFvSubnet(bd.GetDn(), "1.1.1.1/16"))
 	bd.AddChild(NewTagAnnotation(bd.GetDn(), aciContainersAnnotKey).
 		SetAttr("value", "anotherTest"))
@@ -494,14 +494,14 @@ func TestSubscription(t *testing.T) {
 }
 
 func existingState() ApicSlice {
-	bd := NewFvBD("common", "testbd1")
+	bd := NewFvBD("common", "kube_bd_test1")
 	subnet := NewFvSubnet(bd.GetDn(), "10.42.10.1/16")
 	subnet2 := NewFvSubnet(bd.GetDn(), "10.43.10.1/16")
 	bd.AddChild(subnet)
 	bd.AddChild(subnet2)
 
-	bd2 := NewFvBD("common", "testbd2")
-	bd0 := NewFvBD("common", "testbd0")
+	bd2 := NewFvBD("common", "kube_bd_test2")
+	bd0 := NewFvBD("common", "kube_bd_test0")
 
 	s := ApicSlice{bd0, bd, bd2}
 
@@ -548,8 +548,8 @@ type syncTest struct {
 }
 
 func TestFullSync(t *testing.T) {
-	bd0 := NewFvBD("common", "testbd0")
-	bd4 := NewFvBD("common", "testbd4")
+	bd0 := NewFvBD("common", "kube_bd_test0")
+	bd4 := NewFvBD("common", "kube_bd_test4")
 	ns := NewVmmInjectedNs("v", "d", "c", "n")
 	depl := NewVmmInjectedDepl("v", "d", "c", "n", "d")
 
@@ -560,19 +560,19 @@ func TestFullSync(t *testing.T) {
 			expected: []request{
 				{
 					method: "DELETE",
-					uri:    "/api/mo/uni/tn-common/BD-testbd0.json",
+					uri:    "/api/mo/uni/tn-common/BD-kube_bd_test0.json",
 				},
 				{
 					method: "DELETE",
-					uri:    "/api/mo/uni/tn-common/BD-testbd1/subnet-[10.43.10.1/16].json",
+					uri:    "/api/mo/uni/tn-common/BD-kube_bd_test1/subnet-[10.43.10.1/16].json",
 				},
 				{
 					method: "DELETE",
-					uri:    "/api/mo/uni/tn-common/BD-testbd2.json",
+					uri:    "/api/mo/uni/tn-common/BD-kube_bd_test2.json",
 				},
 			},
 			desiredState: func() map[string]ApicSlice {
-				bd := NewFvBD("common", "testbd1")
+				bd := NewFvBD("common", "kube_bd_test1")
 				subnet := NewFvSubnet(bd.GetDn(), "10.42.10.1/16")
 				bd.AddChild(subnet)
 				return map[string]ApicSlice{"kube-key1": {bd}}
@@ -584,23 +584,23 @@ func TestFullSync(t *testing.T) {
 			expected: []request{
 				{
 					method: "POST",
-					uri:    "/api/mo/uni/tn-common/BD-testbd0.json",
+					uri:    "/api/mo/uni/tn-common/BD-kube_bd_test0.json",
 					body:   bd0,
 				},
 				{
 					method: "POST",
-					uri:    "/api/mo/uni/tn-common/BD-testbd4.json",
+					uri:    "/api/mo/uni/tn-common/BD-kube_bd_test4.json",
 					body:   bd4,
 				},
 			},
 			desiredState: func() map[string]ApicSlice {
-				bd := NewFvBD("common", "testbd1")
+				bd := NewFvBD("common", "kube_bd_test1")
 				subnet := NewFvSubnet(bd.GetDn(), "10.42.10.1/16")
 				subnet2 := NewFvSubnet(bd.GetDn(), "10.43.10.1/16")
 				bd.AddChild(subnet)
 				bd.AddChild(subnet2)
 
-				bd2 := NewFvBD("common", "testbd2")
+				bd2 := NewFvBD("common", "kube_bd_test2")
 
 				subnet3 := NewFvSubnet(bd0.GetDn(), "10.44.10.1/16")
 				bd0.AddChild(subnet3)
@@ -688,7 +688,7 @@ type reconcileTest struct {
 }
 
 func TestReconcile(t *testing.T) {
-	bd1exp := NewFvBD("common", "testbd1")
+	bd1exp := NewFvBD("common", "kube_bd_test1")
 	subnetexp := NewFvSubnet(bd1exp.GetDn(), "10.42.10.1/16")
 	subnetexp_copy := NewFvSubnet(bd1exp.GetDn(), "10.42.10.1/16")
 	{
@@ -696,12 +696,12 @@ func TestReconcile(t *testing.T) {
 		bd1exp.AddChild(subnetexp)
 		bd1exp.AddChild(subnet2)
 	}
-	bdExtra := NewFvBD("common", "testbd_extra")
-	bdExtra2 := NewFvBD("common", "testbd_extra2")
+	bdExtra := NewFvBD("common", "kube_bd_extra")
+	bdExtra2 := NewFvBD("common", "kube_bd_extra2")
 	// note don't prepare bdExtra2
 	PrepareApicSlice(ApicSlice{bd1exp, bdExtra}, "kube", "kube-key1")
 
-	bd1 := NewFvBD("common", "testbd1")
+	bd1 := NewFvBD("common", "kube_bd_test1")
 	{
 		bd1.SetAttr("arpFlood", "yes")
 		subnet := NewFvSubnet(bd1.GetDn(), "10.42.10.1/16")
