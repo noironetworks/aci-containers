@@ -21,17 +21,22 @@ import (
 	"strings"
 )
 
+const (
+	AciNameMaxLen   = 64
+	AciPrefixMaxLen = 31
+)
+
 // AciNameForKey generates an ACI object name based on the params passed
 func AciNameForKey(prefix, ktype, key string) string {
 	name := prefix + "_" + ktype +
 		"_" + strings.Replace(key, "/", "_", -1)
-	if len(name) < 64 {
+	if len(name) < AciNameMaxLen {
 		return name
 	}
 
 	hash := sha256.New()
-	if len(prefix)+len(ktype)+1 > 31 {
-		if len(prefix) > 31 {
+	if len(prefix)+len(ktype)+1 > AciPrefixMaxLen {
+		if len(prefix) > AciPrefixMaxLen {
 			hash.Write([]byte(prefix))
 			hash.Write([]byte("_"))
 		} else {
@@ -46,7 +51,7 @@ func AciNameForKey(prefix, ktype, key string) string {
 	hash.Write([]byte(key))
 
 	hashstr := hex.EncodeToString(hash.Sum(nil)[:16])
-	if len(prefix) > 31 {
+	if len(prefix) > AciPrefixMaxLen {
 		return hashstr
 	} else {
 		return fmt.Sprintf("%s_%s", name, hashstr)

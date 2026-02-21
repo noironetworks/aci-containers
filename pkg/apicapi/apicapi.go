@@ -203,10 +203,9 @@ func New(log *logrus.Logger, apic []string, user string,
 		Timeout:   5 * time.Minute,
 	}
 
-	// Probe whether AciNameForKey retains the prefix in generated names.
 	// When prefix is very long, AciNameForKey produces a pure hash with no
 	// prefix embedded, making DN-based prefix filtering impossible.
-	prefixFilterable := strings.Contains(util.AciNameForKey(prefix, "t", "k"), prefix+"_")
+	prefixFilterable := len(prefix) <= util.AciPrefixMaxLen
 
 	conn := &ApicConnection{
 		ReconnectInterval:       time.Duration(5) * time.Second,
