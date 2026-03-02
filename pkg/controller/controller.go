@@ -603,18 +603,10 @@ func (cont *AciController) Init() {
 
 	cont.log.Debug("Initializing IPAM")
 	cont.initIpam()
-	// check if the cluster supports endpoint slices
-	// if cluster doesn't have the support fallback to endpoints
-	kubeClient := cont.env.(*K8sEnvironment).kubeClient
-	if util.IsEndPointSlicesSupported(kubeClient) {
-		cont.serviceEndPoints = &serviceEndpointSlice{}
-		cont.serviceEndPoints.(*serviceEndpointSlice).cont = cont
-		cont.log.Info("Initializing ServiceEndpointSlices")
-	} else {
-		cont.serviceEndPoints = &serviceEndpoint{}
-		cont.serviceEndPoints.(*serviceEndpoint).cont = cont
-		cont.log.Info("Initializing ServiceEndpoints")
-	}
+
+	cont.serviceEndPoints = &serviceEndpointSlice{}
+	cont.serviceEndPoints.(*serviceEndpointSlice).cont = cont
+	cont.log.Info("Initializing ServiceEndpointSlices")
 
 	err = cont.env.Init(cont)
 	if err != nil {
