@@ -1369,7 +1369,7 @@ func pod_to_pod_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 							dst_ep.Attributes.InterfaceName, tun_id, proto.Protocol, dstPod.Status.PodIP, srcPod.Status.PodIP, dst_ep.Mac, src_mac, proto.DstPort, proto.DstPortVal, proto.SrcPort, proto.SrcPortVal)}
 				}
 			}
-			// Set conntrack state that allows reply traffic out in case of egress policy is
+			// Set conntrack state that allows reply traffic in case of ingress policy is
 			// enforced on the target.
 			cmd_args[len(cmd_args)-1] = fmt.Sprintf("%s --ct-next rpl,est,trk", cmd_args[len(cmd_args)-1])
 			log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
@@ -1715,7 +1715,6 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 	request_out_bridgeflows := []Bridge{}
 
 	if !src_pod_hostnetwork {
-
 		cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 			"--", "/bin/sh", "-c",
 			fmt.Sprintf("ovs-appctl ofproto/trace br-access 'in_port=%s, %s, nw_ttl=10, nw_src=%s, nw_dst=%s, dl_src=%s, %s=%d,%s=%d'",
@@ -1780,7 +1779,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 		if !request_egress_packetdropped {
 			if destPodIp != "" {
-				destPod, err = findEndpoint(kubeClient, destPodIp, tcpDst, dest_svc)
+				destPod, err = findEndpoint(kubeClient, destPodIp, proto.DstPortVal, dest_svc)
 				if err != nil {
 					fmt.Printf("%sEndpoint is a node with IP:%s%s\n", ColorGreen, destPodIp, ColorReset)
 					destNodeName, err = findNodeByIP(kubeClient, destPodIp)
@@ -1828,7 +1827,6 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					if err != nil {
 						fmt.Fprintln(os.Stderr, err)
 						return
-
 					}
 
 					printEndpointDetails(dest_ep, destPod, dst_opflex_pod)
@@ -1922,7 +1920,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,"+
 						"tun_id=0x%s, %s,nw_ttl=10, nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
 						tun_id, proto.Protocol, srcPod.Status.PodIP, destPod.Status.PodIP, "00:22:bd:f8:19:ff",
-						dest_ep.Mac, proto.SrcPort, tcpSrc, proto.DstPort, targetPort)}
+						dest_ep.Mac, proto.SrcPort, proto.SrcPortVal, proto.DstPort, targetPort)}
 
 				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 				err = execKubectl(cmd_args, dest_buffer)
@@ -1978,9 +1976,8 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 				}
 
 				if !request_ingress_packetdropped {
-					fmt.Printf("%s=> Packet received on the destination %s %s\n", ColorGreen, destPod.Status.PodIP, ColorReset)
+					fmt.Printf("%s=> Packet sent out from Source Pod %s(%s) of the node:%s and sent to the service %s is received on the backend pod %s(%s) of the node:%s %s\n", ColorGreen, srcPod.Name, srcPod.Status.PodIP, srcPod.Spec.NodeName, dest_svc.Name, destPod.Name, destPod.Status.PodIP, destPod.Spec.NodeName, ColorReset)
 				}
-
 			} else {
 				if srcPod.Spec.NodeName != destPod.Spec.NodeName {
 					if !src_pod_hostnetwork {
@@ -2053,14 +2050,16 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 						"nw_ttl=10,nw_src=%s, nw_dst=%s, dl_src=%s, dl_dst=%s,%s=%d,%s=%d'",
 						dest_ep.Attributes.InterfaceName, proto.Protocol,
 						destPod.Status.PodIP, srcPod.Status.PodIP, dest_ep.Mac,
-						"00:22:bd:f8:19:ff", proto.DstPort, targetPort, proto.SrcPort, tcpSrc)}
+						"00:22:bd:f8:19:ff", proto.DstPort, targetPort, proto.SrcPort, proto.SrcPortVal)}
 
+				// Set conntrack state that allows reply traffic in case of egress policy is
+				// enforced on the backend pod.
+				cmd_args[len(cmd_args)-1] = fmt.Sprintf("%s --ct-next rpl,est,trk", cmd_args[len(cmd_args)-1])
 				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 				err = execKubectl(cmd_args, src_buffer)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					return
-
 				}
 
 				sections := strings.Split(src_buffer.String(), "bridge")
@@ -2087,7 +2086,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					}
 				}
 
-				for idx, _ := range reply_out_bridgeflows {
+				for idx := range reply_out_bridgeflows {
 					reply_out_bridgeflows[idx].brFlowEntries = reply_out_bridgeflows[idx].parseFlowEntries()
 					reply_out_bridgeflows[idx].out_br_buff = reply_out_bridgeflows[idx].buildPacketTrace()
 				}
@@ -2095,13 +2094,13 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 				for _, br := range reply_out_bridgeflows {
 					if br.summary != nil && br.summary.PacketDropped {
 						if br.br_type == "br-access" {
-							fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+							fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
 								ColorRed, "br-access", br.summary.previousTable,
 								wrapText(brAccessTableDescriptions[br.summary.previousTable], 60),
 								destPod.Spec.NodeName, ColorReset)
 							reply_egress_packetdropped = true
 						} else {
-							fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+							fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
 								ColorRed, "br-int", br.summary.previousTable,
 								wrapText(brIntTableDescriptions[br.summary.previousTable], 60),
 								destPod.Spec.NodeName, ColorReset)
@@ -2112,7 +2111,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 
 				if !reply_egress_packetdropped {
 					if !src_pod_hostnetwork {
-						fmt.Printf("%s=> Packet sent out from node:%s\n"+
+						fmt.Printf("%s=> Reply packet sent out from node:%s\n"+
 							"with epg %s(%s)\n"+
 							"to origin pod IP %s\n"+
 							"with destination_epg/VXLAN_Tunnel_ID:0x%s(decimal:%d)(%s) %s\n\n",
@@ -2120,7 +2119,7 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 							dest_ep.EndpointGroupName, srcPod.Status.PodIP, tun_id, tun_id_int, src_ep.EndpointGroupName, ColorReset)
 
 					} else {
-						fmt.Printf("%s=> Packet sent out from node:%s\n"+
+						fmt.Printf("%s=> Reply packet sent out from node:%s\n"+
 							"with epg %s(%s)\n"+
 							"to origin pod IP %s\n"+
 							"on node(%s) network %s\n\n",
@@ -2152,14 +2151,13 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					srcPod.Spec.NodeName,
 					ColorReset,
 				)
-
 			}
-
 		}
 	}
 
 	reply_in_bridgeflows := []Bridge{}
 	dest_buffer = new(bytes.Buffer)
+	cmd_args = []string{}
 	if !request_egress_packetdropped && !request_ingress_packetdropped && !reply_egress_packetdropped {
 		if !src_pod_hostnetwork {
 			if destPod != nil {
@@ -2168,81 +2166,76 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 						"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,tun_id=0x%s, "+
 							"%s,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,%s=%d,nw_ttl=64'",
 							tun_id, proto.Protocol, ct_mark, destPod.Status.PodIP, srcPod.Status.PodIP, src_ep.Mac, proto.SrcPort, targetPort)}
-
-					log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
-					err = execKubectl(cmd_args, dest_buffer)
-					if err != nil {
-						fmt.Fprintln(os.Stderr, err)
-						return
-
-					}
 				}
-
 			} else {
 				cmd_args = []string{"exec", "-n", "aci-containers-system", srcOvsPodName,
 					"--", "/bin/sh", "-c", fmt.Sprintf("ovs-appctl ofproto/trace br-int 'in_port=vxlan0,tun_id=0x%s, "+
 						"%s,ct_state=trk|est,ct_mark=%s,nw_src=%s, nw_dst=%s,dl_dst=%s,%s=%d,nw_ttl=64'",
 						tun_id, proto.Protocol, ct_mark, destPodIp, srcPod.Status.PodIP, src_ep.Mac, proto.SrcPort, targetPort)}
-
+			}
+			if len(cmd_args) > 0 {
+				// Set conntrack state that allows reply traffic in case of ingress policy is
+				// enforced on the source pod.
+				cmd_args[len(cmd_args)-1] = fmt.Sprintf("%s --ct-next rpl,est,trk", cmd_args[len(cmd_args)-1])
 				log.Debugf("Running command: kubectl %s", strings.Join(cmd_args, " "))
 				err = execKubectl(cmd_args, dest_buffer)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					return
+				}
+				sections := strings.Split(dest_buffer.String(), "bridge")
 
+				for idx, section := range sections {
+					if strings.Contains(section, "br-access") {
+						reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" +
+							section, nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+					} else if strings.Contains(section, "br-int") {
+						reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" +
+							section, nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-access") &&
+						strings.Contains(sections[idx-1], "resume conntrack") {
+						reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-access"
+					}
+
+					if idx > 0 && strings.Contains(sections[idx-1], "br-int") &&
+						strings.Contains(sections[idx-1], "resume conntrack") {
+						reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-int"
+					}
 				}
 
-			}
-
-			sections := strings.Split(dest_buffer.String(), "bridge")
-
-			for idx, section := range sections {
-				if strings.Contains(section, "br-access") {
-					reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-access", brFlows: "bridge" +
-						section, nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
-				} else if strings.Contains(section, "br-int") {
-					reply_in_bridgeflows = append(reply_in_bridgeflows, Bridge{br_type: "br-int", brFlows: "bridge" +
-						section, nodename: srcPod.Spec.NodeName, ovsPod: srcOvsPodName, opflexPod: src_opflex_pod})
+				for idx := range reply_in_bridgeflows {
+					reply_in_bridgeflows[idx].brFlowEntries = reply_in_bridgeflows[idx].parseFlowEntries()
+					reply_in_bridgeflows[idx].out_br_buff = reply_in_bridgeflows[idx].buildPacketTrace()
 				}
 
-				if idx > 0 && strings.Contains(sections[idx-1], "br-access") &&
-					strings.Contains(sections[idx-1], "resume conntrack") {
-					reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-access"
-				}
-
-				if idx > 0 && strings.Contains(sections[idx-1], "br-int") &&
-					strings.Contains(sections[idx-1], "resume conntrack") {
-					reply_in_bridgeflows[len(reply_in_bridgeflows)-1].br_type = "br-int"
-				}
-
-			}
-
-			for idx := range reply_in_bridgeflows {
-				reply_in_bridgeflows[idx].brFlowEntries = reply_in_bridgeflows[idx].parseFlowEntries()
-				reply_in_bridgeflows[idx].out_br_buff = reply_in_bridgeflows[idx].buildPacketTrace()
-			}
-
-			for _, br := range reply_in_bridgeflows {
-				if br.summary != nil && br.summary.PacketDropped {
-					if br.br_type == "br-access" {
-						fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
-							ColorRed, "br-access", br.summary.previousTable,
-							wrapText(brAccessTableDescriptions[br.summary.previousTable], 60),
-							srcPod.Spec.NodeName, ColorReset)
-						reply_ingress_packetdropped = true
-					} else {
-						fmt.Printf("%s=> Packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
-							ColorRed, "br-int",
-							br.summary.previousTable, wrapText(brIntTableDescriptions[br.summary.previousTable], 60),
-							srcPod.Spec.NodeName, ColorReset)
-						reply_ingress_packetdropped = true
+				for _, br := range reply_in_bridgeflows {
+					if br.summary != nil && br.summary.PacketDropped {
+						if br.br_type == "br-access" {
+							fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+								ColorRed, "br-access", br.summary.previousTable,
+								wrapText(brAccessTableDescriptions[br.summary.previousTable], 60),
+								srcPod.Spec.NodeName, ColorReset)
+							reply_ingress_packetdropped = true
+						} else {
+							fmt.Printf("%s=> Reply packet dropped on bridge: %s and in table%d: %s on node: %s%s\n\n",
+								ColorRed, "br-int",
+								br.summary.previousTable, wrapText(brIntTableDescriptions[br.summary.previousTable], 60),
+								srcPod.Spec.NodeName, ColorReset)
+							reply_ingress_packetdropped = true
+						}
 					}
 				}
 			}
-
 			if !reply_ingress_packetdropped {
-				fmt.Printf("%s=> Packet received on the source Pod %s(%s) %s\n\n", ColorGreen,
-					srcPod.Name, srcPod.Status.PodIP, ColorReset)
+				if destPod != nil {
+					fmt.Printf("%s=> Reply packet sent by destination Pod %s(%s) of node %s received on the source Pod %s(%s) of node %s %s\n\n", ColorGreen,
+						destPod.Name, destPod.Status.PodIP, destPod.Spec.NodeName, srcPod.Name, srcPod.Status.PodIP, srcPod.Spec.NodeName, ColorReset)
+				} else {
+					fmt.Printf("%s=> Reply packet sent by destination Pod %s and received on the source Pod %s(%s) of node %s %s\n\n", ColorGreen,
+						destPodIp, srcPod.Name, srcPod.Status.PodIP, srcPod.Spec.NodeName, ColorReset)
+				}
 			}
 		}
 	}
@@ -2258,7 +2251,6 @@ func pod_to_svc_tracepacket(args []string, tcpFlag bool, tcpSrc int, tcpDst int,
 					fmt.Printf("\n%s%s%s\n", ColorYellow, "br-int:", ColorReset)
 					fmt.Println(br.out_br_buff)
 				}
-
 			}
 		}
 
