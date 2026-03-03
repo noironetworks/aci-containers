@@ -888,7 +888,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 	cont.apicConn.Flavor = cont.config.Flavor
 	cont.apicConn.VmmDomain = cont.config.AciVmmDomain
 	cont.apicConn.ReconnectRetryLimit = cont.config.ApicConnectionRetryLimit
-	cont.apicConn.RequestRetryDelay = cont.config.ApicRequestRetryDelay
+	cont.apicConn.RequestRetryDelayBase = cont.config.ApicRequestRetryDelayBase
 	cont.apicConn.EnableRequestRetry = cont.config.EnableApicRequestRetry
 
 	if len(cont.config.ApicHosts) != 0 {
