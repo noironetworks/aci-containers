@@ -35,6 +35,7 @@ jobs:
       install:
         - pip install PyYAML
         - pip install pytz
+        - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
       go: 1.25.0
       go_import_path: github.com/noironetworks/aci-containers
       before_script:
