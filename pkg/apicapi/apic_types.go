@@ -117,16 +117,16 @@ type ApicConnection struct {
 	vrfTenant        string
 	version          string // APIC version
 
-	VersionUpdateHook   VersionUpdateHandler
-	VMMLiteSyncHook     VMMLiteSyncHandler
-	CachedVersion       string
-	ReconnectInterval   time.Duration
-	ReconnectRetryLimit int
-	RequestRetryDelay   int
-	EnableRequestRetry  bool
-	VmmDomain           string
-	Flavor              string
-	FilterOpflexDevice  bool
+	VersionUpdateHook     VersionUpdateHandler
+	VMMLiteSyncHook       VMMLiteSyncHandler
+	CachedVersion         string
+	ReconnectInterval     time.Duration
+	ReconnectRetryLimit   int
+	RequestRetryDelayBase int
+	EnableRequestRetry    bool
+	VmmDomain             string
+	Flavor                string
+	FilterOpflexDevice    bool
 
 	RefreshInterval         time.Duration
 	RefreshTickerAdjust     time.Duration
