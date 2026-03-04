@@ -41,11 +41,11 @@ func (agent *HostAgent) initHppInformerFromClient(
 	hppClient *hppclset.Clientset) {
 	agent.initHppInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return hppClient.AciV1().HostprotPols(metav1.NamespaceAll).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return hppClient.AciV1().HostprotPols(metav1.NamespaceAll).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return hppClient.AciV1().HostprotPols(metav1.NamespaceAll).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return hppClient.AciV1().HostprotPols(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }
@@ -54,11 +54,11 @@ func (agent *HostAgent) initHostprotRemoteIpContainerInformerFromClient(
 	hppClient *hppclset.Clientset) {
 	agent.initHostprotRemoteIpContainerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return hppClient.AciV1().HostprotRemoteIpContainers(metav1.NamespaceAll).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return hppClient.AciV1().HostprotRemoteIpContainers(metav1.NamespaceAll).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return hppClient.AciV1().HostprotRemoteIpContainers(metav1.NamespaceAll).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return hppClient.AciV1().HostprotRemoteIpContainers(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }

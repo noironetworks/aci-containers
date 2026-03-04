@@ -105,19 +105,11 @@ func (agent *HostAgent) initSnatGlobalInformerFromClient(
 	snatClient *snatglobalclset.Clientset) {
 	agent.initSnatGlobalInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to list SnatGlobalInfo during initialization of SnatGlobalInformer: %s", err)
-				}
-				return obj, err
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to watch SnatGlobalInfo during initialization of SnatGlobalInformer: %s", err)
-				}
-				return obj, err
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return snatClient.AciV1().SnatGlobalInfos(metav1.NamespaceAll).Watch(ctx, options)
 			},
 		})
 }
@@ -126,19 +118,11 @@ func (agent *HostAgent) initSnatPolicyInformerFromClient(
 	snatClient *snatpolicyclset.Clientset) {
 	agent.initSnatPolicyInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := snatClient.AciV1().SnatPolicies().List(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to list SnatPolicies during initialization of SnatPolicyInformer: %s", err)
-				}
-				return obj, err
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return snatClient.AciV1().SnatPolicies().List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := snatClient.AciV1().SnatPolicies().Watch(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to watch SnatPolicies during initialization of SnatPolicyInformer: %s", err)
-				}
-				return obj, err
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return snatClient.AciV1().SnatPolicies().Watch(ctx, options)
 			},
 		})
 }

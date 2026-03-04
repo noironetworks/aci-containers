@@ -17,6 +17,7 @@
 package hostagent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -35,8 +36,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/controller"
 
-	"context"
-
 	"github.com/noironetworks/aci-containers/pkg/metadata"
 )
 
@@ -49,23 +48,13 @@ func (agent *HostAgent) initNodeInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
 	agent.initNodeInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				options.FieldSelector =
-					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				obj, err := kubeClient.CoreV1().Nodes().List(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to list Nodes during initialization of NodeInformer: %s", err)
-				}
-				return obj, err
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				options.FieldSelector = fields.OneTermEqualSelector("metadata.name", agent.config.NodeName).String()
+				return kubeClient.CoreV1().Nodes().List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				options.FieldSelector =
-					fields.Set{"metadata.name": agent.config.NodeName}.String()
-				obj, err := kubeClient.CoreV1().Nodes().Watch(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to watch Nodes during initialization of NodeInformer: %s", err)
-				}
-				return obj, err
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				options.FieldSelector = fields.OneTermEqualSelector("metadata.name", agent.config.NodeName).String()
+				return kubeClient.CoreV1().Nodes().Watch(ctx, options)
 			},
 		})
 }
