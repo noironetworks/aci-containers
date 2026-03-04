@@ -4682,7 +4682,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, "test-rule_0-ipv4", subj.HostprotRule[0].Name)
+	assert.Equal(t, "test-rule_0-ipv4__test-network-policy", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -4729,7 +4729,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 				Protocol:            "unspecified",
 				FromPort:            "unspecified",
 				ToPort:              "unspecified",
-				Name:                "test-rule-ipv4",
+				Name:                "test-rule-ipv4__test-network-policy",
 				RsRemoteIpContainer: []string{"test-namespace"},
 				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 					{
@@ -4761,7 +4761,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "unspecified",
 			FromPort:            "unspecified",
 			ToPort:              "unspecified",
-			Name:                "test-rule-ipv4",
+			Name:                "test-rule-ipv4__test-network-policy",
 			RsRemoteIpContainer: []string{},
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
@@ -4819,7 +4819,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "tcp",
 			FromPort:            "8080",
 			ToPort:              "unspecified",
-			Name:                "test-rule_0-ipv4",
+			Name:                "test-rule_0-ipv4__test-network-policy",
 			RsRemoteIpContainer: []string{},
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
