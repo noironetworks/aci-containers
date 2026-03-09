@@ -16,6 +16,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"reflect"
@@ -26,14 +27,92 @@ import (
 	snatclientset "github.com/noironetworks/aci-containers/pkg/snatpolicy/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
 	"github.com/sirupsen/logrus"
+	admregv1 "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
 
 const snatGraphName = "svcgraph"
+
+const (
+	snatVAPName    = "snatpolicy-validator"
+	snatVAPBinding = "snatpolicy-validator-binding"
+)
+
+// ensureSnatPolicyVAP creates a ValidatingAdmissionPolicy and its binding that
+// rejects any SnatPolicy CR where all three of snatIp, selector.namespace, and
+// selector.labels are absent. The policy is idempotent: if it already exists
+// the error is silently ignored. Requires Kubernetes >= 1.30 (VAP GA).
+//
+// The controller's ClusterRole must include the following rules for this to work:
+//
+//   - apiGroups: ["admissionregistration.k8s.io"]
+//     resources: ["validatingadmissionpolicies", "validatingadmissionpolicybindings"]
+//     verbs: ["create", "get"]
+func (cont *AciController) ensureSnatPolicyVAP(kubeClient kubernetes.Interface) {
+	ctx := context.TODO()
+	failPolicy := admregv1.Fail
+
+	policy := &admregv1.ValidatingAdmissionPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: snatVAPName},
+		Spec: admregv1.ValidatingAdmissionPolicySpec{
+			FailurePolicy: &failPolicy,
+			MatchConstraints: &admregv1.MatchResources{
+				ResourceRules: []admregv1.NamedRuleWithOperations{
+					{
+						RuleWithOperations: admregv1.RuleWithOperations{
+							Operations: []admregv1.OperationType{
+								admregv1.OperationAll,
+							},
+							Rule: admregv1.Rule{
+								APIGroups:   []string{"aci.snat"},
+								APIVersions: []string{"v1"},
+								Resources:   []string{"snatpolicies"},
+							},
+						},
+					},
+				},
+			},
+			Validations: []admregv1.Validation{
+				{
+					Expression: "(has(object.spec) && has(object.spec.snatIp) && object.spec.snatIp.size() > 0) || " +
+						"(has(object.spec) && has(object.spec.selector) && has(object.spec.selector.namespace) && object.spec.selector.namespace != \"\") || " +
+						"(has(object.spec) && has(object.spec.selector) && has(object.spec.selector.labels) && object.spec.selector.labels.size() > 0)",
+					Message: "SnatPolicy is invalid: at least one of spec.snatIp, " +
+						"spec.selector.namespace, or spec.selector.labels must be specified",
+				},
+			},
+		},
+	}
+
+	_, err := kubeClient.AdmissionregistrationV1().
+		ValidatingAdmissionPolicies().
+		Create(ctx, policy, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		cont.log.Errorf("Failed to create SnatPolicy ValidatingAdmissionPolicy: %v", err)
+		return
+	}
+
+	binding := &admregv1.ValidatingAdmissionPolicyBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: snatVAPBinding},
+		Spec: admregv1.ValidatingAdmissionPolicyBindingSpec{
+			PolicyName:        snatVAPName,
+			ValidationActions: []admregv1.ValidationAction{admregv1.Deny},
+		},
+	}
+
+	_, err = kubeClient.AdmissionregistrationV1().
+		ValidatingAdmissionPolicyBindings().
+		Create(ctx, binding, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		cont.log.Errorf("Failed to create SnatPolicy ValidatingAdmissionPolicyBinding: %v", err)
+	}
+}
 
 type ContPodSelector struct {
 	Labels    map[string]string

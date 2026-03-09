@@ -220,6 +220,7 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 		cont.initNetworkPolicyInformerFromClient(kubeClient)
 		cont.initCRDInformer()
 		cont.initSnatInformerFromClient(snatClient)
+		cont.ensureSnatPolicyVAP(kubeClient)
 		cont.initSnatNodeInformerFromClient(env.nodeInfoClient)
 		cont.initSnatLocalInfoInformerFromClient(env.snatLocalInfoClient)
 		cont.initRdConfigInformerFromClient(env.rdConfigClient)
