@@ -56,6 +56,39 @@ func getNodes() (*v1.NodeList, error) {
 	return nodes, err
 }
 
+func getDropLogFile(kubeClient kubernetes.Interface, systemNamespace string) string {
+	cfgMap, err := kubeClient.CoreV1().ConfigMaps(systemNamespace).Get(kubecontext.TODO(), "acc-provision-config", metav1.GetOptions{})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Could not get acc-provision-config configmap:", err)
+		return ""
+	}
+
+	var result map[string]interface{}
+	if err = json.Unmarshal([]byte(cfgMap.Data["spec"]), &result); err != nil {
+		fmt.Fprintln(os.Stderr, "Could not unmarshal configMap spec:", err)
+		return ""
+	}
+
+	accProvisionInput, ok := result["acc_provision_input"].(map[string]interface{})
+	if !ok {
+		fmt.Fprintln(os.Stderr, "acc_provision_input not found in configMap")
+		return ""
+	}
+
+	dropLogConfig, ok := accProvisionInput["drop_log_config"].(map[string]interface{})
+	if !ok {
+		fmt.Fprintln(os.Stderr, "drop_log_config not found in acc_provision_input")
+		return ""
+	}
+
+	redirectDropLogs, ok := dropLogConfig["opflex_redirect_drop_logs"].(string)
+	if !ok || redirectDropLogs == "" || redirectDropLogs == "syslog" {
+		return ""
+	}
+
+	return redirectDropLogs
+}
+
 func getLogFileSize() (string, error) {
 	kubeClient := initClientPrintError()
 	if kubeClient == nil {
@@ -216,12 +249,31 @@ func createTarForClusterReport(tarWriter *tar.Writer) error {
 		return err
 	}
 
+	// Create tar file for drop logs if the directory exists
+	if _, statErr := os.Stat("droplogs"); statErr == nil {
+		createTarCmd = exec.Command("tar", "-cvf", "droplogs.tar", "droplogs")
+		err = createTarCmd.Run()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error while running command")
+			return err
+		}
+
+		// write droplogs.tar file to cluster-report tar
+		err = addFileToTarball("droplogs.tar", tarWriter)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Could not add droplogs.tar to cluster-report tar")
+			return err
+		}
+	}
+
 	// Delete tar and cluster-report/files dir
 	deleteCmds := []string{"rm -rf cluster-report/",
 		"rm -rf hostfiles.tar",
 		"rm -rf hostfiles",
 		"rm -rf pod-logs.tar",
 		"rm -rf pod-logs",
+		"rm -rf droplogs.tar",
+		"rm -rf droplogs",
 	}
 
 	for _, cmd := range deleteCmds {
@@ -543,6 +595,14 @@ func clusterReport(cmd *cobra.Command, args []string) {
 		},
 	}
 
+	// Collect drop logs from all nodes if redirected to a file
+	dropLogFile := getDropLogFile(kubeClient, systemNamespace)
+	if dropLogFile != "" {
+		fmt.Fprintf(os.Stderr, "Drop log file configured: %s, collecting from all nodes(including rotated files)\n", "/usr/local/var/log/"+dropLogFile)
+	} else {
+		fmt.Fprintln(os.Stderr, "opflex_redirect_drop_logs is not enabled, skipping droplog collection")
+	}
+
 	nodePodMap := make(map[string]string)
 	for ix := range nodes.Items {
 		for index := range nodeItems {
@@ -594,6 +654,46 @@ func clusterReport(cmd *cobra.Command, args []string) {
 			name: tempName,
 			args: aciContainerHostVersionCmdArgs(systemNamespace),
 		})
+
+		// Collect drop log files (base + rotated like droplog.1, droplog.2, etc.)
+		if dropLogFile != "" {
+			dropLogKey := nodes.Items[ix].Name + ";" + opflexAgentSelector
+			podName, cached := nodePodMap[dropLogKey]
+			if !cached {
+				podName, err = podForNode(kubeClient, systemNamespace,
+					nodes.Items[ix].Name, opflexAgentSelector)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, "Could not find pod for drop log collection on node", nodes.Items[ix].Name, ":", err)
+					continue
+				}
+			}
+			dropLogDir := "/usr/local/var/log"
+			// List files matching the drop log pattern: dropLogFile and dropLogFile.*
+			var listBuf bytes.Buffer
+			listArgs := otherNodeArgs(systemNamespace, podName, "opflex-agent",
+				[]string{"find", dropLogDir, "-maxdepth", "1", "(", "-name", dropLogFile, "-o", "-name", dropLogFile + ".*", ")"})
+			listErr := execKubectl(listArgs, &listBuf)
+			if listErr == nil && strings.TrimSpace(listBuf.String()) != "" {
+				files := strings.Split(strings.TrimSpace(listBuf.String()), "\n")
+				for _, remoteFilePath := range files {
+					remoteFilePath = strings.TrimSpace(remoteFilePath)
+					if remoteFilePath == "" {
+						continue
+					}
+					// Extract the filename from the full path
+					parts := strings.Split(remoteFilePath, "/")
+					fileName := parts[len(parts)-1]
+					tempName := fmt.Sprintf("droplogs/node-%s/%s", nodes.Items[ix].Name, fileName)
+					cmds = append(cmds, reportCmdElem{
+						name:           tempName,
+						args:           []string{"cp", systemNamespace + "/" + podName + ":" + remoteFilePath, tempName},
+						skipOutputFile: true,
+					})
+				}
+			} else {
+				fmt.Fprintln(os.Stderr, "No drop log files found on node", nodes.Items[ix].Name)
+			}
+		}
 	}
 	output, outfile, err := getOutfile(output)
 	if err != nil {
