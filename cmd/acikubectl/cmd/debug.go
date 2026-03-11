@@ -71,13 +71,13 @@ func getDropLogFile(kubeClient kubernetes.Interface, systemNamespace string) str
 
 	accProvisionInput, ok := result["acc_provision_input"].(map[string]interface{})
 	if !ok {
-		fmt.Fprintln(os.Stderr, "acc_provision_input not found in configMap")
+		fmt.Fprintln(os.Stderr, "[warn] acc_provision_input is absent in configMap, skipping droplog collection")
 		return ""
 	}
 
 	dropLogConfig, ok := accProvisionInput["drop_log_config"].(map[string]interface{})
 	if !ok {
-		fmt.Fprintln(os.Stderr, "drop_log_config not found in acc_provision_input")
+		fmt.Fprintln(os.Stderr, "[warn] drop_log_config is absent in acc_provision_input, skipping droplog collection")
 		return ""
 	}
 
