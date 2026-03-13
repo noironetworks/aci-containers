@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"regexp"
@@ -996,7 +997,7 @@ func (conn *ApicConnection) checkLeafReboot() {
 }
 
 // sendHTTPSRequestToAPIC sends an HTTPS request to APIC.
-// - Retries on 503 when EnableRequestRetry is true, up to maxRequestRetry, waiting RequestRetryDelay minutes.
+// - Retries on 503 when EnableRequestRetry is true, up to maxRequestRetry times, using triangular-growth backoff with jitter.
 // - If restart is true, the connection is restarted on request/transport errors, non-2xx responses, and after retry exhaustion.
 // - Status codes in exceptionStatusCode are returned as-is for the caller to handle.
 // Sets the Content-Type header when provided; pass nil for body and "" for contentType to omit them.
@@ -1056,7 +1057,17 @@ func (conn *ApicConnection) sendHTTPSRequestToAPIC(method string, uri string, bo
 				return resp, fmt.Errorf("Got error response from APIC")
 			}
 			complete(resp)
-			time.Sleep(time.Duration(conn.RequestRetryDelay) * time.Minute)
+			// Triangular-growth backoff with jitter
+			// retry intervals: [15s, 30s], [45s, 60s], [90s, 105s], [150s, 165s], [225s, 240s]
+			// Intervals are strictly non-overlapping (each min > previous max).
+			// For all retries to complete - min time: 8m 45s, max time: 10 min.
+			const minBase = 15 * time.Second
+			n := time.Duration(retry)
+			base := minBase * n * (n + 1) / 2
+			jitter := time.Duration(rand.Int63n(int64(minBase)))
+			backoffDuration := base + jitter
+			conn.log.Infof("Waiting %v before retry attempt %d", backoffDuration, retry)
+			time.Sleep(backoffDuration)
 			continue
 		}
 
