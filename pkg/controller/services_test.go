@@ -935,6 +935,316 @@ func TestEndpointsliceIpIndex(t *testing.T) {
 		})
 }
 
+// TestServiceNamedTargetPortBasic tests basic functionality of processServiceTargetPorts
+// and resolveServiceNamedPortFromEpSlice by directly calling the functions.
+func TestServiceNamedTargetPortBasic(t *testing.T) {
+	cont := testController()
+
+	// Create a service with a named target port
+	service := npservice("testns", "web-service", "10.96.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 80, "http-port"),
+		})
+	svcKey := "testns/web-service"
+
+	// Step 1: Call processServiceTargetPorts directly (old=false for add)
+	cont.indexMutex.Lock()
+	ports := cont.processServiceTargetPorts(service, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Verify that the function returns the expected port map
+	assert.Len(t, ports, 1, "Should have one port entry")
+	portKey := "tcp-name-http-port"
+	_, exists := ports[portKey]
+	assert.True(t, exists, "Port key should be 'tcp-name-http-port' for named target port")
+
+	// Verify namedPortServiceIndex is populated
+	cont.indexMutex.Lock()
+	svcEntry, exists := cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should be in namedPortServiceIndex")
+	if exists {
+		portEntry, portExists := (*svcEntry)["http"]
+		assert.True(t, portExists, "Service port 'http' should be indexed")
+		if portExists {
+			assert.Equal(t, "http-port", portEntry.targetPortName, "Target port name should be 'http-port'")
+			assert.Empty(t, portEntry.resolvedPorts, "resolvedPorts should be empty before EndpointSlice processing")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 2: Create EndpointSlice and call resolveServiceNamedPortFromEpSlice directly
+	epSlice := makeEpSlice("testns", "web-service-abc",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"10.1.1.10"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod1",
+				},
+			},
+		},
+		[]discovery.EndpointPort{
+			endpointSlicePort(v1.ProtocolTCP, 8080, "http"),
+		},
+		"web-service")
+
+	cont.indexMutex.Lock()
+	cont.resolveServiceNamedPortFromEpSlice(epSlice, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Verify resolvedPorts is now populated
+	cont.indexMutex.Lock()
+	svcEntry, exists = cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should still be in namedPortServiceIndex")
+	if exists {
+		portEntry, portExists := (*svcEntry)["http"]
+		assert.True(t, portExists, "Service port 'http' should be indexed")
+		if portExists {
+			assert.True(t, portEntry.resolvedPorts[8080], "Port 8080 should be resolved from EndpointSlice")
+		}
+	}
+	cont.indexMutex.Unlock()
+}
+
+// TestServiceNamedTargetPortMultiplePods tests resolving named ports from multiple EndpointSlices
+// with different port numbers (simulating pods with same named port but different numeric ports).
+func TestServiceNamedTargetPortMultiplePods(t *testing.T) {
+	cont := testController()
+
+	// Create service with named target port
+	service := npservice("testns", "web-service", "10.96.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 80, "http-port"),
+		})
+	svcKey := "testns/web-service"
+
+	// Step 1: Call processServiceTargetPorts to populate namedPortServiceIndex
+	cont.indexMutex.Lock()
+	cont.processServiceTargetPorts(service, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Step 2: Create first EndpointSlice with port 8080
+	epSlice1 := makeEpSlice("testns", "web-service-abc1",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"10.1.1.10"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod1",
+				},
+			},
+		},
+		[]discovery.EndpointPort{
+			endpointSlicePort(v1.ProtocolTCP, 8080, "http"),
+		},
+		"web-service")
+
+	// Step 3: Create second EndpointSlice with port 9090 (different port for same named port)
+	epSlice2 := makeEpSlice("testns", "web-service-abc2",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"10.1.1.11"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod2",
+				},
+			},
+		},
+		[]discovery.EndpointPort{
+			endpointSlicePort(v1.ProtocolTCP, 9090, "http"),
+		},
+		"web-service")
+
+	// Step 4: Call resolveServiceNamedPortFromEpSlice for both slices
+	cont.indexMutex.Lock()
+	cont.resolveServiceNamedPortFromEpSlice(epSlice1, svcKey, false)
+	cont.resolveServiceNamedPortFromEpSlice(epSlice2, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Verify both ports are resolved
+	cont.indexMutex.Lock()
+	svcEntry, exists := cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should be in namedPortServiceIndex")
+	if exists {
+		portEntry, portExists := (*svcEntry)["http"]
+		assert.True(t, portExists, "Service port 'http' should be indexed")
+		if portExists {
+			assert.Equal(t, "http-port", portEntry.targetPortName, "Target port name should be 'http-port'")
+			assert.True(t, portEntry.resolvedPorts[8080], "Port 8080 should be resolved from first EndpointSlice")
+			assert.True(t, portEntry.resolvedPorts[9090], "Port 9090 should be resolved from second EndpointSlice")
+			assert.Equal(t, 2, len(portEntry.resolvedPorts), "Should have 2 resolved ports")
+		}
+	}
+	cont.indexMutex.Unlock()
+}
+
+// TestServiceNamedTargetPortUpdate tests updating a service's named target port
+// by directly calling processServiceTargetPorts with old=true then old=false.
+func TestServiceNamedTargetPortUpdate(t *testing.T) {
+	cont := testController()
+
+	svcKey := "testns/web-service"
+
+	// Create initial service with named target port "http-port"
+	service := npservice("testns", "web-service", "10.96.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("web", v1.ProtocolTCP, 80, "http-port"),
+		})
+
+	// Step 1: Process initial service (add)
+	cont.indexMutex.Lock()
+	cont.processServiceTargetPorts(service, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Verify initial state
+	cont.indexMutex.Lock()
+	svcEntry, exists := cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should be in namedPortServiceIndex")
+	if exists {
+		portEntry := (*svcEntry)["web"]
+		assert.NotNil(t, portEntry, "Service port 'web' should be indexed")
+		if portEntry != nil {
+			assert.Equal(t, "http-port", portEntry.targetPortName, "Target port name should be 'http-port'")
+		}
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 2: Simulate service update - first remove old, then add new
+	// This is how serviceUpdated() in services.go works
+	serviceUpdated := npservice("testns", "web-service", "10.96.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("web", v1.ProtocolTCP, 80, "https-port"),
+		})
+
+	cont.indexMutex.Lock()
+	// Process old service (delete)
+	cont.processServiceTargetPorts(service, svcKey, true)
+	// Process new service (add)
+	cont.processServiceTargetPorts(serviceUpdated, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Verify updated state
+	cont.indexMutex.Lock()
+	svcEntry, exists = cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should still be in namedPortServiceIndex")
+	if exists {
+		portEntry := (*svcEntry)["web"]
+		assert.NotNil(t, portEntry, "Service port 'web' should still be indexed")
+		if portEntry != nil {
+			assert.Equal(t, "https-port", portEntry.targetPortName, "Target port name should be updated to 'https-port'")
+		}
+	}
+	cont.indexMutex.Unlock()
+}
+
+// TestServiceNamedTargetPortDeletion tests service deletion cleanup by directly
+// calling processServiceTargetPorts with old=true.
+func TestServiceNamedTargetPortDeletion(t *testing.T) {
+	cont := testController()
+
+	svcKey := "testns/web-service"
+
+	// Create a service with named target port
+	service := npservice("testns", "web-service", "10.96.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 80, "http-port"),
+		})
+
+	// Step 1: Process service (add)
+	cont.indexMutex.Lock()
+	cont.processServiceTargetPorts(service, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Verify service exists in index
+	cont.indexMutex.Lock()
+	_, exists := cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should be in namedPortServiceIndex")
+	cont.indexMutex.Unlock()
+
+	// Step 2: Process service deletion (old=true)
+	cont.indexMutex.Lock()
+	cont.processServiceTargetPorts(service, svcKey, true)
+	cont.indexMutex.Unlock()
+
+	// Verify service is removed from index
+	cont.indexMutex.Lock()
+	_, exists = cont.namedPortServiceIndex[svcKey]
+	assert.False(t, exists, "Service should be removed from namedPortServiceIndex after deletion")
+	cont.indexMutex.Unlock()
+}
+
+// TestServiceNamedTargetPortEndpointSliceDeletion tests EndpointSlice deletion cleanup
+// by directly calling resolveServiceNamedPortFromEpSlice with old=true.
+func TestServiceNamedTargetPortEndpointSliceDeletion(t *testing.T) {
+	cont := testController()
+
+	svcKey := "testns/web-service"
+
+	// Create a service with named target port
+	service := npservice("testns", "web-service", "10.96.0.1",
+		[]v1.ServicePort{
+			servicePortNamed("http", v1.ProtocolTCP, 80, "http-port"),
+		})
+
+	// Step 1: Process service to create namedPortServiceIndex entry
+	cont.indexMutex.Lock()
+	cont.processServiceTargetPorts(service, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Step 2: Create and process EndpointSlice
+	epSlice := makeEpSlice("testns", "web-service-abc",
+		[]discovery.Endpoint{
+			{
+				Addresses: []string{"10.1.1.10"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "testns",
+					Name:      "pod1",
+				},
+			},
+		},
+		[]discovery.EndpointPort{
+			endpointSlicePort(v1.ProtocolTCP, 8080, "http"),
+		},
+		"web-service")
+
+	cont.indexMutex.Lock()
+	cont.resolveServiceNamedPortFromEpSlice(epSlice, svcKey, false)
+	cont.indexMutex.Unlock()
+
+	// Verify port is resolved
+	cont.indexMutex.Lock()
+	svcEntry, exists := cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service should be in namedPortServiceIndex")
+	if exists {
+		portEntry := (*svcEntry)["http"]
+		assert.True(t, portEntry.resolvedPorts[8080], "Port 8080 should be resolved")
+	}
+	cont.indexMutex.Unlock()
+
+	// Step 3: Delete EndpointSlice (old=true)
+	cont.indexMutex.Lock()
+	cont.resolveServiceNamedPortFromEpSlice(epSlice, svcKey, true)
+	cont.indexMutex.Unlock()
+
+	// Verify port is removed from resolvedPorts
+	cont.indexMutex.Lock()
+	svcEntry, exists = cont.namedPortServiceIndex[svcKey]
+	assert.True(t, exists, "Service entry should still exist (only EndpointSlice was deleted)")
+	if exists {
+		portEntry := (*svcEntry)["http"]
+		assert.NotNil(t, portEntry, "Port entry should still exist")
+		if portEntry != nil {
+			assert.False(t, portEntry.resolvedPorts[8080], "Port 8080 should be removed from resolvedPorts")
+			assert.Empty(t, portEntry.resolvedPorts, "resolvedPorts should be empty")
+		}
+	}
+	cont.indexMutex.Unlock()
+}
+
 // Service annotation test with EndPointSlice
 func TestServiceAnnotationWithEps(t *testing.T) {
 	cont := sgCont()
