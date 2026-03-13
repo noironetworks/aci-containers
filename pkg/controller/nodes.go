@@ -368,6 +368,15 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			var annot aciPodAnnot
 			cont.nodeACIPod[node.ObjectMeta.Name] = annot
 		}
+
+		infraQuerierSubnetAnn := node.ObjectMeta.Annotations[metadata.InfraQuerierSubnetAnnotation]
+		if cont.nodeSyncEnabled {
+			if cont.infraQuerierSubnet != "" && infraQuerierSubnetAnn == "" {
+				node.ObjectMeta.Annotations[metadata.InfraQuerierSubnetAnnotation] = cont.infraQuerierSubnet
+				logger.Info("Infra default BD querier subnet annotation on node ", node.ObjectMeta.Name, "set to ", cont.infraQuerierSubnet)
+				nodeUpdated = true
+			}
+		}
 	}
 	cont.indexMutex.Unlock()
 

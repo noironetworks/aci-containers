@@ -127,6 +127,11 @@ func (agent *HostAgent) nodeChanged(obj ...interface{}) {
 	}
 
 	if agent.config.AciMultipod {
+		infraQuerierSubnet, infraQuerierOk := node.ObjectMeta.Annotations[metadata.InfraQuerierSubnetAnnotation]
+		if infraQuerierOk {
+			agent.infraQuerierSubnet = infraQuerierSubnet
+		}
+
 		aciPod, acipodok := node.ObjectMeta.Annotations[metadata.AciPodAnnotation]
 		if acipodok {
 			eventReceived := false

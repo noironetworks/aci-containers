@@ -417,6 +417,9 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 
 	cont.log.Info("Cache sync successful")
 	if !cont.isCNOEnabled() {
+		if cont.config.AciMultipod {
+			cont.initInfraQuerierSubnet()
+		}
 		if !cont.config.DisablePeriodicSnatGlobalInfoSync {
 			go cont.snatGlobalInfoSync(stopCh, cont.config.SleepTimeSnatGlobalInfoSync)
 		}

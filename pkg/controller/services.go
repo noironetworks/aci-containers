@@ -354,6 +354,49 @@ func (cont *AciController) getAciPodSubnet(pod string) (string, error) {
 	return subnet, nil
 }
 
+func (cont *AciController) updateInfraQuerierSubnet() bool {
+	args := []string{
+		"query-target=children",
+		"target-subtree-class=fvSubnet",
+	}
+	url := fmt.Sprintf("/api/node/mo/uni/tn-infra/BD-default.json?%s", strings.Join(args, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Debug("Failed to get APIC response for infra default BD subnet lookup, err: ", err.Error())
+		return false
+	}
+
+	var subnet string
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			ctrl, _ := body.Attributes["ctrl"].(string)
+			if !strings.Contains(ctrl, "querier") {
+				continue
+			}
+			ip, ok := body.Attributes["ip"].(string)
+			if ok && ip != "" {
+				subnet = ip
+				break
+			}
+		}
+		if subnet != "" {
+			break
+		}
+	}
+	if subnet == "" {
+		cont.log.Debug("Failed to find querier fvSubnet ip under uni/tn-infra/BD-default")
+		return false
+	}
+
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	if cont.infraQuerierSubnet == subnet {
+		return false
+	}
+	cont.infraQuerierSubnet = subnet
+	return true
+}
+
 func (cont *AciController) isSingleOpflexOdev(fabricPathDn string) (bool, error) {
 	pathSlice := strings.Split(fabricPathDn, "/")
 	if len(pathSlice) > 2 {

@@ -333,6 +333,7 @@ func TestNodeNetPol2(t *testing.T) {
 	cont.config.AciPolicyTenant = "test-tenant"
 	cont.config.EnableOpflexAgentReconnect = true
 	cont.config.AciMultipod = true
+	cont.config.ApicHosts = []string{"1.2.3.4"}
 	node := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node1",
