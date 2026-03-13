@@ -211,6 +211,60 @@ func (agent *HostAgent) addMultiCastRoute(link netlink.Link, name string) {
 	}
 }
 
+func (agent *HostAgent) isInfraQuerierSubnetRoutePresent(link netlink.Link) bool {
+	routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+	if err != nil {
+		agent.log.Error("Failed to list routes: ", err)
+		return false
+	}
+	for _, route := range routes {
+		if route.Dst != nil && route.Dst.String() == agent.infraQuerierSubnet {
+			return true
+		}
+	}
+	return false
+}
+
+func (agent *HostAgent) addInfraQuerierSubnetRoute(link netlink.Link, name string) {
+	if agent.infraQuerierSubnet == "" || agent.infraQuerierSubnet == "none" {
+		return
+	}
+	_, subnetNet, err := net.ParseCIDR(agent.infraQuerierSubnet)
+	if err != nil || subnetNet == nil {
+		agent.log.Error("Invalid infra querier subnet: ", agent.infraQuerierSubnet)
+		return
+	}
+	normalizedSubnet := subnetNet.String()
+	originalInfraQuerierSubnet := agent.infraQuerierSubnet
+	agent.infraQuerierSubnet = normalizedSubnet
+	defer func() {
+		agent.infraQuerierSubnet = originalInfraQuerierSubnet
+	}()
+
+	if agent.isInfraQuerierSubnetRoutePresent(link) {
+		agent.log.Info("Infra querier subnet route already present for interface ", name)
+		return
+	}
+
+	retryCount := agent.config.DhcpRenewMaxRetryCount
+	for i := 0; i < retryCount; i++ {
+		cmd := exec.Command("ip", "route", "add", normalizedSubnet, "dev", name, "proto", "static", "scope", "link", "metric", "401")
+		agent.log.Info("Executing command:", cmd.String())
+		opt, err := cmd.Output()
+		if err != nil {
+			agent.log.Error("Failed to add infra querier subnet route : ", err.Error(), " ", string(opt))
+			continue
+		} else {
+			agent.log.Info(string(opt))
+		}
+		if agent.isInfraQuerierSubnetRoutePresent(link) {
+			agent.log.Info("Added infra querier subnet route successfully ")
+			return
+		}
+		agent.log.Error("Failed to add infra querier subnet route...iteration:", i+1)
+	}
+}
+
 func (agent *HostAgent) getInterfaceIPv4s(iface string) []net.IP {
 	ifi, err := net.InterfaceByName(iface)
 	if err != nil {
@@ -620,6 +674,7 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				agent.log.Error("FAILURE: Failed to assign an ip from new pod subnet to vlan interface")
 			}
 			agent.addMultiCastRoute(link, link.Name)
+			agent.addInfraQuerierSubnetRoute(link, link.Name)
 		}
 	}
 

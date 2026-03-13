@@ -172,6 +172,7 @@ type AciController struct {
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodeACIPod           map[string]aciPodAnnot
 	nodeACIPodAnnot      map[string]aciPodAnnot
+	infraQuerierSubnet   string
 	nodeOpflexDevice     map[string]apicapi.ApicSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
@@ -1169,6 +1170,16 @@ func (cont *AciController) syncNodeAciPods(stopCh <-chan struct{}, seconds time.
 		case <-stopCh:
 			return
 		}
+	}
+}
+
+func (cont *AciController) initInfraQuerierSubnet() {
+	if !cont.updateInfraQuerierSubnet() {
+		return
+	}
+
+	for _, nodeName := range cont.nodeIndexer.ListKeys() {
+		go cont.env.NodeAnnotationChanged(nodeName)
 	}
 }
 
