@@ -198,11 +198,11 @@ func NewAciContainersOperator(
 
 	aci_operator_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return acicnioperatorclient.AciV1alpha1().AciContainersOperators(os.Getenv("SYSTEM_NAMESPACE")).Watch(ctx, options)
 			},
 		},
 		&operators.AciContainersOperator{},
@@ -212,11 +212,11 @@ func NewAciContainersOperator(
 
 	aci_deployment_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return k8sclient.AppsV1().Deployments(os.Getenv("SYSTEM_NAMESPACE")).Watch(ctx, options)
 			},
 		},
 		&appsv1.Deployment{},
@@ -226,11 +226,11 @@ func NewAciContainersOperator(
 
 	aci_daemonset_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return k8sclient.AppsV1().DaemonSets(os.Getenv("SYSTEM_NAMESPACE")).Watch(ctx, options)
 			},
 		},
 		&appsv1.DaemonSet{},
@@ -239,11 +239,11 @@ func NewAciContainersOperator(
 	)
 	node_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return k8sclient.CoreV1().Nodes().List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return k8sclient.CoreV1().Nodes().List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return k8sclient.CoreV1().Nodes().Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return k8sclient.CoreV1().Nodes().Watch(ctx, options)
 			},
 		},
 		&v1.Node{},
@@ -253,11 +253,11 @@ func NewAciContainersOperator(
 
 	config_map_informer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return k8sclient.CoreV1().ConfigMaps(os.Getenv("SYSTEM_NAMESPACE")).List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return k8sclient.CoreV1().ConfigMaps(os.Getenv("SYSTEM_NAMESPACE")).List(ctx, options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return k8sclient.CoreV1().ConfigMaps(os.Getenv("SYSTEM_NAMESPACE")).Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return k8sclient.CoreV1().ConfigMaps(os.Getenv("SYSTEM_NAMESPACE")).Watch(ctx, options)
 			},
 		},
 		&v1.ConfigMap{},
@@ -283,11 +283,11 @@ func NewAciContainersOperator(
 				log.Info("Intializing the route informer")
 				route_informer = cache.NewSharedIndexInformer(
 					&cache.ListWatch{
-						ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-							return routesClient.RouteV1().Routes(metav1.NamespaceAll).List(context.TODO(), options)
+						ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+							return routesClient.RouteV1().Routes(metav1.NamespaceAll).List(ctx, options)
 						},
-						WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-							return routesClient.RouteV1().Routes(metav1.NamespaceAll).Watch(context.TODO(), options)
+						WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+							return routesClient.RouteV1().Routes(metav1.NamespaceAll).Watch(ctx, options)
 						},
 					},
 					&routesv1.Route{},

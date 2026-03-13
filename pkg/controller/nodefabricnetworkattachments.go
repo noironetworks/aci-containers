@@ -125,12 +125,11 @@ func (cont *AciController) initStaticChainedModeObjs() {
 func (cont *AciController) initNodeFabNetAttInformerFromClient(fabAttClient *fabattclset.Clientset) {
 	cont.initNodeFabNetAttInformerBase(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return fabAttClient.AciV1().NodeFabricNetworkAttachments("aci-containers-system").List(context.TODO(), options)
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				return fabAttClient.AciV1().NodeFabricNetworkAttachments("aci-containers-system").List(ctx, options)
 			},
-
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return fabAttClient.AciV1().NodeFabricNetworkAttachments("aci-containers-system").Watch(context.TODO(), options)
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				return fabAttClient.AciV1().NodeFabricNetworkAttachments("aci-containers-system").Watch(ctx, options)
 			},
 		})
 }
