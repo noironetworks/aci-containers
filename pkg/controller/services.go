@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -1383,23 +1384,22 @@ func (cont *AciController) fabricPathLogger(node string,
 
 func (cont *AciController) setOpenStackSystemId() string {
 
-	// 1) get opflexIDEp with containerName == <node name of any one of the openshift nodes>
-	// 2) extract OpenStack system id from compHvDn attribute
+	// 1) get a node MAC from the service-endpoint annotation on any cluster node
+	// 2) use that MAC to find the OpenStack opflexIDEp and extract system id from compHvDn
 	//    comp/prov-OpenStack/ctrlr-[k8s-scale]-k8s-scale/hv-overcloud-novacompute-0 - sample compHvDn,
 	//    where k8s-scale is the system id
+	// Note: opflexIDEp.containerName was used previously but changed from node name
+	// to VM UUID in ACI 6.2.x, so MAC-based lookup is used instead.
 
 	var systemId string
-	nodeList := cont.nodeIndexer.List()
-	if len(nodeList) < 1 {
+	nodeMac := cont.getNodeMacFromAnnotation()
+	if nodeMac == "" {
+		cont.log.Error("Failed to get node MAC from service-endpoint annotation")
 		return systemId
 	}
-	node := nodeList[0].(*v1.Node)
-	nodeName := node.ObjectMeta.Name
-	opflexIDEpFilter := fmt.Sprintf("query-target-filter=and(eq(opflexIDEp.containerName,\"%s\"))", nodeName)
-	opflexIDEpArgs := []string{
-		opflexIDEpFilter,
-	}
-	url := fmt.Sprintf("/api/node/class/opflexIDEp.json?%s", strings.Join(opflexIDEpArgs, "&"))
+
+	opflexIDEpFilter := fmt.Sprintf("query-target-filter=and(eq(opflexIDEp.mac,\"%s\"),wcard(opflexIDEp.compHvDn,\"prov-OpenStack\"))", nodeMac)
+	url := fmt.Sprintf("/api/node/class/opflexIDEp.json?%s", opflexIDEpFilter)
 	apicresp, err := cont.apicConn.GetApicResponse(url)
 	if err != nil {
 		cont.log.Error("Failed to get APIC response, err: ", err.Error())
@@ -1421,10 +1421,36 @@ func (cont *AciController) setOpenStackSystemId() string {
 	return systemId
 }
 
+// getNodeMacFromAnnotation returns the MAC address from the service-endpoint
+// annotation of any node in the cluster.
+func (cont *AciController) getNodeMacFromAnnotation() string {
+	nodeList := cont.nodeIndexer.List()
+	for _, nodeObj := range nodeList {
+		node := nodeObj.(*v1.Node)
+		if node.ObjectMeta.Annotations == nil {
+			continue
+		}
+		epval, ok := node.ObjectMeta.Annotations[metadata.ServiceEpAnnotation]
+		if !ok || epval == "" {
+			continue
+		}
+		ep := &metadata.ServiceEndpoint{}
+		if err := json.Unmarshal([]byte(epval), ep); err != nil {
+			cont.log.Warn("Could not parse service-endpoint annotation on node ",
+				node.ObjectMeta.Name, ": ", err)
+			continue
+		}
+		if ep.Mac != "" {
+			return ep.Mac
+		}
+	}
+	return ""
+}
+
 // Returns true when a new OpenStack opflexODev is added
 func (cont *AciController) openStackOpflexOdevUpdate(obj apicapi.ApicObject) bool {
 
-	// If opflexOdev compHvDn contains comp/prov-OpenShift/ctrlr-[<systemid>]-<systemid>,
+	// If opflexOdev compHvDn contains comp/prov-OpenStack/ctrlr-[<systemid>]-<systemid>,
 	// it means that it is an OpenStack OpflexOdev which belongs to OpenStack with system id <systemid>
 
 	var deviceClusterUpdate bool
