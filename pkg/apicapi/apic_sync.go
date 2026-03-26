@@ -40,7 +40,7 @@ func (conn *ApicConnection) apicBodyAttrCmp(class string,
 	for p, def := range meta.attributes {
 		if class == "vzRsSubjGraphAtt" && p == "tnVnsAbsGraphName" {
 			_, forceResolveExists := bodyc.Attributes["forceResolve"]
-			_, customSGAnnoExists := bodyd.Attributes["customSG"]
+			_, customSGAnnoExists := bodyd.Hints["customSG"]
 			if forceResolveExists && customSGAnnoExists {
 				bodyd.Attributes["tnVnsAbsGraphName"] = bodyc.Attributes["tnVnsAbsGraphName"]
 				conn.log.Debug("Ignoring comparison of tnVnsAbsGraphName attribute of vzRsSubjGraphAtt class")
