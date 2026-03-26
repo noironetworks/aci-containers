@@ -30,6 +30,7 @@ import (
 
 type ApicObjectBody struct {
 	HintDn     string                 `json:"-"`
+	Hints      map[string]interface{} `json:"-"`
 	Attributes map[string]interface{} `json:"attributes,omitempty"`
 	Children   ApicSlice              `json:"children,omitempty"`
 }
@@ -1029,7 +1030,7 @@ func NewVzRsSubjGraphAtt(parentDn, tnVnsAbsGraphName string, customSG bool) Apic
 	ret := newApicObject("vzRsSubjGraphAtt")
 	ret["vzRsSubjGraphAtt"].Attributes["tnVnsAbsGraphName"] = tnVnsAbsGraphName
 	if customSG {
-		ret["vzRsSubjGraphAtt"].Attributes["customSG"] = "true"
+		ret["vzRsSubjGraphAtt"].Hints = map[string]interface{}{"customSG": true}
 	}
 	ret["vzRsSubjGraphAtt"].Attributes["dn"] =
 		fmt.Sprintf("%s/rsSubjGraphAtt", parentDn)
