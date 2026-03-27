@@ -58,7 +58,6 @@ type K8sEnvironment struct {
 	snatLocalInfoClient *snatlocalinfoclset.Clientset
 	agent               *HostAgent
 	podInformer         cache.SharedIndexInformer
-	endpointsInformer   cache.SharedIndexInformer
 	serviceInformer     cache.SharedIndexInformer
 	nodeInformer        cache.SharedIndexInformer
 	netClient           *netClientSet.Clientset

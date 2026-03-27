@@ -41,7 +41,6 @@ type testHostAgent struct {
 
 	fakeNodeSource           *framework.FakeControllerSource
 	fakePodSource            *framework.FakeControllerSource
-	fakeEndpointsSource      *framework.FakeControllerSource
 	fakeEndpointSliceSource  *framework.FakeControllerSource
 	fakeServiceSource        *framework.FakeControllerSource
 	fakeNamespaceSource      *framework.FakeControllerSource
@@ -99,8 +98,8 @@ func testAgentWithConf(hcf *HostAgentConfig) *testHostAgent {
 
 func testAgentInit(agent *testHostAgent) *testHostAgent {
 	agent.env.(*K8sEnvironment).agent = agent.HostAgent
-	agent.serviceEndPoints = &serviceEndpoint{}
-	agent.serviceEndPoints.(*serviceEndpoint).agent = agent.HostAgent
+	agent.serviceEndPoints = &serviceEndpointSlice{}
+	agent.serviceEndPoints.(*serviceEndpointSlice).agent = agent.HostAgent
 	agent.fakeNodeSource = framework.NewFakeControllerSource()
 	agent.config.OvsDbSock = ""
 	agent.initNodeInformerBase(
@@ -122,12 +121,6 @@ func testAgentInit(agent *testHostAgent) *testHostAgent {
 			WatchFunc: agent.fakePodSource.Watch,
 		})
 
-	agent.fakeEndpointsSource = framework.NewFakeControllerSource()
-	agent.initEndpointsInformerBase(
-		&cache.ListWatch{
-			ListFunc:  agent.fakeEndpointsSource.List,
-			WatchFunc: agent.fakeEndpointsSource.Watch,
-		})
 	agent.fakeEndpointSliceSource = framework.NewFakeControllerSource()
 	agent.initEndpointSliceInformerBase(
 		&cache.ListWatch{

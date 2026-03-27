@@ -408,8 +408,15 @@ func TestServiceAnnotation(t *testing.T) {
 	}
 	s1Dcc := apicDevCtx(name, "common", graphName, graphName,
 		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
-	endpoints1 := endpoints("testns", "service1",
-		[]string{"node1", "node2"}, nil, nil)
+	ready := true
+	node1name := "node1"
+	node2name := "node2"
+	epSlice1 := endpointslice("testns", "service1-eps", []discovery.Endpoint{
+		{Addresses: []string{"42.42.42.42"}, NodeName: &node1name,
+			Conditions: discovery.EndpointConditions{Ready: &ready}},
+		{Addresses: []string{"42.42.42.43"}, NodeName: &node2name,
+			Conditions: discovery.EndpointConditions{Ready: &ready}},
+	}, "service1")
 	service1 := service("testns", "service1", "10.4.2.2")
 	service1.Spec.Ports = []v1.ServicePort{
 		{
@@ -471,7 +478,7 @@ func TestServiceAnnotation(t *testing.T) {
 	cont.opflexDeviceChanged(opflexDevice0)
 	cont.opflexDeviceChanged(opflexDevice1)
 	cont.opflexDeviceChanged(opflexDevice2)
-	cont.fakeEndpointsSource.Add(endpoints1)
+	cont.fakeEndpointSliceSource.Add(epSlice1)
 
 	//Function to check if an object is present in the apic connection at a specific key
 	sgPresentObject := func(t *testing.T, desc string, cont *testAciController,
@@ -600,8 +607,15 @@ func TestServiceGraph(t *testing.T) {
 	s1Dcc := apicDevCtx(name, "common", graphName, graphName,
 		"kube_bd_kubernetes-service", oneNodeRedirect.GetDn(), false)
 
-	endpoints1 := endpoints("testns", "service1",
-		[]string{"node1", "node2"}, nil, nil)
+	ready := true
+	node1name := "node1"
+	node2name := "node2"
+	epSlice1 := endpointslice("testns", "service1-eps", []discovery.Endpoint{
+		{Addresses: []string{"42.42.42.42"}, NodeName: &node1name,
+			Conditions: discovery.EndpointConditions{Ready: &ready}},
+		{Addresses: []string{"42.42.42.43"}, NodeName: &node2name,
+			Conditions: discovery.EndpointConditions{Ready: &ready}},
+	}, "service1")
 	service1 := service("testns", "service1", "10.4.2.2")
 	service1.Spec.Ports = []v1.ServicePort{
 		{
@@ -706,7 +720,7 @@ func TestServiceGraph(t *testing.T) {
 
 	sgWait(t, "non-lb", cont, expectedNoService)
 	cont.serviceUpdates = nil
-	cont.fakeEndpointsSource.Add(endpoints1)
+	cont.fakeEndpointSliceSource.Add(epSlice1)
 	cont.fakeServiceSource.Add(service1)
 
 	sgWait(t, "create", cont, expected)
@@ -733,11 +747,11 @@ func TestServiceGraph(t *testing.T) {
 	cont.opflexDeviceChanged(opflexDevice2)
 	sgWait(t, "restore device", cont, expected)
 
-	cont.fakeEndpointsSource.Delete(endpoints1)
+	cont.fakeEndpointSliceSource.Delete(epSlice1)
 	sgWait(t, "delete eps", cont,
 		map[string]apicapi.ApicSlice{name: nil})
 
-	cont.fakeEndpointsSource.Add(endpoints1)
+	cont.fakeEndpointSliceSource.Add(epSlice1)
 	sgWait(t, "add eps", cont, expected)
 
 	cont.fakeNodeSource.Delete(node1)
@@ -759,64 +773,6 @@ func TestServiceGraph(t *testing.T) {
 		map[string]apicapi.ApicSlice{name: nil})
 
 	cont.stop()
-}
-
-func TestEndpointsIpIndex(t *testing.T) {
-	eps1 := endpoints("ns1", "name1", nil, []string{"1.1.1.1", "1.1.1.2"}, nil)
-
-	cont := testController()
-	cont.fakeEndpointsSource.Add(eps1)
-	cont.run()
-
-	tu.WaitForComp(t, "add", 500*time.Millisecond,
-		func() bool {
-			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.1"))
-			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
-			return (c1 && c2)
-		})
-
-	eps1 = endpoints("ns1", "name1", nil, []string{"1.1.1.1"}, nil)
-	cont.log.Info("updating")
-	cont.fakeEndpointsSource.Add(eps1)
-
-	tu.WaitForComp(t, "update", 500*time.Millisecond,
-		func() bool {
-			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.1"))
-			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
-			return (c1 && !c2)
-		})
-
-	cont.log.Info("adding new")
-	eps2 := endpoints("ns1", "name2", nil, []string{"1.1.1.1", "1.1.1.3"}, nil)
-	cont.fakeEndpointsSource.Add(eps2)
-
-	tu.WaitForComp(t, "new", 500*time.Millisecond,
-		func() bool {
-			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
-			return c1
-		})
-
-	cont.log.Info("ipv6")
-	eps3 := endpoints("ns1", "name2", nil, []string{"2001::1"}, nil)
-	cont.fakeEndpointsSource.Add(eps3)
-
-	tu.WaitForComp(t, "ipv6", 500*time.Millisecond,
-		func() bool {
-			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("2001::1"))
-			return c1
-		})
-
-	cont.log.Info("deleting")
-	cont.fakeEndpointsSource.Delete(eps1)
-	cont.fakeEndpointsSource.Delete(eps2)
-
-	tu.WaitForComp(t, "delete", 500*time.Millisecond,
-		func() bool {
-			c1, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.1"))
-			c2, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.2"))
-			c3, _ := cont.endpointsIpIndex.Contains(net.ParseIP("1.1.1.3"))
-			return (!c1 && !c2 && !c3)
-		})
 }
 
 func TestEndpointsliceIpIndex(t *testing.T) {

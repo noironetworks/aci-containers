@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -851,19 +852,19 @@ func findNodeByIP(kubeClient kubernetes.Interface, ip string) (string, error) {
 }
 
 func findEndpoint(kubeClient kubernetes.Interface, ip string, tcp_port int, svc *v1.Service) (*v1.Pod, error) {
-	var pod *v1.Pod
-	endpoints, err := kubeClient.CoreV1().Endpoints(svc.Namespace).Get(kubecontext.TODO(), svc.Name, metav1.GetOptions{})
+	slices, err := kubeClient.DiscoveryV1().EndpointSlices(svc.Namespace).List(kubecontext.TODO(), metav1.ListOptions{
+		LabelSelector: discoveryv1.LabelServiceName + "=" + svc.Name,
+	})
 	if err != nil {
-		fmt.Printf("Error getting endpoints: %s\n", err.Error())
+		fmt.Printf("Error getting endpoint slices: %s\n", err.Error())
 		return nil, err
 	}
-	for _, subset := range endpoints.Subsets {
-		for _, address := range subset.Addresses {
-			if address.TargetRef != nil {
-				if address.IP == ip {
-					pod, err = kubeClient.CoreV1().Pods(address.TargetRef.Namespace).Get(kubecontext.TODO(), address.TargetRef.Name, metav1.GetOptions{})
+	for _, slice := range slices.Items {
+		for _, endpoint := range slice.Endpoints {
+			for _, addr := range endpoint.Addresses {
+				if addr == ip && endpoint.TargetRef != nil {
+					pod, err := kubeClient.CoreV1().Pods(endpoint.TargetRef.Namespace).Get(kubecontext.TODO(), endpoint.TargetRef.Name, metav1.GetOptions{})
 					if err != nil {
-						//fmt.Printf("Error getting pod details: %s\n", err.Error())
 						return nil, err
 					}
 					return pod, nil
@@ -871,13 +872,12 @@ func findEndpoint(kubeClient kubernetes.Interface, ip string, tcp_port int, svc 
 			}
 		}
 	}
-	pod, err = findPodByIPAndTargetPort(kubeClient, ip, tcp_port, svc)
+	pod, err := findPodByIPAndTargetPort(kubeClient, ip, tcp_port, svc)
 	if err != nil {
 		return nil, err
 	}
 
 	return pod, nil
-
 }
 
 func findPodByIPAndTargetPort(kubeClient kubernetes.Interface, ip string, tcp_port int, svc *v1.Service) (*v1.Pod, error) {
