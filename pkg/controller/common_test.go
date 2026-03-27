@@ -15,8 +15,6 @@
 package controller
 
 import (
-	"strconv"
-
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
@@ -38,7 +36,6 @@ type testAciController struct {
 
 	fakeNamespaceSource       *framework.FakeControllerSource
 	fakePodSource             *framework.FakeControllerSource
-	fakeEndpointsSource       *framework.FakeControllerSource
 	fakeEndpointSliceSource   *framework.FakeControllerSource
 	fakeServiceSource         *framework.FakeControllerSource
 	fakeNodeSource            *framework.FakeControllerSource
@@ -66,8 +63,8 @@ type testAciController struct {
 func (cont *testAciController) InitController() {
 	cont.env.(*K8sEnvironment).cont = &cont.AciController
 	cont.env.(*K8sEnvironment).hppClient = fake.NewSimpleClientset()
-	cont.serviceEndPoints = &serviceEndpoint{}
-	cont.serviceEndPoints.(*serviceEndpoint).cont = &cont.AciController
+	cont.serviceEndPoints = &serviceEndpointSlice{}
+	cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 	cont.fakeNamespaceSource = framework.NewFakeControllerSource()
 	cont.initNamespaceInformerBase(
 		&cache.ListWatch{
@@ -82,12 +79,6 @@ func (cont *testAciController) InitController() {
 			WatchFunc: cont.fakePodSource.Watch,
 		})
 
-	cont.fakeEndpointsSource = framework.NewFakeControllerSource()
-	cont.initEndpointsInformerBase(
-		&cache.ListWatch{
-			ListFunc:  cont.fakeEndpointsSource.List,
-			WatchFunc: cont.fakeEndpointsSource.Watch,
-		})
 	cont.fakeEndpointSliceSource = framework.NewFakeControllerSource()
 	cont.initEndpointSliceInformerBase(
 		&cache.ListWatch{
@@ -432,43 +423,6 @@ func v6service(namespace, name, lbIP string) *v1.Service {
 			Type:           v1.ServiceTypeLoadBalancer,
 			ClusterIP:      "2001::f",
 			LoadBalancerIP: lbIP,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   namespace,
-			Name:        name,
-			Annotations: map[string]string{},
-		},
-	}
-}
-
-// nodes ands addrs must have same length if present, but are
-// optional.
-func endpoints(namespace, name string,
-	nodes, addrs []string, ports []v1.EndpointPort) *v1.Endpoints {
-	var eaddrs []v1.EndpointAddress
-	if len(nodes) == 0 {
-		for i := 0; i < len(addrs); i++ {
-			nodes = append(nodes, "node"+strconv.Itoa(i))
-		}
-	}
-	for i, n := range nodes {
-		ncopy := n
-		ip := "42.42.42.42"
-		if addrs != nil {
-			ip = addrs[i]
-		}
-		eaddrs = append(eaddrs, v1.EndpointAddress{
-			IP:       ip,
-			NodeName: &ncopy,
-		})
-	}
-
-	return &v1.Endpoints{
-		Subsets: []v1.EndpointSubset{
-			{
-				Addresses: eaddrs,
-				Ports:     ports,
-			},
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   namespace,

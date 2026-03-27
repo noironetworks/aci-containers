@@ -73,36 +73,6 @@ func service(uuid string, namespace string, name string,
 	return s
 }
 
-func endpoints(namespace string, name string,
-	nextHopIps []string, ports []int32) *v1.Endpoints {
-	e := &v1.Endpoints{
-		Subsets: []v1.EndpointSubset{{}},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-	}
-
-	nn := "test-node"
-	for _, ip := range nextHopIps {
-		e.Subsets[0].Addresses =
-			append(e.Subsets[0].Addresses, v1.EndpointAddress{
-				IP:       ip,
-				NodeName: &nn,
-			})
-	}
-
-	for _, port := range ports {
-		e.Subsets[0].Ports =
-			append(e.Subsets[0].Ports, v1.EndpointPort{
-				Port:     port,
-				Protocol: "TCP",
-			})
-	}
-
-	return e
-}
-
 func endpointslice(namespace string, name string,
 	nextHopIps []string, ports []int32, nodename string) *discovery.EndpointSlice {
 	e := &discovery.EndpointSlice{
@@ -303,9 +273,9 @@ func TestServiceSync(t *testing.T) {
 		}
 		service := service(st.uuid, st.namespace, st.name,
 			st.clusterIp, st.externalIp, st.ports)
-		endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+		epSlice := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, "test-node")
 		agent.fakeServiceSource.Add(service)
-		agent.fakeEndpointsSource.Add(endpoints)
+		agent.fakeEndpointSliceSource.Add(epSlice)
 		agent.doTestService(t, tempdir, &serviceTests[i], "create")
 	}
 
@@ -554,9 +524,9 @@ func TestServiceEptoSerMap(t *testing.T) {
 	service := service(st.uuid, st.namespace, st.name,
 		st.clusterIp, st.externalIp, st.ports)
 	service.Spec.Selector = map[string]string{"app": "tier"}
-	endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+	epSlice := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, "test-node")
 	agent.fakeServiceSource.Add(service)
-	agent.fakeEndpointsSource.Add(endpoints)
+	agent.fakeEndpointSliceSource.Add(epSlice)
 	time.Sleep(10 * time.Millisecond)
 	clusterIp := agent.getServiceIPs("poduid")
 	assert.Equal(t, clusterIp, []string{"100.1.1.1"}, "Updated", "ClusterIp")
@@ -615,9 +585,9 @@ func TestSingleStackIPv6ServiceEptoSerMap(t *testing.T) {
 	service := service(st.uuid, st.namespace, st.name,
 		st.clusterIp, st.externalIp, st.ports)
 	service.Spec.Selector = map[string]string{"app": "tier"}
-	endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+	epSlice := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, "test-node")
 	agent.fakeServiceSource.Add(service)
-	agent.fakeEndpointsSource.Add(endpoints)
+	agent.fakeEndpointSliceSource.Add(epSlice)
 	time.Sleep(10 * time.Millisecond)
 	clusterIp := agent.getServiceIPs("poduid")
 	assert.Equal(t, clusterIp, []string{"2001:1db8:42::8664"}, "Updated", "ClusterIp")
@@ -679,9 +649,9 @@ func TestDualStackServiceEptoSerMap(t *testing.T) {
 	service := service(st.uuid, st.namespace, st.name,
 		st.clusterIp, st.externalIp, st.ports)
 	service.Spec.Selector = map[string]string{"app": "tier"}
-	endpoints := endpoints(st.namespace, st.name, st.nextHopIps, st.ports)
+	epSlice := endpointslice(st.namespace, st.name, st.nextHopIps, st.ports, "test-node")
 	agent.fakeServiceSource.Add(service)
-	agent.fakeEndpointsSource.Add(endpoints)
+	agent.fakeEndpointSliceSource.Add(epSlice)
 	time.Sleep(10 * time.Millisecond)
 	clusterIp := agent.getServiceIPs("poduid")
 	assert.Equal(t, clusterIp, []string{"2001:1db8:42::8664"}, "Updated", "ClusterIp")
