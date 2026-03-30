@@ -1381,25 +1381,41 @@ func (cont *AciController) fabricPathLogger(node string,
 	})
 }
 
+// getNodeUplinkMac returns the uplink MAC address of any node from the
+// opflex.cisco.com/uplink-mac annotation written by hostagent at startup.
+func (cont *AciController) getNodeUplinkMac() string {
+	nodeList := cont.nodeIndexer.List()
+	for _, obj := range nodeList {
+		node := obj.(*v1.Node)
+		if mac, ok := node.ObjectMeta.Annotations[metadata.UplinkMacAnnotation]; ok && mac != "" {
+			return mac
+		}
+	}
+	return ""
+}
+
 func (cont *AciController) setOpenStackSystemId() string {
 
-	// 1) get opflexIDEp with containerName == <node name of any one of the openshift nodes>
+	// 1) get opflexIDEp with mac == <node MAC of any one of the OpenShift nodes>
 	// 2) extract OpenStack system id from compHvDn attribute
 	//    comp/prov-OpenStack/ctrlr-[k8s-scale]-k8s-scale/hv-overcloud-novacompute-0 - sample compHvDn,
 	//    where k8s-scale is the system id
 
 	var systemId string
-	nodeList := cont.nodeIndexer.List()
-	if len(nodeList) < 1 {
+
+	nodeMac := cont.getNodeUplinkMac()
+
+	if nodeMac == "" {
+		cont.log.Warning("No node uplink MAC found in node annotations")
 		return systemId
 	}
-	node := nodeList[0].(*v1.Node)
-	nodeName := node.ObjectMeta.Name
-	opflexIDEpFilter := fmt.Sprintf("query-target-filter=and(eq(opflexIDEp.containerName,\"%s\"))", nodeName)
-	opflexIDEpArgs := []string{
-		opflexIDEpFilter,
-	}
-	url := fmt.Sprintf("/api/node/class/opflexIDEp.json?%s", strings.Join(opflexIDEpArgs, "&"))
+
+	cont.log.Info("Using node MAC for OpenStack system id lookup: ", nodeMac)
+
+	opflexIDEpFilter := fmt.Sprintf(
+		"query-target-filter=and(eq(opflexIDEp.mac,\"%s\"),wcard(opflexIDEp.compHvDn,\"prov-OpenStack\"))",
+		nodeMac)
+	url := fmt.Sprintf("/api/node/class/opflexIDEp.json?%s", opflexIDEpFilter)
 	apicresp, err := cont.apicConn.GetApicResponse(url)
 	if err != nil {
 		cont.log.Error("Failed to get APIC response, err: ", err.Error())
@@ -1424,7 +1440,7 @@ func (cont *AciController) setOpenStackSystemId() string {
 // Returns true when a new OpenStack opflexODev is added
 func (cont *AciController) openStackOpflexOdevUpdate(obj apicapi.ApicObject) bool {
 
-	// If opflexOdev compHvDn contains comp/prov-OpenShift/ctrlr-[<systemid>]-<systemid>,
+	// If opflexOdev compHvDn contains comp/prov-OpenStack/ctrlr-[<systemid>]-<systemid>,
 	// it means that it is an OpenStack OpflexOdev which belongs to OpenStack with system id <systemid>
 
 	var deviceClusterUpdate bool
