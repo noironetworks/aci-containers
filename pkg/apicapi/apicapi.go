@@ -250,7 +250,7 @@ func New(log *logrus.Logger, apic []string, user string,
 }
 
 func (conn *ApicConnection) addToQueue(queue workqueue.RateLimitingInterface, item interface{}) {
-	if conn.cnoEnabled {
+	if conn.cnoEnabled || !conn.EnableRateLimit {
 		queue.Add(item)
 	} else {
 		queue.AddRateLimited(item)
@@ -1212,7 +1212,7 @@ func (conn *ApicConnection) getSubtreeDn(dn string, respClasses []string,
 func (conn *ApicConnection) queuePriorityDn(dn string) {
 	conn.indexMutex.Lock()
 	if conn.priorityQueue != nil {
-		conn.priorityQueue.AddRateLimited(dn)
+		conn.addToQueue(conn.priorityQueue, dn)
 	}
 	conn.indexMutex.Unlock()
 }
@@ -1220,7 +1220,7 @@ func (conn *ApicConnection) queuePriorityDn(dn string) {
 func (conn *ApicConnection) queueDn(dn string) {
 	conn.indexMutex.Lock()
 	if conn.deltaQueue != nil {
-		conn.deltaQueue.AddRateLimited(dn)
+		conn.addToQueue(conn.deltaQueue, dn)
 	}
 	conn.indexMutex.Unlock()
 }

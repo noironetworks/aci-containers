@@ -319,6 +319,9 @@ type ControllerConfig struct {
 	// Enable retying request to APIC when a 503 error is encountered
 	EnableApicRequestRetry bool `json:"enable-apic-request-retry-delay,omitempty"`
 
+	// Enable rate-limiting APIC requests, default is true
+	EnableApicRateLimit bool `json:"enable-apic-rate-limit,omitempty"`
+
 	// Disable hpp rendering if set to true
 	DisableHppRendering bool `json:"disable-hpp-rendering,omitempty"`
 
@@ -373,13 +376,14 @@ func newNetIps() *netIps {
 func NewConfig() *ControllerConfig {
 	t := true
 	return &ControllerConfig{
-		DefaultSg:          make([]OpflexGroup, 0),
-		NamespaceDefaultEg: make(map[string]OpflexGroup),
-		NamespaceDefaultSg: make(map[string][]OpflexGroup),
-		AciVmmDomainType:   "Kubernetes",
-		AciPolicyTenant:    "kubernetes",
-		AciPrefix:          "kube",
-		AllocateServiceIps: &t,
+		DefaultSg:           make([]OpflexGroup, 0),
+		NamespaceDefaultEg:  make(map[string]OpflexGroup),
+		NamespaceDefaultSg:  make(map[string][]OpflexGroup),
+		AciVmmDomainType:    "Kubernetes",
+		AciPolicyTenant:     "kubernetes",
+		AciPrefix:           "kube",
+		AllocateServiceIps:  &t,
+		EnableApicRateLimit: true,
 	}
 }
 
