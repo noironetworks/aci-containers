@@ -1,6 +1,6 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
-FROM ${baserepo}/aci-containers-operator-base:${basetag}
+FROM ${baserepo}/aci-containers-base:${basetag}
 # Required OpenShift Labels
 LABEL name="ACI CNI Operator" \
 vendor="Cisco" \
