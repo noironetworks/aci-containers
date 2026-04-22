@@ -5,7 +5,7 @@ language: go
 env:
   global:
     - DEFAULT_BRANCH: master
-    - GOPROXY: https://proxy.golang.org,https://goproxy.io,direct
+    - GOPROXY: https://proxy.golang.org|https://goproxy.io|direct
 
 jobs:
   include:
