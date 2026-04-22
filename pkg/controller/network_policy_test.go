@@ -4336,6 +4336,120 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 	}
 }
 
+// TestNetworkPolicyMultipleNPsSharedHPPNamedPorts tests the scenario where
+// multiple NetworkPolicies with identical rules but different PodSelectors
+// share the same HPP, and use named ports that resolve to different port numbers
+func TestNetworkPolicyMultipleNPsSharedHPPNamedPorts(t *testing.T) {
+	// Simple test to verify the fix works in hpp-optimization mode
+	cont := testController()
+	cont.config.HppOptimization = true
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+	cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+		map[string]string{"test": "testv"}))
+
+	// Create two pods with different named ports
+	pod1 := podOnNode("testns", "pod1", "test-node")
+	pod1.ObjectMeta.Labels = map[string]string{"app": "web1"}
+	pod1.Spec.Containers = []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 80}}}}
+
+	pod2 := podOnNode("testns", "pod2", "test-node")
+	pod2.ObjectMeta.Labels = map[string]string{"app": "web2"}
+	pod2.Spec.Containers = []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 8080}}}}
+
+	// Two NetworkPolicies with same rules but different PodSelectors
+	np1 := netpol("testns", "np1",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web1"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	np2 := netpol("testns", "np2",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web2"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	// Add pods first, then run controller, then add network policies
+	// This matches the pattern used in other tests in this file
+	cont.fakePodSource.Add(pod1)
+	cont.fakePodSource.Add(pod2)
+	cont.run()
+	cont.fakeNetworkPolicySource.Add(np1)
+	cont.fakeNetworkPolicySource.Add(np2)
+
+	// Wait for controller to process the network policies
+	hash, _ := util.CreateHashFromNetPol(np1)
+	labelKey := cont.aciNameForKey("np", hash)
+
+	foundNp1Rule := false
+	foundNp2Rule := false
+
+	tu.WaitFor(t, "multiple-nps-shared-hpp-named-ports", 500*time.Millisecond,
+		func(last bool) (bool, error) {
+			desiredState := cont.apicConn.GetDesiredState(labelKey)
+			if len(desiredState) == 0 {
+				return false, nil
+			}
+
+			// Verify rules exist for both NPs
+			hppObj := desiredState[0]
+			hppMap, ok := hppObj["hostprotPol"]
+			if !ok || hppMap == nil {
+				return false, nil
+			}
+
+			foundNp1Rule = false
+			foundNp2Rule = false
+
+			for _, child := range hppMap.Children {
+				if subj, ok := child["hostprotSubj"]; ok {
+					if subj != nil && subj.Attributes["name"] == "networkpolicy-ingress" {
+						for _, ruleChild := range subj.Children {
+							if rule, ok := ruleChild["hostprotRule"]; ok {
+								if rule != nil {
+									if name, ok := rule.Attributes["name"].(string); ok {
+										if strings.Contains(name, "__np1") {
+											foundNp1Rule = true
+											// NP1 should have port 80 (or named port "http" before resolution)
+											fromPort := rule.Attributes["fromPort"]
+											if fromPort != "80" && fromPort != "http" {
+												t.Errorf("NP1 should resolve to port 80, got: %v", fromPort)
+											}
+										}
+										if strings.Contains(name, "__np2") {
+											foundNp2Rule = true
+											// NP2 should have port 8080
+											if rule.Attributes["fromPort"] != "8080" {
+												t.Errorf("NP2 should resolve to port 8080, got: %v", rule.Attributes["fromPort"])
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			return foundNp1Rule && foundNp2Rule, nil
+		})
+
+	cont.stop()
+}
+
 func TestCreateStaticNetPolCrs(t *testing.T) {
 	initCont := func() *testAciController {
 		cont := testController()
@@ -4688,10 +4802,10 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	podSelectors := []*metav1.LabelSelector{
 		np.Spec.Ingress[0].From[0].PodSelector,
 	}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil, false)
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, "test-rule_0-ipv4", subj.HostprotRule[0].Name)
+	assert.Equal(t, "test-rule_0-ipv4__test-network-policy", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -4727,7 +4841,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	podSelectors = []*metav1.LabelSelector{
 		np.Spec.Ingress[0].From[0].PodSelector,
 	}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{"test-namespace"}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil, false)
 
 	expected := hppv1.HostprotSubj{
 		HostprotRule: []hppv1.HostprotRule{
@@ -4738,7 +4852,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 				Protocol:            "unspecified",
 				FromPort:            "unspecified",
 				ToPort:              "unspecified",
-				Name:                "test-rule-ipv4",
+				Name:                "test-rule-ipv4__test-network-policy",
 				RsRemoteIpContainer: []string{"test-namespace"},
 				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 					{
@@ -4760,7 +4874,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	assert.Equal(t, expected, *subj)
 
 	subj = &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil, false)
 
 	expectedRule := []hppv1.HostprotRule{
 		{
@@ -4770,7 +4884,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "unspecified",
 			FromPort:            "unspecified",
 			ToPort:              "unspecified",
-			Name:                "test-rule-ipv4",
+			Name:                "test-rule-ipv4__test-network-policy",
 			RsRemoteIpContainer: []string{},
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
@@ -4828,7 +4942,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "tcp",
 			FromPort:            "8080",
 			ToPort:              "unspecified",
-			Name:                "test-rule_0-ipv4",
+			Name:                "test-rule_0-ipv4__test-network-policy",
 			RsRemoteIpContainer: []string{},
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
@@ -4850,7 +4964,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	podSelectors = []*metav1.LabelSelector{
 		np.Spec.Ingress[0].From[0].PodSelector,
 	}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil)
+	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", []string{}, podSelectors, np.Spec.Ingress[0].Ports, nil, "", np, nil, false)
 
 	assert.Equal(t, expectedRule, subj.HostprotRule)
 
@@ -4921,6 +5035,208 @@ func TestBuildServiceAugment(t *testing.T) {
 		assert.Empty(t, subj)
 		assert.Equal(t, expected, localsubj)
 	})
+
+	// Regression test: when the NP allows named port "http" and a
+	// service has two named target ports ("http"→9090, "http-alt"→8080),
+	// only the "http" service port (9090) should be augmented.
+	t.Run("NamedPortServiceAugmentNoMismatch", func(t *testing.T) {
+		serviceKey := "testns/bleh-svc"
+		svc := npservice("testns", "bleh-svc", "10.96.0.100",
+			[]v1.ServicePort{
+				servicePortNamed("p9090", v1.ProtocolTCP, 9090, "http"),
+				servicePortNamed("p8080", v1.ProtocolTCP, 8080, "http-alt"),
+			})
+		cont.fakeServiceSource.Add(svc)
+		time.Sleep(500 * time.Millisecond)
+
+		cont.indexMutex.Lock()
+		cont.namedPortServiceIndex[serviceKey] = &namedPortServiceIndexEntry{
+			"p9090": &namedPortServiceIndexPort{
+				targetPortName: "http",
+				resolvedPorts:  map[int]bool{9090: true},
+			},
+			"p8080": &namedPortServiceIndexPort{
+				targetPortName: "http-alt",
+				resolvedPorts:  map[int]bool{8080: true},
+			},
+		}
+		cont.targetPortIndex["tcp-name-http"] = &portIndexEntry{
+			port: targetPort{
+				proto: v1.ProtocolTCP,
+				ports: map[int]bool{9090: true, 8080: true},
+			},
+			serviceKeys:       map[string]bool{serviceKey: true},
+			networkPolicyKeys: map[string]bool{"testns/np1": true},
+		}
+		cont.targetPortIndex["tcp-num-9090"] = &portIndexEntry{
+			port: targetPort{
+				proto: v1.ProtocolTCP,
+				ports: map[int]bool{9090: true},
+			},
+			serviceKeys:       map[string]bool{serviceKey: true},
+			networkPolicyKeys: map[string]bool{},
+		}
+		cont.targetPortIndex["tcp-num-8080"] = &portIndexEntry{
+			port: targetPort{
+				proto: v1.ProtocolTCP,
+				ports: map[int]bool{8080: true},
+			},
+			serviceKeys:       map[string]bool{serviceKey: true},
+			networkPolicyKeys: map[string]bool{},
+		}
+		cont.indexMutex.Unlock()
+
+		portAugments := make(map[string]*portServiceAugment)
+		proto := v1.ProtocolTCP
+		prs := &portRemoteSubnet{
+			port: &v1net.NetworkPolicyPort{
+				Protocol: &proto,
+				Port:     &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+			},
+			subnetMap: map[string]bool{"0.0.0.0/0": true},
+		}
+
+		cont.getServiceAugmentByPort(prs, portAugments, logger)
+
+		_, has9090 := portAugments[portServiceAugmentKey("tcp", "9090")]
+		assert.True(t, has9090, "service port 9090 (http) should be augmented")
+
+		_, has8080 := portAugments[portServiceAugmentKey("tcp", "8080")]
+		assert.False(t, has8080, "service port 8080 (http-alt) must NOT be augmented for NP named port 'http'")
+
+		// Clean up
+		cont.indexMutex.Lock()
+		delete(cont.namedPortServiceIndex, serviceKey)
+		delete(cont.targetPortIndex, "tcp-name-http")
+		delete(cont.targetPortIndex, "tcp-num-9090")
+		delete(cont.targetPortIndex, "tcp-num-8080")
+		cont.indexMutex.Unlock()
+	})
+}
+
+// TestEgressNamedPortPerIPScoping validates that egress rules for named
+// ports are scoped to the IPs of pods that resolve the named port to each
+// specific port number.
+func TestEgressNamedPortPerIPScoping(t *testing.T) {
+	name := "kube_np_testns_np1"
+	baseDn := makeNp(nil, nil, name).GetDn()
+	np1SDnE := fmt.Sprintf("%s/subj-networkpolicy-egress", baseDn)
+
+	// pod1 has named port "serve-80" → 80, IP 1.1.1.1
+	// pod2 has named port "serve-81" → 81 (different name, should NOT appear)
+	// Expected: one egress rule for port 80 scoped to pod1's IP (1.1.1.1)
+	rule_1_0 := apicapi.NewHostprotRule(np1SDnE, "0_0-ipv4__np1")
+	rule_1_0.SetAttr("direction", "egress")
+	rule_1_0.SetAttr("ethertype", "ipv4")
+	rule_1_0.SetAttr("protocol", "tcp")
+	rule_1_0.SetAttr("fromPort", "80")
+	rule_1_0.AddChild(apicapi.NewHostprotRemoteIp(rule_1_0.GetDn(), "1.1.1.1"))
+
+	// Service augment: service1 has targetPort 80, all endpoints (1.1.1.1) covered
+	rule_1_s := apicapi.NewHostprotRule(np1SDnE, "service_tcp_8080-ipv4")
+	rule_1_s.SetAttr("direction", "egress")
+	rule_1_s.SetAttr("ethertype", "ipv4")
+	rule_1_s.SetAttr("protocol", "tcp")
+	rule_1_s.SetAttr("fromPort", "8080")
+	rule_1_s.AddChild(apicapi.NewHostprotRemoteIp(rule_1_s.GetDn(), "9.0.0.42"))
+
+	var npTests = []npTest{
+		{netpol("testns", "np1", &metav1.LabelSelector{},
+			nil, []v1net.NetworkPolicyEgressRule{
+				egressRule([]v1net.NetworkPolicyPort{
+					{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
+						Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+					},
+				}, nil),
+			}, allPolicyTypes),
+			makeNp(nil, apicapi.ApicSlice{rule_1_0, rule_1_s}, name),
+			&npTestAugment{
+				[]*v1.Endpoints{
+					makeEps("testns", "service1",
+						[]v1.EndpointAddress{
+							{
+								IP: "1.1.1.1",
+								TargetRef: &v1.ObjectReference{
+									Kind:      "Pod",
+									Namespace: "testns",
+									Name:      "pod1",
+								},
+							},
+						},
+						[]v1.EndpointPort{
+							endpointPort(v1.ProtocolTCP, 80, ""),
+						}),
+				},
+				[]*v1.Service{
+					npservice("testns", "service1", "9.0.0.42",
+						[]v1.ServicePort{
+							servicePort("", v1.ProtocolTCP, 8080, 80),
+						}),
+				},
+				[]*discovery.EndpointSlice{},
+			}, "egress-named-port-per-ip-scoping"},
+	}
+	initCont := func() *testAciController {
+		cont := testController()
+		cont.config.AciPolicyTenant = "test-tenant"
+		cont.config.NodeServiceIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+		}
+		cont.config.PodIpPool = []ipam.IpRange{
+			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+		}
+		cont.AciController.initIpam()
+
+		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+			map[string]string{"test": "testv"}))
+		return cont
+	}
+
+	ports1 := []v1.ContainerPort{
+		{Name: "serve-80", ContainerPort: 80},
+	}
+	ports2 := []v1.ContainerPort{
+		{Name: "serve-81", ContainerPort: 81},
+	}
+
+	for ix := range npTests {
+		cont := initCont()
+		cont.log.Info("Starting podsfirst ", npTests[ix].desc)
+		// Register pods in fakePodSource (populates podIndexer via informer).
+		pod1obj := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName:   "test-node",
+				Containers: []v1.Container{{Ports: ports1}},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns", Name: "pod1",
+				Labels: map[string]string{"l1": "v1"},
+			},
+			Status: v1.PodStatus{PodIP: "1.1.1.1"},
+		}
+		pod2obj := &v1.Pod{
+			Spec: v1.PodSpec{
+				NodeName:   "test-node",
+				Containers: []v1.Container{{Ports: ports2}},
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns", Name: "pod2",
+				Labels: map[string]string{"l1": "v2"},
+			},
+			Status: v1.PodStatus{PodIP: "2.2.2.2"},
+		}
+		cont.fakePodSource.Add(pod1obj)
+		cont.fakePodSource.Add(pod2obj)
+		// Pre-populate ctrPortNameCache synchronously before run so that
+		// getNamedPortIPMap sees the pod IPs when the NP queue worker runs.
+		cont.updateCtrNmPortForPod(pod1obj, "testns/pod1")
+		cont.updateCtrNmPortForPod(pod2obj, "testns/pod2")
+		addServices(cont, npTests[ix].augment)
+		cont.run()
+		cont.fakeNetworkPolicySource.Add(npTests[ix].netPol)
+		checkNp(t, &npTests[ix], "podsfirst", cont)
+		cont.stop()
+	}
 }
 
 func getHppObj() *hppv1.HostprotPol {
@@ -6773,10 +7089,10 @@ func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
 	subj := &hppv1.HostprotSubj{}
 	cont.buildLocalNetPolSubjRules("0", subj, "egress",
 		nil, nil, np.Spec.Egress[0].Ports, cont.log.WithField("test", "egress-named-port"),
-		"testns/np1", np, nil)
+		"testns/np1", np, nil, true)
 
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule for resolved named port")
-	assert.Equal(t, "0_0-ipv4", subj.HostprotRule[0].Name)
+	assert.Equal(t, "0_0-ipv4__np1", subj.HostprotRule[0].Name)
 	assert.Equal(t, "egress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -6828,7 +7144,7 @@ func TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts(t *testing.T) {
 	subj := &hppv1.HostprotSubj{}
 	cont.buildLocalNetPolSubjRules("0", subj, "egress",
 		nil, nil, np.Spec.Egress[0].Ports, cont.log.WithField("test", "egress-multi-named"),
-		"testns/np1", np, nil)
+		"testns/np1", np, nil, true)
 
 	// Expect 3 rules: http→80, http→8080, https→443
 	assert.Equal(t, 3, len(subj.HostprotRule),
@@ -6924,7 +7240,7 @@ func TestBuildLocalNetPolSubjRulesIngressNamedPort(t *testing.T) {
 	subj := &hppv1.HostprotSubj{}
 	cont.buildLocalNetPolSubjRules("0", subj, "ingress",
 		[]string{"testns"}, peerSelectors, np.Spec.Ingress[0].Ports,
-		cont.log.WithField("test", "ingress-named-port"), npKey, np, nil)
+		cont.log.WithField("test", "ingress-named-port"), npKey, np, nil, false)
 
 	// Named port "http" should resolve to 8080 from pod's container port
 	assert.True(t, portMap[8080], "Port 8080 should be in portMap from pod")
