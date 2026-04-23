@@ -923,8 +923,8 @@ func TestEPUpdateContainerId(t *testing.T) {
 	delVerify(0, 2)
 }
 
-func mkservice(namespace, name string, snatlabel map[string]string) *v1.Service {
-	return &v1.Service{
+func mkservice(namespace, name string, snatlabel map[string]string, lbIP ...string) *v1.Service {
+	svc := &v1.Service{
 		Spec: v1.ServiceSpec{
 			Type: v1.ServiceTypeLoadBalancer,
 			Selector: map[string]string{
@@ -936,6 +936,41 @@ func mkservice(namespace, name string, snatlabel map[string]string) *v1.Service 
 			Name:        name,
 			Annotations: map[string]string{},
 			Labels:      snatlabel,
+		},
+	}
+	if len(lbIP) > 0 && lbIP[0] != "" {
+		svc.Status = v1.ServiceStatus{
+			LoadBalancer: v1.LoadBalancerStatus{
+				Ingress: []v1.LoadBalancerIngress{{IP: lbIP[0]}},
+			},
+		}
+	}
+	return svc
+}
+
+// mkserviceForSnat creates a LoadBalancer service with a configurable pod
+// selector and optional LoadBalancer external IP, used for testing no-SnatIp
+// SNAT policies where the service's external IP drives pod SNAT assignment.
+func mkserviceForSnat(namespace, name string, svcSelector map[string]string, lbIP string) *v1.Service {
+	var lbIngress []v1.LoadBalancerIngress
+	if lbIP != "" {
+		lbIngress = []v1.LoadBalancerIngress{{IP: lbIP}}
+	}
+	return &v1.Service{
+		Spec: v1.ServiceSpec{
+			Type:     v1.ServiceTypeLoadBalancer,
+			Selector: svcSelector,
+		},
+		Status: v1.ServiceStatus{
+			LoadBalancer: v1.LoadBalancerStatus{
+				Ingress: lbIngress,
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   namespace,
+			Name:        name,
+			Annotations: map[string]string{},
+			Labels:      map[string]string{},
 		},
 	}
 }
@@ -975,7 +1010,10 @@ func TestSnatPolicyService(t *testing.T) {
 	snatlabel := map[string]string{
 		"app": "sample-app",
 	}
-	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", snatlabel))
+	// No-SnatIp policy: the controller derives the SNAT IP from the service's
+	// LB Ingress. Set snatGlobals[0].ip ("10.1.1.8") so test data matches the
+	// production flow where podBelongsToService uses the service's pod selector.
+	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", snatlabel, snatGlobals[0].ip))
 	podLabels := map[string]string{
 		"app":  "sample-app",
 		"tier": "sample-tier",
@@ -996,7 +1034,7 @@ func TestSnatPolicyService(t *testing.T) {
 	it.ta.fakeSnatGlobalSource.Delete(mkSnatGlobalObj())
 	var uids1 []string
 	it.checkEpSnatUids(6, uids1, emptyJSON)
-	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", snatlabel))
+	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", snatlabel, snatGlobals[0].ip))
 	time.Sleep(100 * time.Millisecond)
 	it.ta.fakeSnatGlobalSource.Add(mkSnatGlobalObj())
 	time.Sleep(100 * time.Millisecond)
@@ -1035,7 +1073,7 @@ func TestSnatPolicylabelUpdate(t *testing.T) {
 	it.cniAddParallel(6, 10)
 	it.ta.fakeDeploymentSource.Add(mkDeployment("annNS", "testDeployment", testEgAnnot4, sgAnnot2, qpAnnot1))
 	time.Sleep(10 * time.Millisecond)
-	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", map[string]string{"app": "sample-app"}))
+	it.ta.fakeServiceSource.Add(mkservice("annNS", "testService", map[string]string{"app": "sample-app"}, snatGlobals[0].ip))
 	podLabels := map[string]string{
 		"app":  "sample-app",
 		"tier": "sample-tier",
@@ -1058,4 +1096,89 @@ func TestSnatPolicylabelUpdate(t *testing.T) {
 	var uids1 []string
 	it.checkEpSnatUids(6, uids1, emptyJSON)
 	it.cniDelParallel(6, 10)
+}
+
+// TestSnatPolicyNamespaceMultiService verifies the fix for namespace-level
+// no-SnatIp SNAT policies with multiple LoadBalancer services.
+//
+// When a namespace contains two LB services (svc1 selecting app=lb1-ep with
+// external IP 10.3.0.4, svc2 selecting app=lb2-ep with external IP 10.3.0.5)
+// and a single namespace-scoped policy (no SnatIp, no labels), each pod must
+// egress with only the external IP of the service it is an endpoint of:
+//
+//   - pod-lb1 (app=lb1-ep, endpoint of svc1) → only uid-svc1 (10.3.0.4)
+//   - pod-lb2 (app=lb2-ep, endpoint of svc2) → only uid-svc2 (10.3.0.5)
+func TestSnatPolicyNamespaceMultiService(t *testing.T) {
+	ncf := cniNetConfig{Subnet: cnitypes.IPNet{IP: net.ParseIP("10.128.2.0"), Mask: net.CIDRMask(24, 32)}}
+	hcf := &HostAgentConfig{
+		NodeName:  "test-node",
+		EpRpcSock: "/tmp/aci-containers-ep-rpc.sock",
+		NetConfig: []cniNetConfig{ncf},
+		AciPrefix: "it",
+		GroupDefaults: GroupDefaults{
+			DefaultEg: metadata.OpflexGroup{
+				PolicySpace: "tenantA",
+				Name:        "defaultEPG",
+			},
+		},
+	}
+
+	it := SetupInteg(t, hcf)
+	it.setupNode(&itIpam, true)
+	defer it.tearDown()
+
+	it.ta.fakeNamespaceSource.Add(mkNamespace("lbns", testEgAnnot3, "", qpAnnot1))
+
+	it.testNS = "lbns"
+	it.cniAddParallel(11, 13)
+	time.Sleep(10 * time.Millisecond)
+
+	// pod11 is an endpoint of svc1 (IP 10.3.0.4); pod12 is an endpoint of svc2 (IP 10.3.0.5)
+	it.addPodObj(11, "lbns", "", "", map[string]string{"app": "lb1-ep"})
+	it.addPodObj(12, "lbns", "", "", map[string]string{"app": "lb2-ep"})
+
+	// Two LB services in the same namespace with different selectors and external IPs
+	svc1 := mkserviceForSnat("lbns", "svc1", map[string]string{"app": "lb1-ep"}, "10.3.0.4")
+	svc2 := mkserviceForSnat("lbns", "svc2", map[string]string{"app": "lb2-ep"}, "10.3.0.5")
+	it.ta.fakeServiceSource.Add(svc1)
+	it.ta.fakeServiceSource.Add(svc2)
+
+	// Namespace-level SNAT policy: no SnatIp, no labels, namespace only
+	snatNsPolicy := snatpolicydata("snat-ns", "lbns", []string{}, []string{}, map[string]string{})
+	snatNsPolicy.Spec.Selector.Namespace = "lbns"
+	it.ta.fakeSnatPolicySource.Add(snatNsPolicy)
+	time.Sleep(200 * time.Millisecond)
+
+	// Global info: controller allocates both service IPs under the same policy name
+	var globalInfos snatglobal.GlobalInfoList
+	pr1 := []snatglobal.PortRange{{Start: 5000, End: 6000}}
+	pr2 := []snatglobal.PortRange{{Start: 6001, End: 7000}}
+	globalInfos = append(globalInfos,
+		snatglobal.GlobalInfo{
+			MacAddress:     "aa:bb:cc:dd:ee:01",
+			SnatIp:         "10.3.0.4",
+			SnatIpUid:      "uid-svc1",
+			PortRanges:     pr1,
+			SnatPolicyName: "snat-ns",
+			ServiceKey:     "lbns/svc1",
+		},
+		snatglobal.GlobalInfo{
+			MacAddress:     "aa:bb:cc:dd:ee:02",
+			SnatIp:         "10.3.0.5",
+			SnatIpUid:      "uid-svc2",
+			PortRanges:     pr2,
+			SnatPolicyName: "snat-ns",
+			ServiceKey:     "lbns/svc2",
+		},
+	)
+	multiSvcGlobalObj := snatglobaldata("multi-svc-uid", "snatglobalinfo", "test-node", "lbns", globalInfos)
+	it.ta.fakeSnatGlobalSource.Add(multiSvcGlobalObj)
+	time.Sleep(200 * time.Millisecond)
+
+	// pod11 (endpoint of svc1 only) must receive only uid-svc1
+	it.checkEpSnatUids(11, []string{"uid-svc1"}, emptyJSON)
+	// pod12 (endpoint of svc2 only) must receive only uid-svc2
+	it.checkEpSnatUids(12, []string{"uid-svc2"}, emptyJSON)
+
+	it.cniDelParallel(11, 13)
 }

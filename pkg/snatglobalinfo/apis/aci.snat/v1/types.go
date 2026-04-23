@@ -47,6 +47,7 @@ type GlobalInfo struct {
 	SnatIp         string      `json:"snatIp"`
 	SnatIpUid      string      `json:"snatIpUid"`
 	SnatPolicyName string      `json:"snatPolicyName"`
+	ServiceKey     string      `json:"serviceKey,omitempty"`
 }
 
 // +k8s:openapi-gen=true
