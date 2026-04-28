@@ -368,6 +368,18 @@ func (cont *AciController) nodeChanged(obj interface{}) {
 			var annot aciPodAnnot
 			cont.nodeACIPod[node.ObjectMeta.Name] = annot
 		}
+
+		infraQuerierSubnetAnn := node.ObjectMeta.Annotations[metadata.InfraQuerierSubnetAnnotation]
+		if cont.nodeSyncEnabled {
+			if cont.infraQuerierSubnet != "" && infraQuerierSubnetAnn != cont.infraQuerierSubnet {
+				node.ObjectMeta.Annotations[metadata.InfraQuerierSubnetAnnotation] = cont.infraQuerierSubnet
+				logger.WithFields(logrus.Fields{
+					"new": cont.infraQuerierSubnet,
+					"old": infraQuerierSubnetAnn,
+				}).Info("Updated infra querier subnet annotation")
+				nodeUpdated = true
+			}
+		}
 	}
 	cont.indexMutex.Unlock()
 

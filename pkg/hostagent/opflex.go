@@ -27,6 +27,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -187,28 +188,114 @@ func (agent *HostAgent) isMultiCastRoutePresent(link netlink.Link) bool {
 	return false
 }
 
+// addStaticLinkRoute adds dst as a proto static, scope link route on link with
+// the given metric. It is the shared primitive used by both multicast and infra
+// querier subnet route addition.
+func (agent *HostAgent) addStaticLinkRoute(link netlink.Link, dst *net.IPNet, metric int) error {
+	route := &netlink.Route{
+		LinkIndex: link.Attrs().Index,
+		Dst:       dst,
+		Protocol:  syscall.RTPROT_STATIC,
+		Scope:     netlink.SCOPE_LINK,
+		Priority:  metric,
+	}
+	agent.log.Infof("Adding route %s dev %s proto static scope link metric %d", dst, link.Attrs().Name, metric)
+	return netlink.RouteAdd(route)
+}
+
 func (agent *HostAgent) addMultiCastRoute(link netlink.Link, name string) {
 	if agent.isMultiCastRoutePresent(link) {
 		agent.log.Info("Multicast route already present for interface ", name)
 		return
 	}
+	_, mcastNet, _ := net.ParseCIDR(MCAST_ROUTE_DEST)
 	retryCount := agent.config.DhcpRenewMaxRetryCount
 	for i := 0; i < retryCount; i++ {
-		cmd := exec.Command("ip", "route", "add", MCAST_ROUTE_DEST, "dev", name, "proto", "static", "scope", "link", "metric", "401")
-		agent.log.Info("Executing command:", cmd.String())
-		opt, err := cmd.Output()
-		if err != nil {
-			agent.log.Error("Failed to add multicast route : ", err.Error(), " ", string(opt))
+		if err := agent.addStaticLinkRoute(link, mcastNet, 401); err != nil {
+			agent.log.Errorf("Failed to add multicast route: %v (attempt %d)", err, i+1)
 			continue
-		} else {
-			agent.log.Info(string(opt))
 		}
 		if agent.isMultiCastRoutePresent(link) {
-			agent.log.Info("Added Multicast route successfully ")
+			agent.log.Info("Added Multicast route successfully")
 			return
 		}
-		agent.log.Error("Failed to add Multicast route...iteration:", i+1)
+		agent.log.Errorf("Failed to add multicast route (attempt %d)", i+1)
 	}
+	agent.log.Errorf("Failed to add multicast route for interface %s after %d attempts", name, retryCount)
+}
+
+func (agent *HostAgent) isInfraQuerierSubnetRoutePresent(link netlink.Link, targetNet *net.IPNet) bool {
+	routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+	if err != nil {
+		agent.log.Error("Failed to list routes: ", err)
+		return false
+	}
+	targetPrefix, _ := targetNet.Mask.Size()
+
+	for _, route := range routes {
+		if route.Dst == nil {
+			continue
+		}
+		routePrefix, _ := route.Dst.Mask.Size()
+		if routePrefix <= targetPrefix && route.Dst.Contains(targetNet.IP) {
+			agent.log.Info("Infra querier subnet route covered by existing route ", route.Dst.String(), " for interface ", link.Attrs().Name)
+			return true
+		}
+	}
+	return false
+}
+
+func (agent *HostAgent) addInfraQuerierSubnetRoute(link netlink.Link, name, subnet string) {
+	_, subnetNet, err := net.ParseCIDR(subnet)
+	if err != nil || subnetNet == nil {
+		agent.log.Error("Invalid infra querier subnet: ", subnet)
+		return
+	}
+
+	if agent.isInfraQuerierSubnetRoutePresent(link, subnetNet) {
+		agent.log.Info("Infra querier subnet route already present for interface ", name)
+		return
+	}
+
+	retryCount := agent.config.DhcpRenewMaxRetryCount
+	for i := 0; i < retryCount; i++ {
+		if err := agent.addStaticLinkRoute(link, subnetNet, 401); err != nil {
+			agent.log.Errorf("Failed to add infra querier subnet route: %v (attempt %d)", err, i+1)
+			continue
+		}
+		if agent.isInfraQuerierSubnetRoutePresent(link, subnetNet) {
+			agent.log.Info("Added infra querier subnet route successfully")
+			return
+		}
+		agent.log.Errorf("Failed to add infra querier subnet route (attempt %d)", i+1)
+	}
+	agent.log.Errorf("Failed to add infra querier subnet route for interface %s after %d attempts", name, retryCount)
+}
+
+// scheduleInfraQuerierSubnetRoute ensures the infra querier subnet has been populated.
+// If the subnet annotation is not yet available it retries with exponential backoff
+// (5→10→20→40→80→160s ≈ 5 min total), then gives up. Once the subnet is known, route
+// addition follows the same bounded-retry pattern as addMultiCastRoute.
+func (agent *HostAgent) scheduleInfraQuerierSubnetRoute(link netlink.Link, name string) {
+	if !agent.infraRoutePending.CompareAndSwap(false, true) {
+		agent.log.Info("Infra querier route addition already pending for ", name)
+		return
+	}
+	go func() {
+		defer agent.infraRoutePending.Store(false)
+		backoff := 5 * time.Second
+		for range 6 {
+			subnet, _ := agent.infraQuerierSubnet.Load().(string)
+			if subnet != "" {
+				agent.addInfraQuerierSubnetRoute(link, name, subnet)
+				return
+			}
+			agent.log.Infof("Infra querier subnet not yet available, retrying in %v", backoff)
+			time.Sleep(backoff)
+			backoff *= 2
+		}
+		agent.log.Error("Infra querier subnet not available after retries, giving up for interface ", name)
+	}()
 }
 
 func (agent *HostAgent) getInterfaceIPv4s(iface string) []net.IP {
@@ -620,6 +707,7 @@ func (agent *HostAgent) doDhcpRenew(aciPodSubnet string) {
 				agent.log.Error("FAILURE: Failed to assign an ip from new pod subnet to vlan interface")
 			}
 			agent.addMultiCastRoute(link, link.Name)
+			agent.scheduleInfraQuerierSubnetRoute(link, link.Name)
 		}
 	}
 
