@@ -100,6 +100,7 @@ type HostAgent struct {
 	rcPods                 *index.PodSelectorIndex
 	podNetAnnotation       string
 	aciPodAnnotation       string
+	infraQuerierSubnet     atomic.Value
 	nodeAciPodAnnotation   string
 	podIps                 *ipam.IpCache
 	usedIPs                map[string]string
@@ -154,6 +155,7 @@ type HostAgent struct {
 	podNameToTimeStamps map[string]*epTimeStamps
 	completedSyncTypes  map[string]struct{}
 	taintRemoved        atomic.Value
+	infraRoutePending   atomic.Bool
 }
 
 type ServiceEndPointType interface {
