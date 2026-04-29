@@ -158,47 +158,6 @@ var Version = map[string]bool{
 	"openshift-4.20-agent-based-esx":       true,
 }
 
-func (agent *HostAgent) initEndpointsInformerFromClient(
-	kubeClient *kubernetes.Clientset) {
-	agent.initEndpointsInformerBase(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).List(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to list Endpoints during initialization of EndpointsInformer: %s", err)
-				}
-				return obj, err
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				obj, err := kubeClient.CoreV1().Endpoints(metav1.NamespaceAll).Watch(context.TODO(), options)
-				if err != nil {
-					agent.log.Fatalf("Failed to watch Endpoints during initialization of EndpointsInformer: %s", err)
-				}
-				return obj, err
-			},
-		})
-}
-
-func (agent *HostAgent) initEndpointsInformerBase(listWatch *cache.ListWatch) {
-	agent.endpointsInformer = cache.NewSharedIndexInformer(
-		listWatch,
-		&v1.Endpoints{},
-		controller.NoResyncPeriodFunc(),
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	agent.endpointsInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			agent.endpointsChanged(obj)
-		},
-		UpdateFunc: func(_ interface{}, obj interface{}) {
-			agent.endpointsChanged(obj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			agent.endpointsChanged(obj)
-		},
-	})
-}
-
 func (agent *HostAgent) initEndpointSliceInformerFromClient(
 	kubeClient *kubernetes.Clientset) {
 	agent.initEndpointSliceInformerBase(
@@ -481,21 +440,6 @@ func (agent *HostAgent) doUpdateService(key string) {
 	}
 }
 
-func (agent *HostAgent) endpointsChanged(obj interface{}) {
-	agent.indexMutex.Lock()
-	defer agent.indexMutex.Unlock()
-
-	endpoints := obj.(*v1.Endpoints)
-	agent.log.Debugf("Endpoint changed: name=%s namespace=%s",
-		endpoints.ObjectMeta.Name, endpoints.ObjectMeta.Namespace)
-
-	key, err := cache.MetaNamespaceKeyFunc(endpoints)
-	if err != nil {
-		agent.log.Error("Could not create key:" + err.Error())
-		return
-	}
-	agent.doUpdateService(key)
-}
 func getServiceKey(endPointSlice *discovery.EndpointSlice) (string, bool) {
 	serviceName, ok := endPointSlice.Labels[discovery.LabelServiceName]
 	if !ok {
@@ -669,102 +613,6 @@ func (agent *HostAgent) setOpenShfitService(as *v1.Service, external bool, ofas 
 			}
 		}
 	}
-}
-
-func (sep *serviceEndpoint) SetOpflexService(ofas *opflexService, as *v1.Service,
-	external bool, key string, sp *v1.ServicePort) bool {
-	agent := sep.agent
-	endpointsobj, exists, err :=
-		agent.endpointsInformer.GetStore().GetByKey(key)
-	if err != nil {
-		agent.log.Error("Could not lookup endpoints for " +
-			key + ": " + err.Error())
-		return false
-	}
-	if !exists || endpointsobj == nil {
-		agent.log.Debugf("no endpoints for service %s/%s", as.Namespace, as.Name)
-		return false
-	}
-	endpoints := endpointsobj.(*v1.Endpoints)
-	hasValidMapping := false
-
-	type void struct{}
-	var ipexists void
-	clusterIPs := make(map[string]void)
-	clusterIPs[as.Spec.ClusterIP] = ipexists
-	clusterIPsField := reflect.ValueOf(as.Spec).FieldByName("ClusterIPs")
-	if clusterIPsField.IsValid() {
-		for _, ip := range as.Spec.ClusterIPs {
-			clusterIPs[ip] = ipexists
-		}
-	}
-
-	for clusterIP := range clusterIPs {
-		for _, e := range endpoints.Subsets {
-			if len(e.Addresses) == 0 {
-				continue
-			}
-			parsedClusterIp := net.ParseIP(clusterIP)
-			parsedPodIp := net.ParseIP(e.Addresses[0].IP)
-
-			if parsedClusterIp == nil || parsedPodIp == nil {
-				agent.log.Info("Not a valid IP address..", parsedClusterIp, parsedPodIp)
-				continue
-			}
-			if parsedClusterIp.To4() != nil && parsedPodIp.To4() != nil {
-				agent.log.Info("Both are IPv4 addresses..", parsedClusterIp, parsedPodIp, "Adding to map..")
-			} else if parsedClusterIp.To4() == nil && parsedPodIp.To4() == nil {
-				agent.log.Info("Both are IPv6 addresses..", parsedClusterIp, parsedPodIp, "Adding to map..")
-			} else {
-				continue
-			}
-			for _, p := range e.Ports {
-				if p.Protocol != sp.Protocol {
-					continue
-				}
-				if p.Name != sp.Name {
-					continue
-				}
-
-				sm := &opflexServiceMapping{
-					ServicePort:  uint16(sp.Port),
-					ServiceProto: strings.ToLower(string(sp.Protocol)),
-					NextHopIps:   make([]string, 0),
-					NextHopPort:  uint16(p.Port),
-					Conntrack:    true,
-					NodePort:     uint16(sp.NodePort),
-				}
-
-				if external {
-					if as.Spec.Type == v1.ServiceTypeLoadBalancer &&
-						len(as.Status.LoadBalancer.Ingress) > 0 {
-						for _, ip := range as.Status.LoadBalancer.Ingress {
-							LBIp := net.ParseIP(ip.IP)
-							if (LBIp.To4() != nil) == (parsedPodIp.To4() != nil) {
-								sm.ServiceIp = ip.IP
-								break
-							}
-						}
-					}
-				} else {
-					sm.ServiceIp = clusterIP
-				}
-				sm.setServiceAffinityConfig(as)
-				for _, a := range e.Addresses {
-					if !external ||
-						(a.NodeName != nil && *a.NodeName == agent.config.NodeName) {
-						sm.NextHopIps = append(sm.NextHopIps, a.IP)
-					}
-				}
-				if sm.ServiceIp != "" && len(sm.NextHopIps) > 0 {
-					hasValidMapping = true
-				}
-
-				ofas.ServiceMappings = append(ofas.ServiceMappings, *sm)
-			}
-		}
-	}
-	return hasValidMapping
 }
 
 func (sm *opflexServiceMapping) setServiceAffinityConfig(as *v1.Service) {
