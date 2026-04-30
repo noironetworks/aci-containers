@@ -134,6 +134,7 @@ type ApicConnection struct {
 	SubscriptionDelay       time.Duration
 	RetryInterval           time.Duration
 	SnatPbrFltrChain        bool // Configure SNAT PBR to use filter-chain
+	ReconnectHook           func()
 	FullSyncHook            func()
 
 	dialer        *websocket.Dialer

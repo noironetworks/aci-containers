@@ -170,6 +170,7 @@ type AciController struct {
 	nodeServiceMetaCache map[string]*nodeServiceMeta
 	nodeACIPod           map[string]aciPodAnnot
 	nodeACIPodAnnot      map[string]aciPodAnnot
+	infraQuerierSubnet   string
 	nodeOpflexDevice     map[string]apicapi.ApicSlice
 	nodePodNetCache      map[string]*nodePodNetMeta
 	serviceMetaCache     map[string]*serviceMeta
@@ -941,6 +942,12 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err.Error())
 	}
 
+	if !cont.isCNOEnabled() && cont.config.AciMultipod {
+		cont.apicConn.ReconnectHook = func() {
+			cont.initInfraQuerierSubnet()
+		}
+	}
+
 	cont.apicConn.FullSyncHook = func() {
 		// put a channel into each work queue and wait on it to
 		// checkpoint object syncing in response to new subscription
@@ -1151,6 +1158,63 @@ func (cont *AciController) syncNodeAciPods(stopCh <-chan struct{}, seconds time.
 			return
 		}
 	}
+}
+
+func (cont *AciController) updateInfraQuerierSubnet() bool {
+	args := []string{
+		"query-target=children",
+		"target-subtree-class=fvSubnet",
+	}
+	url := fmt.Sprintf("/api/node/mo/uni/tn-infra/BD-default.json?%s", strings.Join(args, "&"))
+	apicresp, err := cont.apicConn.GetApicResponse(url)
+	if err != nil {
+		cont.log.Debug("Failed to get APIC response for infra default BD subnet lookup, err: ", err.Error())
+		return false
+	}
+
+	var subnet string
+outer:
+	for _, obj := range apicresp.Imdata {
+		for _, body := range obj {
+			ctrl, _ := body.Attributes["ctrl"].(string)
+			if !strings.Contains(ctrl, "querier") {
+				continue
+			}
+			ip, ok := body.Attributes["ip"].(string)
+			if ok && ip != "" {
+				subnet = ip
+				break outer
+			}
+		}
+	}
+	if subnet == "" {
+		cont.log.Debug("Failed to find querier fvSubnet ip under uni/tn-infra/BD-default")
+		return false
+	}
+
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+	if cont.infraQuerierSubnet == subnet {
+		return false
+	}
+	cont.infraQuerierSubnet = subnet
+	return true
+}
+
+func (cont *AciController) initInfraQuerierSubnet() bool {
+	if !cont.updateInfraQuerierSubnet() {
+		return false
+	}
+
+	for _, obj := range cont.nodeIndexer.List() {
+		node := obj.(*v1.Node)
+		if node.ObjectMeta.Annotations[metadata.InfraQuerierSubnetAnnotation] == cont.infraQuerierSubnet {
+			continue
+		}
+		go cont.nodeChanged(obj)
+	}
+
+	return true
 }
 
 func (cont *AciController) syncOpflexDevices(stopCh <-chan struct{}, seconds time.Duration) {

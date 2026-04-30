@@ -677,6 +677,9 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 	}
 	if !hasErr {
 		conn.checkDeletes(oldState)
+		if conn.ReconnectHook != nil {
+			go conn.ReconnectHook()
+		}
 		go func() {
 			if conn.FullSyncHook != nil {
 				conn.FullSyncHook()
