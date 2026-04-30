@@ -777,6 +777,26 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		panic(err)
 	}
 
+	// If not defined, default LLDP refresh timer to 120 seconds
+	if cont.config.ApicLldpRefreshTimer == "" {
+		cont.config.ApicLldpRefreshTimer = "120"
+	}
+	lldpRefreshTimeout, err := strconv.Atoi(cont.config.ApicLldpRefreshTimer)
+	if err != nil {
+		panic(err)
+	}
+	cont.log.Info("ApicLldpRefreshTimer conf is set to: ", lldpRefreshTimeout)
+
+	// If not defined, default LLDP refresh ticker adjust to 20 seconds
+	if cont.config.ApicLldpRefreshTickerAdjust == "" {
+		cont.config.ApicLldpRefreshTickerAdjust = "20"
+	}
+	lldpRefreshTickerAdjust, err := strconv.Atoi(cont.config.ApicLldpRefreshTickerAdjust)
+	if err != nil {
+		panic(err)
+	}
+	cont.log.Info("ApicLldpRefreshTickerAdjust conf is set to: ", lldpRefreshTickerAdjust)
+
 	// If not defined, default to 900s
 	if cont.config.LeafRebootCheckInterval == 0 {
 		cont.config.LeafRebootCheckInterval = 900
@@ -860,6 +880,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 		cont.config.ApicUsername, cont.config.ApicPassword,
 		privKey, apicCert, cont.config.AciPrefix,
 		refreshTimeout, refreshTickerAdjust, cont.config.LeafRebootCheckInterval, cont.config.ApicSubscriptionDelay,
+		lldpRefreshTimeout, lldpRefreshTickerAdjust,
 		cont.config.AciVrfTenant, cont.UpdateLLDPIfLocked, cont.isCNOEnabled())
 	if err != nil {
 		panic(err)

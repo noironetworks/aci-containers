@@ -130,6 +130,8 @@ type ApicConnection struct {
 
 	RefreshInterval         time.Duration
 	RefreshTickerAdjust     time.Duration
+	LldpRefreshInterval     time.Duration
+	LldpRefreshTickerAdjust time.Duration
 	LeafRebootCheckInterval time.Duration
 	SubscriptionDelay       time.Duration
 	RetryInterval           time.Duration
