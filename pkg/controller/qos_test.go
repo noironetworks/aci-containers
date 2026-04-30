@@ -35,8 +35,7 @@ import (
 )
 
 type qrTestAugment struct {
-	endpoints []*v1.Endpoints
-	services  []*v1.Service
+	services []*v1.Service
 }
 
 type qrTest struct {
@@ -52,9 +51,6 @@ func addQosServices(cont *testAciController, augment *qrTestAugment) {
 	}
 	for _, s := range augment.services {
 		cont.fakeServiceSource.Add(s)
-	}
-	for _, e := range augment.endpoints {
-		cont.fakeEndpointsSource.Add(e)
 	}
 }
 

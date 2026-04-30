@@ -81,7 +81,6 @@ type HostAgent struct {
 	nodePodIFClient        nodepodifv1.AciV1Interface
 	fabAttClient           fabattv1.AciV1Interface
 	podInformer            cache.SharedIndexInformer
-	endpointsInformer      cache.SharedIndexInformer
 	serviceInformer        cache.SharedIndexInformer
 	nodeInformer           cache.SharedIndexInformer
 	nsInformer             cache.SharedIndexInformer
@@ -163,24 +162,12 @@ type ServiceEndPointType interface {
 		external bool, key string, sp *v1.ServicePort) bool
 }
 
-type serviceEndpoint struct {
-	agent *HostAgent
-}
 type serviceEndpointSlice struct {
 	agent *HostAgent
 }
 
-func (sep *serviceEndpoint) InitClientInformer(kubeClient *kubernetes.Clientset) {
-	sep.agent.initEndpointsInformerFromClient(kubeClient)
-}
-
 func (seps *serviceEndpointSlice) InitClientInformer(kubeClient *kubernetes.Clientset) {
 	seps.agent.initEndpointSliceInformerFromClient(kubeClient)
-}
-
-func (sep *serviceEndpoint) Run(stopCh <-chan struct{}) {
-	go sep.agent.endpointsInformer.Run(stopCh)
-	cache.WaitForCacheSync(stopCh, sep.agent.endpointsInformer.HasSynced)
 }
 
 func (seps *serviceEndpointSlice) Run(stopCh <-chan struct{}) {

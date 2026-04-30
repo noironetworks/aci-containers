@@ -1482,21 +1482,6 @@ func portKey(p *v1net.NetworkPolicyPort) string {
 	return ""
 }
 
-func checkEndpoints(subnetIndex cidranger.Ranger,
-	addresses []v1.EndpointAddress) bool {
-	for _, addr := range addresses {
-		ip := net.ParseIP(addr.IP)
-		if ip == nil {
-			return false
-		}
-		contains, err := subnetIndex.Contains(ip)
-		if err != nil || !contains {
-			return false
-		}
-	}
-
-	return true
-}
 func checkEndpointslices(subnetIndex cidranger.Ranger,
 	addresses []string) bool {
 	for _, addr := range addresses {
@@ -2695,65 +2680,6 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 	}
 	if cont.config.EnableHppDirect {
 		cont.deleteHppCr(np)
-	}
-}
-
-func (sep *serviceEndpoint) SetNpServiceAugmentForService(servicekey string, service *v1.Service, prs *portRemoteSubnet,
-	portAugments map[string]*portServiceAugment, subnetIndex cidranger.Ranger, logger *logrus.Entry) {
-	cont := sep.cont
-	endpointsobj, _, err := cont.endpointsIndexer.GetByKey(servicekey)
-	if err != nil {
-		logger.Error("Could not lookup endpoints for "+
-			servicekey+": ", err.Error())
-		return
-	}
-	if endpointsobj == nil {
-		return
-	}
-	endpoints := endpointsobj.(*v1.Endpoints)
-	npTargetPortsMap := cont.getPortNums(prs.port)
-	for _, svcPort := range service.Spec.Ports {
-		_, ok := npTargetPortsMap[svcPort.TargetPort.IntValue()]
-		if prs.port != nil &&
-			(svcPort.Protocol != *prs.port.Protocol || !ok) {
-			// egress rule does not match service target port
-			continue
-		}
-		for _, subset := range endpoints.Subsets {
-			var foundEpPort *v1.EndpointPort
-			for ix := range subset.Ports {
-				if subset.Ports[ix].Name == svcPort.Name ||
-					(len(service.Spec.Ports) == 1 &&
-						subset.Ports[ix].Name == "") {
-					foundEpPort = &subset.Ports[ix]
-					break
-				}
-			}
-			if foundEpPort == nil {
-				continue
-			}
-
-			incomplete := false
-			incomplete = incomplete ||
-				!checkEndpoints(subnetIndex, subset.Addresses)
-			incomplete = incomplete || !checkEndpoints(subnetIndex,
-				subset.NotReadyAddresses)
-
-			if incomplete {
-				continue
-			}
-
-			proto := portProto(&foundEpPort.Protocol)
-			port := strconv.Itoa(int(svcPort.Port))
-			updateServiceAugmentForService(portAugments,
-				proto, port, service)
-
-			logger.WithFields(logrus.Fields{
-				"proto":   proto,
-				"port":    port,
-				"service": servicekey,
-			}).Debug("Allowing egress for service by subnet match")
-		}
 	}
 }
 

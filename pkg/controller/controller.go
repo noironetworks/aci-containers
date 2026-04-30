@@ -91,8 +91,6 @@ type AciController struct {
 	namespaceInformer                    cache.Controller
 	podIndexer                           cache.Indexer
 	podInformer                          cache.Controller
-	endpointsIndexer                     cache.Indexer
-	endpointsInformer                    cache.Controller
 	serviceIndexer                       cache.Indexer
 	serviceInformer                      cache.Controller
 	replicaSetIndexer                    cache.Indexer
@@ -421,9 +419,6 @@ type ServiceEndPointType interface {
 		portAugments map[string]*portServiceAugment, subnetIndex cidranger.Ranger, logger *logrus.Entry)
 }
 
-type serviceEndpoint struct {
-	cont *AciController
-}
 type serviceEndpointSlice struct {
 	cont *AciController
 }
@@ -440,26 +435,12 @@ type EpgVlanMap struct {
 	encapVlan int
 }
 
-func (sep *serviceEndpoint) InitClientInformer(kubeClient *kubernetes.Clientset) {
-	sep.cont.initEndpointsInformerFromClient(kubeClient)
-}
-
 func (seps *serviceEndpointSlice) InitClientInformer(kubeClient *kubernetes.Clientset) {
 	seps.cont.initEndpointSliceInformerFromClient(kubeClient)
 }
 
-func (sep *serviceEndpoint) Run(stopCh <-chan struct{}) {
-	go sep.cont.endpointsInformer.Run(stopCh)
-}
-
 func (seps *serviceEndpointSlice) Run(stopCh <-chan struct{}) {
 	go seps.cont.endpointSliceInformer.Run(stopCh)
-}
-
-func (sep *serviceEndpoint) Wait(stopCh <-chan struct{}) {
-	cache.WaitForCacheSync(stopCh,
-		sep.cont.endpointsInformer.HasSynced,
-		sep.cont.serviceInformer.HasSynced)
 }
 
 func (seps *serviceEndpointSlice) Wait(stopCh <-chan struct{}) {
