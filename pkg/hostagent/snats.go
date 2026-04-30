@@ -93,6 +93,7 @@ type opflexSnatGlobalInfo struct {
 	PortRange      []OpflexPortRange
 	SnatIpUid      string
 	SnatPolicyName string
+	ServiceKey     string
 }
 
 type opflexSnatLocalInfo struct {
@@ -450,6 +451,15 @@ func (agent *HostAgent) getPodUidsMatchingLabel(namespace string, label map[stri
 		func(nsobj interface{}) {
 			nspoduids = append(nspoduids, agent.updateSnatPolicyLabels(nsobj, policyname)...)
 		})
+	// Warn about any services that match the selector — explicit SnatIp
+	// policies are not supported at service level, so these are skipped.
+	cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, selector,
+		func(servobj interface{}) {
+			service := servobj.(*v1.Service)
+			agent.log.Warning("Ignoring service ", service.Namespace, "/", service.Name,
+				" matching SNAT policy ", policyname,
+				": explicit SnatIp policies are not supported at service level")
+		})
 	return
 }
 
@@ -654,6 +664,7 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 				PortRange:      portrange,
 				SnatIpUid:      v.SnatIpUid,
 				SnatPolicyName: v.SnatPolicyName,
+				ServiceKey:     v.ServiceKey,
 			}
 			newglobalinfos = append(newglobalinfos, nodeInfo)
 		}
@@ -957,9 +968,17 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 		var uids []string
 		for _, name := range policystack {
 			for _, val := range agent.opflexSnatGlobalInfos[agent.config.NodeName] {
-				if val.SnatPolicyName == name {
-					uids = append(uids, val.SnatIpUid)
+				if val.SnatPolicyName != name {
+					continue
 				}
+				// For no-SnatIp (service-based) policies, use the ServiceKey set
+				// by the controller to verify this pod belongs to that service.
+				if val.ServiceKey != "" {
+					if !agent.podBelongsToService(uid, val.ServiceKey) {
+						continue
+					}
+				}
+				uids = append(uids, val.SnatIpUid)
 			}
 			if len(agent.snatPolicyCache[name].Spec.DestIp) == 0 {
 				break
@@ -976,6 +995,30 @@ func (agent *HostAgent) updateEpFiles(poduids []string) {
 		agent.scheduleSyncEps()
 	}
 	agent.scheduleSyncLocalInfo()
+}
+
+// podBelongsToService checks whether the pod identified by podUID is selected
+// by the service identified by serviceKey (namespace/name).
+func (agent *HostAgent) podBelongsToService(podUID, serviceKey string) bool {
+	svcObj, exists, err := agent.serviceInformer.GetIndexer().GetByKey(serviceKey)
+	if err != nil || !exists {
+		return false
+	}
+	svc := svcObj.(*v1.Service)
+	if svc.Spec.Selector == nil {
+		return false
+	}
+	svcSelector := labels.SelectorFromSet(labels.Set(svc.Spec.Selector))
+	podKey, ok := agent.podUidToName[podUID]
+	if !ok {
+		return false
+	}
+	podObj, exists, err := agent.podInformer.GetIndexer().GetByKey(podKey)
+	if err != nil || !exists {
+		return false
+	}
+	pod := podObj.(*v1.Pod)
+	return svcSelector.Matches(labels.Set(pod.Labels))
 }
 
 func (agent *HostAgent) compare(plcy1, plcy2 string) bool {
@@ -1000,23 +1043,28 @@ func (agent *HostAgent) compare(plcy1, plcy2 string) bool {
 	return sort
 }
 
-func (agent *HostAgent) getMatchingServices(namespace string, label map[string]string) []*v1.Service {
-	var services, matchingServices []*v1.Service
-	cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, labels.Everything(),
+// hasMatchingService returns true if any service in the namespace has metadata
+// labels matching policyLabels (the SNAT policy's selector) AND a pod selector
+// that matches podLabels (the labels on the pod/deployment being evaluated).
+// ie, if the pod is an endpoint of any service that matches the SNAT policy selector.
+func (agent *HostAgent) hasMatchingService(namespace string, podLabels map[string]string, policyLabels map[string]string) bool {
+	found := false
+	selector := labels.SelectorFromSet(labels.Set(policyLabels))
+	cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, selector,
 		func(servobj interface{}) {
-			services = append(services, servobj.(*v1.Service))
+			if found {
+				return
+			}
+			service := servobj.(*v1.Service)
+			if service.Spec.Selector != nil {
+				svcSelector := labels.SelectorFromSet(service.Spec.Selector)
+				if svcSelector.Matches(labels.Set(podLabels)) {
+					agent.log.Debug("Found matching service ", service.Namespace, "/", service.Name)
+					found = true
+				}
+			}
 		})
-	for _, service := range services {
-		if service.Spec.Selector == nil {
-			continue
-		}
-		svcSelector := labels.SelectorFromSet(service.Spec.Selector)
-		if svcSelector.Matches(labels.Set(label)) {
-			matchingServices = append(matchingServices, service)
-		}
-	}
-
-	return matchingServices
+	return found
 }
 
 // Must acquire snatPolicyCacheMutex.RLock
@@ -1041,13 +1089,21 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 				append(snatPolicyNames[item.ObjectMeta.Name], CLUSTER)
 		} else if len(item.Spec.Selector.Labels) == 0 &&
 			item.Spec.Selector.Namespace == namespace { // check policy matches namespace
-			if res == SERVICE {
-				if len(item.Spec.SnatIp) == 0 {
+			if len(item.Spec.SnatIp) == 0 {
+				// Namespace-scoped no-SnatIp policy: mark as SERVICE if the
+				// object is a service itself, or if the pod is selected by
+				// any service in the namespace.
+				if res == SERVICE || (res == POD &&
+					agent.hasMatchingService(namespace, label, item.Spec.Selector.Labels)) {
 					snatPolicyNames[item.ObjectMeta.Name] =
 						append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
 				}
-			} else {
-				if len(item.Spec.SnatIp) > 0 {
+			} else if len(item.Spec.SnatIp) > 0 {
+				if res == SERVICE {
+					agent.log.Warning("Ignoring SNAT policy ", item.ObjectMeta.Name,
+						" with explicit SnatIp for service ", name,
+						" in namespace ", namespace, ": explicit SnatIp is not supported at service level")
+				} else {
 					snatPolicyNames[item.ObjectMeta.Name] =
 						append(snatPolicyNames[item.ObjectMeta.Name], NAMESPACE)
 				}
@@ -1058,20 +1114,20 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 				(item.Spec.Selector.Namespace == "") ||
 				(res == NAMESPACE && item.Spec.Selector.Namespace == name) {
 				if util.MatchLabels(item.Spec.Selector.Labels, label) {
-					snatPolicyNames[item.ObjectMeta.Name] =
-						append(snatPolicyNames[item.ObjectMeta.Name], res)
+					if res == SERVICE && len(item.Spec.SnatIp) > 0 {
+						agent.log.Warning("Ignoring SNAT policy ", item.ObjectMeta.Name,
+							" with explicit SnatIp for service ", name,
+							" in namespace ", namespace, ": explicit SnatIp is not supported at service level")
+					} else {
+						snatPolicyNames[item.ObjectMeta.Name] =
+							append(snatPolicyNames[item.ObjectMeta.Name], res)
+					}
 				}
 				if res == POD {
 					if len(item.Spec.SnatIp) == 0 {
-						matchingServices := agent.getMatchingServices(namespace, label)
-						agent.log.Debug("Matching services for pod ", name, " : ", matchingServices)
-						for _, matchingSvc := range matchingServices {
-							if util.MatchLabels(item.Spec.Selector.Labels,
-								matchingSvc.ObjectMeta.Labels) {
-								snatPolicyNames[item.ObjectMeta.Name] =
-									append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
-								break
-							}
+						if agent.hasMatchingService(namespace, label, item.Spec.Selector.Labels) {
+							snatPolicyNames[item.ObjectMeta.Name] =
+								append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
 						}
 					} else {
 						podKey, _ := cache.MetaNamespaceKeyFunc(obj)
@@ -1109,18 +1165,7 @@ func (agent *HostAgent) getMatchingSnatPolicy(obj interface{}) (snatPolicyNames 
 						// check for namespace match
 					}
 				} else if res == DEPLOYMENT {
-					if len(item.Spec.SnatIp) == 0 {
-						matchingServices := agent.getMatchingServices(namespace, label)
-						agent.log.Debug("Matching services for deployment ", name, " : ", matchingServices)
-						for _, matchingSvc := range matchingServices {
-							if util.MatchLabels(item.Spec.Selector.Labels,
-								matchingSvc.ObjectMeta.Labels) {
-								snatPolicyNames[item.ObjectMeta.Name] =
-									append(snatPolicyNames[item.ObjectMeta.Name], SERVICE)
-								break
-							}
-						}
-					} else {
+					if len(item.Spec.SnatIp) > 0 {
 						nsobj, exists, err := agent.nsInformer.GetStore().GetByKey(namespace)
 						if err != nil {
 							agent.log.Error("Could not lookup snat for " +
@@ -1385,6 +1430,7 @@ func setDestIp(destIp []string) {
 	}
 }
 
+// most specific to least specific order.
 func compareIps(ipa, ipb string) bool {
 	ipB, ipnetB, _ := net.ParseCIDR(ipb)
 	_, ipnetA, _ := net.ParseCIDR(ipa)
