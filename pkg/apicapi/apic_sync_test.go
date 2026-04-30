@@ -83,7 +83,9 @@ func TestApicBodyAttrCmp(t *testing.T) {
 		bodyd := &ApicObjectBody{
 			Attributes: map[string]interface{}{
 				"tnVnsAbsGraphName": "graph2",
-				"customSG":          true,
+			},
+			Hints: map[string]interface{}{
+				"customSG": true,
 			},
 		}
 
