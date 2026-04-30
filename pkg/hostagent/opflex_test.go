@@ -76,6 +76,7 @@ func TestDiscoverUpdateOverlayConfig(t *testing.T) {
 
 	agent := testAgent()
 	agent.config.OpflexMode = "overlay"
+	agent.config.OpFlexConfigPath = tempdir
 	config := agent.discoverHostConfig()
 	assert.NotNil(t, config, "Host config is nil")
 	agent.config.HostAgentNodeConfig.VxlanIface = "eth1.4093"
