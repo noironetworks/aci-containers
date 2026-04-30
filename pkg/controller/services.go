@@ -2174,7 +2174,24 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		if *cont.config.AllocateServiceIps {
 			requeue = cont.allocateServiceIps(servicekey, service)
 		}
+		// Check if any existing SNAT policy (with no explicit SnatIp)
+		// matches this service. This handles the case where the SNAT
+		// policy was created before the service existed.
 		cont.indexMutex.Lock()
+		if _, exists := cont.snatServices[servicekey]; !exists {
+			for _, policy := range cont.snatPolicyCache {
+				if len(policy.SnatIp) == 0 {
+					if len(policy.Selector.Namespace) == 0 ||
+						policy.Selector.Namespace == service.ObjectMeta.Namespace {
+						selector := labels.SelectorFromSet(labels.Set(policy.Selector.Labels))
+						if selector.Matches(labels.Set(service.ObjectMeta.Labels)) {
+							cont.snatServices[servicekey] = true
+							break
+						}
+					}
+				}
+			}
+		}
 		if cont.serviceSyncEnabled {
 			cont.indexMutex.Unlock()
 			err = cont.updateServiceDeviceInstance(servicekey, service)
@@ -2199,6 +2216,7 @@ func (cont *AciController) clearLbService(servicekey string) {
 		cont.returnServiceIps(meta.ingressIps)
 		returnIps(cont.staticServiceIps, meta.staticIngressIps)
 		delete(cont.serviceMetaCache, servicekey)
+		delete(cont.snatServices, servicekey)
 	}
 	cont.indexMutex.Unlock()
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("svc", servicekey))
@@ -2406,7 +2424,6 @@ func (cont *AciController) serviceDeleted(obj interface{}) {
 	ports := cont.processServiceTargetPorts(service, servicekey, true)
 	cont.updateTargetPortIndex(true, servicekey, ports, nil)
 	cont.queuePortNetPolUpdates(ports)
-	delete(cont.snatServices, servicekey)
 	cont.indexMutex.Unlock()
 
 	deletedServiceKey := "DELETED_" + servicekey
