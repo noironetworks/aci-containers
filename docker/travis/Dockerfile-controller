@@ -10,12 +10,17 @@ RUN yum update --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ub
 RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms curl -y --allowerasing && rm -rf /var/cache/yum
 # Required Licenses
 COPY docker/licenses /licenses
-ARG KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
-RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
-  && chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl \
-  && curl -sL "https://github.com/istio/istio/releases/download/1.18.2/istio-1.18.2-linux-amd64.tar.gz" | tar xz \
-  && chmod u+x istio-1.18.2/bin/istioctl && mv istio-1.18.2/bin/istioctl /usr/local/bin/istioctl \
-  && mkdir -p /usr/local/var/lib/aci-cni
-COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
+# Istio support is disabled due to security vulnerabilities detected in
+# istio.io/istio package.  The controller Go code that consumed kubectl and
+# istioctl is build-excluded / commented out.
+#ARG KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+#RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+#  && chmod u+x kubectl && mv kubectl /usr/local/bin/kubectl \
+#  && curl -sL "https://github.com/istio/istio/releases/download/1.18.2/istio-1.18.2-linux-amd64.tar.gz" | tar xz \
+#  && chmod u+x istio-1.18.2/bin/istioctl && mv istio-1.18.2/bin/istioctl /usr/local/bin/istioctl \
+# Directory was used to stage upstream-istio-cr.yaml for kubectl apply in
+# pkg/controller/aci_istio.go (now disabled).
+#  && mkdir -p /usr/local/var/lib/aci-cni
+#COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
 COPY dist-static/aci-containers-controller /usr/local/bin/
 ENTRYPOINT exec /usr/local/bin/aci-containers-controller -config-path /usr/local/etc/aci-containers/controller.conf

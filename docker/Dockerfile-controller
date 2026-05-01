@@ -10,6 +10,9 @@ summary="This is an ACI CNI Containers Controller." \
 description="This will deploy a single instance of ACI CNI Containers Controller."
 # Required Licenses
 COPY docker/licenses /licenses
-COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
+# Istio support is currently disabled (see Dockerfile-controller-base).
+# Directory was used to stage upstream-istio-cr.yaml for kubectl apply in
+# pkg/controller/aci_istio.go (now disabled).
+#COPY pkg/istiocrd/upstream-istio-cr.yaml /usr/local/var/lib/aci-cni/upstream-istio-ctrlplane-resource.yaml
 COPY dist-static/aci-containers-controller /usr/local/bin/
 ENTRYPOINT exec /usr/local/bin/aci-containers-controller -config-path /usr/local/etc/aci-containers/controller.conf

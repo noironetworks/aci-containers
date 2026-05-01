@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"reflect"
 	"strings"
 	"sync"
@@ -52,6 +51,7 @@ import (
 	accprovisioninputclientset "github.com/noironetworks/aci-containers/pkg/accprovisioninput/clientset/versioned"
 	operators "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/apis/aci.ctrl/v1alpha1"
 	operatorclientset "github.com/noironetworks/aci-containers/pkg/acicontainersoperator/clientset/versioned"
+	"github.com/noironetworks/aci-containers/pkg/util"
 )
 
 func init() {
@@ -97,6 +97,7 @@ type Controller struct {
 	Informer_Route              cache.SharedIndexInformer
 	Informer_Config             cache.SharedIndexInformer
 	Resources                   AciResources
+	RuntimeClient               client.Client             // General-purpose controller-runtime client
 	DnsOperatorClient           client.Client             // This client is specific dnsopenshift operator
 	RoutesClient                routesClientset.Interface // This client is specific routes openshift operator
 	Openshiftflavor             bool
@@ -298,11 +299,21 @@ func NewAciContainersOperator(
 		}
 	}
 
+	restCfg, err := config.GetConfig()
+	if err != nil {
+		log.Fatalf("Failed to get in-cluster config: %v", err)
+	}
+	runtimeClient, err := client.New(restCfg, client.Options{})
+	if err != nil {
+		log.Fatalf("Failed to create controller-runtime client: %v", err)
+	}
+
 	controller := &Controller{
 		Logger:                      log.NewEntry(log.New()),
 		Operator_Clientset:          acicnioperatorclient,
 		AccProvisionInput_Clientset: accprovisioninputclient,
 		K8s_Clientset:               k8sclient,
+		RuntimeClient:               runtimeClient,
 		Informer_Operator:           aci_operator_informer,
 		Informer_Deployment:         aci_deployment_informer,
 		Informer_Daemonset:          aci_daemonset_informer,
@@ -1013,23 +1024,6 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 		decString = strings.Replace(decString, "path: /var/lib/dhclient", "path: /var/lib/dhcp", 1)
 		dec = []byte(decString)
 	}
-	f, err := os.Create("aci-deployment.yaml")
-	if err != nil {
-		log.Error(err)
-		return true
-	}
-	if _, err := f.Write(dec); err != nil {
-		log.Error(err)
-		return true
-	}
-	if err := f.Sync(); err != nil {
-		log.Error(err)
-		return true
-	}
-	if err := f.Close(); err != nil {
-		log.Error(err)
-		return true
-	}
 
 	log.Info("Platform flavor is ", acicontainersoperator.Spec.Flavor)
 
@@ -1088,14 +1082,8 @@ func (c *Controller) handleOperatorCreate(obj interface{}) bool {
 
 	log.Info("Applying Aci Deployment")
 
-	//Currently the Kubectl version is v.1.14. This will be updated by the acc-provision according
-	//to the platform specification
-
-	cmd := exec.Command("kubectl", "apply", "-f", "aci-deployment.yaml")
-	log.Debug(cmd)
-	cmdOutput, err := cmd.Output()
-	if err != nil {
-		log.Errorf("cmdOutput: %s err: %v", cmdOutput, err)
+	if err := util.ApplyResources(c.RuntimeClient, dec, "aci-containers-operator"); err != nil {
+		log.Errorf("Failed to apply aci deployment: %v", err)
 		return true
 	}
 
