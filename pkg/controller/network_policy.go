@@ -1872,7 +1872,6 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 		return true
 	}
 
-	var existingSpec hppv1.HostprotRemoteIpContainerSpec
 	if !isUpdate {
 		aobj = &hppv1.HostprotRemoteIpContainer{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1886,7 +1885,6 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 		}
 	} else {
 		cont.log.Debug("HostprotRemoteIpContainers CR already exists: ", aobj)
-		existingSpec = aobj.Spec
 	}
 
 	remIpCont, exists := cont.nsRemoteIpCont[ns]
@@ -1899,17 +1897,11 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 			cont.log.Error("Couldn't find the ns in nsRemoteIpCont cache: ", ns)
 			return false
 		}
-		return false
 	}
 
 	aobj.Spec.HostprotRemoteIp = buildHostprotRemoteIpList(remIpCont)
 
 	if isUpdate {
-		// Skip update if spec hasn't changed
-		if reflect.DeepEqual(existingSpec, aobj.Spec) {
-			cont.log.Debug("HostprotRemoteIpContainer CR unchanged, skipping update: ", ns)
-			return false
-		}
 		if !cont.updateHostprotRemoteIpContainer(aobj, sysNs) {
 			return true
 		}
@@ -1925,38 +1917,15 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 func buildHostprotRemoteIpList(remIpConts map[string]remoteIpCont) []hppv1.HostprotRemoteIp {
 	hostprotRemoteIpList := []hppv1.HostprotRemoteIp{}
 
-	// Sort pod names for deterministic ordering
-	podNames := make([]string, 0, len(remIpConts))
-	for podName := range remIpConts {
-		podNames = append(podNames, podName)
-	}
-	sort.Strings(podNames)
-
-	for _, podName := range podNames {
-		remIpCont := remIpConts[podName]
-		// Sort IPs for deterministic ordering
-		ips := make([]string, 0, len(remIpCont))
-		for ip := range remIpCont {
-			ips = append(ips, ip)
-		}
-		sort.Strings(ips)
-
-		for _, ip := range ips {
-			labels := remIpCont[ip]
+	for _, remIpCont := range remIpConts {
+		for ip, labels := range remIpCont {
 			remIpObj := hppv1.HostprotRemoteIp{
 				Addr: ip,
 			}
-			// Sort label keys for deterministic ordering
-			labelKeys := make([]string, 0, len(labels))
-			for key := range labels {
-				labelKeys = append(labelKeys, key)
-			}
-			sort.Strings(labelKeys)
-
-			for _, key := range labelKeys {
+			for key, val := range labels {
 				remIpObj.HppEpLabel = append(remIpObj.HppEpLabel, hppv1.HppEpLabel{
 					Key:   key,
-					Value: labels[key],
+					Value: val,
 				})
 			}
 			hostprotRemoteIpList = append(hostprotRemoteIpList, remIpObj)
@@ -2015,7 +1984,6 @@ func (cont *AciController) updateNodeIpsHostprotRemoteIpContainer(nodeIps map[st
 		return
 	}
 
-	var existingSpec hppv1.HostprotRemoteIpContainerSpec
 	if !isUpdate {
 		aobj = &hppv1.HostprotRemoteIpContainer{
 			ObjectMeta: metav1.ObjectMeta{
@@ -2029,7 +1997,6 @@ func (cont *AciController) updateNodeIpsHostprotRemoteIpContainer(nodeIps map[st
 		}
 	} else {
 		cont.log.Debug("HostprotRemoteIpContainers CR already exists: ", aobj)
-		existingSpec = aobj.Spec
 	}
 
 	existingIps := make(map[string]bool)
@@ -2037,25 +2004,13 @@ func (cont *AciController) updateNodeIpsHostprotRemoteIpContainer(nodeIps map[st
 		existingIps[ip.Addr] = true
 	}
 
-	// Sort IPs for deterministic ordering
-	sortedIps := make([]string, 0, len(nodeIps))
 	for ip := range nodeIps {
-		sortedIps = append(sortedIps, ip)
-	}
-	sort.Strings(sortedIps)
-
-	for _, ip := range sortedIps {
 		if !existingIps[ip] {
 			aobj.Spec.HostprotRemoteIp = append(aobj.Spec.HostprotRemoteIp, hppv1.HostprotRemoteIp{Addr: ip})
 		}
 	}
 
 	if isUpdate {
-		// Skip update if spec hasn't changed
-		if reflect.DeepEqual(existingSpec, aobj.Spec) {
-			cont.log.Debug("HostprotRemoteIpContainer CR unchanged, skipping update: ", name)
-			return
-		}
 		cont.updateHostprotRemoteIpContainer(aobj, ns)
 	} else {
 		cont.createHostprotRemoteIpContainer(aobj, ns)
@@ -2098,7 +2053,6 @@ func (cont *AciController) updateNodeHostprotRemoteIpContainer(name string, node
 		return
 	}
 
-	var existingSpec hppv1.HostprotRemoteIpContainerSpec
 	if !isUpdate {
 		aobj = &hppv1.HostprotRemoteIpContainer{
 			ObjectMeta: metav1.ObjectMeta{
@@ -2112,27 +2066,14 @@ func (cont *AciController) updateNodeHostprotRemoteIpContainer(name string, node
 		}
 	} else {
 		cont.log.Debug("HostprotRemoteIpContainers CR already exists: ", aobj)
-		existingSpec = aobj.Spec
 	}
-
-	// Sort IPs for deterministic ordering
-	sortedIps := make([]string, 0, len(nodeIps))
-	for ip := range nodeIps {
-		sortedIps = append(sortedIps, ip)
-	}
-	sort.Strings(sortedIps)
 
 	aobj.Spec.HostprotRemoteIp = make([]hppv1.HostprotRemoteIp, 0, len(nodeIps))
-	for _, ip := range sortedIps {
+	for ip := range nodeIps {
 		aobj.Spec.HostprotRemoteIp = append(aobj.Spec.HostprotRemoteIp, hppv1.HostprotRemoteIp{Addr: ip})
 	}
 
 	if isUpdate {
-		// Skip update if spec hasn't changed
-		if reflect.DeepEqual(existingSpec, aobj.Spec) {
-			cont.log.Debug("HostprotRemoteIpContainer CR unchanged, skipping update: ", name)
-			return
-		}
 		cont.updateHostprotRemoteIpContainer(aobj, ns)
 	} else {
 		cont.createHostprotRemoteIpContainer(aobj, ns)
