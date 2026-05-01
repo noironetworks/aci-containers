@@ -1897,6 +1897,7 @@ func (cont *AciController) handleRemIpContUpdate(ns string) bool {
 			cont.log.Error("Couldn't find the ns in nsRemoteIpCont cache: ", ns)
 			return false
 		}
+		return false
 	}
 
 	aobj.Spec.HostprotRemoteIp = buildHostprotRemoteIpList(remIpCont)
