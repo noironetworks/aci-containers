@@ -393,18 +393,18 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 					markready[name] = true
 				}
 				cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
-					nodeinfo.Spec.Macaddress, name)
+					nodeinfo.Spec.Macaddress, name, "")
 				updated = true
 			} else {
-				snatIps := cont.getServiceIps(snatpolicy)
-				nodeSNATEntryFound := cont.checkIfPolicyApplied(nodename, name, snatIps)
+				svcIpMap := cont.getServiceIpMap(snatpolicy)
+				nodeSNATEntryFound := cont.checkIfPolicyApplied(nodename, name, cont.getServiceIps(snatpolicy))
 				if nodeSNATEntryFound {
 					cont.log.Debug("Allocation already done for nodename and snatpolicy", nodename, name)
 					continue
 				}
-				cont.log.Debug("Service Ips: ", snatIps)
-				for _, snatip := range snatIps {
-					snatIp, portrange, alloc := cont.getIpAndPortRange(nodename, snatpolicy, snatip)
+				cont.log.Debug("Service Ips: ", svcIpMap)
+				for ip, svcKey := range svcIpMap {
+					snatIp, portrange, alloc := cont.getIpAndPortRange(nodename, snatpolicy, ip)
 					cont.log.Infof("Handling nodeinfo for node %s and snatpolicy %s: ", nodename, name)
 					cont.log.Info("Allocated SNAT IP and Port Range: ", snatIp, portrange)
 					if !alloc {
@@ -415,7 +415,7 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 						markready[name] = true
 					}
 					cont.updateGlobalInfoforPolicy(portrange, snatIp, nodename,
-						nodeinfo.Spec.Macaddress, name)
+						nodeinfo.Spec.Macaddress, name, svcKey)
 					updated = true
 				}
 			}
@@ -514,7 +514,7 @@ func (cont *AciController) syncSnatGlobalInfo() bool {
 }
 
 func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.PortRange,
-	snatIp, nodename, macaddr, plcyname string) {
+	snatIp, nodename, macaddr, plcyname, serviceKey string) {
 	portlist := []snatglobalinfo.PortRange{}
 	portlist = append(portlist, portrange)
 	ip := net.ParseIP(snatIp)
@@ -527,6 +527,7 @@ func (cont *AciController) updateGlobalInfoforPolicy(portrange snatglobalinfo.Po
 		SnatIp:         snatIp,
 		SnatIpUid:      snatIpUuid.String(),
 		SnatPolicyName: plcyname,
+		ServiceKey:     serviceKey,
 	}
 	if _, ok := cont.snatGlobalInfoCache[snatIp]; !ok {
 		cont.snatGlobalInfoCache[snatIp] = make(map[string]*snatglobalinfo.GlobalInfo)
@@ -650,17 +651,32 @@ func (cont *AciController) deleteNodeinfoFromGlInfoCache(snatPolicyNames map[str
 	return false
 }
 
-func (cont *AciController) getServiceIps(policy *ContSnatPolicy) (serviceIps []string) {
+// getServiceIps returns the external LB IPs for all services matching the policy's selector.
+func (cont *AciController) getServiceIps(policy *ContSnatPolicy) []string {
+	var result []string
 	services := cont.getServicesBySelector(labels.SelectorFromSet(policy.Selector.Labels),
 		policy.Selector.Namespace)
 	for _, service := range services {
-		var ips []string
 		for _, ip := range service.Status.LoadBalancer.Ingress {
-			ips = append(ips, ip.IP)
+			result = append(result, ip.IP)
 		}
-		serviceIps = append(serviceIps, ips...)
 	}
-	return serviceIps
+	return result
+}
+
+// getServiceIpMap returns a map of external LB IP → service key (namespace/name)
+// for all services matching the policy's selector.
+func (cont *AciController) getServiceIpMap(policy *ContSnatPolicy) map[string]string {
+	result := make(map[string]string)
+	services := cont.getServicesBySelector(labels.SelectorFromSet(policy.Selector.Labels),
+		policy.Selector.Namespace)
+	for _, service := range services {
+		svcKey := service.Namespace + "/" + service.Name
+		for _, ip := range service.Status.LoadBalancer.Ingress {
+			result[ip.IP] = svcKey
+		}
+	}
+	return result
 }
 
 func (cont *AciController) updateSnatIpandPorts(oldPolicyNames,
