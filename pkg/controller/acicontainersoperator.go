@@ -124,6 +124,7 @@ var Version = map[string]bool{
 	"openshift-4.18-openstack":             true,
 	"openshift-4.19-openstack":             true,
 	"openshift-4.20-openstack":             true,
+	"openshift-4.21-openstack":             true,
 	"openshift-4.6-baremetal":              true,
 	"openshift-4.7-baremetal":              true,
 	"openshift-4.8-baremetal":              true,
@@ -139,6 +140,7 @@ var Version = map[string]bool{
 	"openshift-4.18-baremetal":             true,
 	"openshift-4.19-baremetal":             true,
 	"openshift-4.20-baremetal":             true,
+	"openshift-4.21-baremetal":             true,
 	"openshift-4.14-agent-based-baremetal": true,
 	"openshift-4.15-agent-based-baremetal": true,
 	"openshift-4.16-agent-based-baremetal": true,
@@ -146,6 +148,7 @@ var Version = map[string]bool{
 	"openshift-4.18-agent-based-baremetal": true,
 	"openshift-4.19-agent-based-baremetal": true,
 	"openshift-4.20-agent-based-baremetal": true,
+	"openshift-4.21-agent-based-baremetal": true,
 	"openshift-4.4-esx":                    true,
 	"openshift-4.5-esx":                    true,
 	"openshift-4.6-esx":                    true,
@@ -163,6 +166,7 @@ var Version = map[string]bool{
 	"openshift-4.18-esx":                   true,
 	"openshift-4.19-esx":                   true,
 	"openshift-4.20-esx":                   true,
+	"openshift-4.21-esx":                   true,
 	"openshift-4.14-agent-based-esx":       true,
 	"openshift-4.15-agent-based-esx":       true,
 	"openshift-4.16-agent-based-esx":       true,
@@ -170,6 +174,7 @@ var Version = map[string]bool{
 	"openshift-4.18-agent-based-esx":       true,
 	"openshift-4.19-agent-based-esx":       true,
 	"openshift-4.20-agent-based-esx":       true,
+	"openshift-4.21-agent-based-esx":       true,
 }
 
 var Dnsoper = map[string]bool{
