@@ -406,8 +406,9 @@ func (agent *HostAgent) deploymentChanged(oldobj interface{},
 				Error("Could not create key: ", err)
 			return
 		}
-		for ix := range agent.depPods.GetPodForObj(depkey) {
-			agent.podChanged(&agent.depPods.GetPodForObj(depkey)[ix])
+		podkeys := agent.depPods.GetPodForObj(depkey)
+		for ix := range podkeys {
+			agent.podChanged(&podkeys[ix])
 		}
 	}
 	if !reflect.DeepEqual(olddep.ObjectMeta.Labels,
@@ -523,8 +524,9 @@ func (agent *HostAgent) rcChanged(oldobj interface{},
 				Error("Could not create key: ", err)
 			return
 		}
-		for ix := range agent.rcPods.GetPodForObj(rckey) {
-			agent.podChanged(&agent.rcPods.GetPodForObj(rckey)[ix])
+		podkeys := agent.rcPods.GetPodForObj(rckey)
+		for ix := range podkeys {
+			agent.podChanged(&podkeys[ix])
 		}
 	}
 }
