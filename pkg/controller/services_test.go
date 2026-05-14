@@ -946,7 +946,7 @@ func TestServiceNamedTargetPortBasic(t *testing.T) {
 		"web-service")
 
 	cont.indexMutex.Lock()
-	cont.resolveServiceNamedPortFromEpSlice(epSlice, svcKey, false)
+	cont.resolveServiceNamedPortFromEpSlice(nil, epSlice, svcKey)
 	cont.indexMutex.Unlock()
 
 	// Verify resolvedPorts is now populated
@@ -1016,8 +1016,8 @@ func TestServiceNamedTargetPortMultiplePods(t *testing.T) {
 
 	// Step 4: Call resolveServiceNamedPortFromEpSlice for both slices
 	cont.indexMutex.Lock()
-	cont.resolveServiceNamedPortFromEpSlice(epSlice1, svcKey, false)
-	cont.resolveServiceNamedPortFromEpSlice(epSlice2, svcKey, false)
+	cont.resolveServiceNamedPortFromEpSlice(nil, epSlice1, svcKey)
+	cont.resolveServiceNamedPortFromEpSlice(nil, epSlice2, svcKey)
 	cont.indexMutex.Unlock()
 
 	// Verify both ports are resolved
@@ -1168,7 +1168,7 @@ func TestServiceNamedTargetPortEndpointSliceDeletion(t *testing.T) {
 		"web-service")
 
 	cont.indexMutex.Lock()
-	cont.resolveServiceNamedPortFromEpSlice(epSlice, svcKey, false)
+	cont.resolveServiceNamedPortFromEpSlice(nil, epSlice, svcKey)
 	cont.indexMutex.Unlock()
 
 	// Verify port is resolved
@@ -1183,7 +1183,7 @@ func TestServiceNamedTargetPortEndpointSliceDeletion(t *testing.T) {
 
 	// Step 3: Delete EndpointSlice (old=true)
 	cont.indexMutex.Lock()
-	cont.resolveServiceNamedPortFromEpSlice(epSlice, svcKey, true)
+	cont.resolveServiceNamedPortFromEpSlice(epSlice, nil, svcKey)
 	cont.indexMutex.Unlock()
 
 	// Verify port is removed from resolvedPorts
