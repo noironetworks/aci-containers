@@ -286,6 +286,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.indexMutex.Unlock()
 	cont.nodeFullSync()
 	cont.log.Info("Node/namespace cache sync successful")
+	go cont.podInformer.Run(stopCh)
+	cont.log.Debug("Waiting for pod cache sync")
+	cache.WaitForCacheSync(stopCh, cont.podInformer.HasSynced)
+	cont.log.Info("Pod cache sync successful")
 	if !cont.isCNOEnabled() {
 		cont.serviceEndPoints.Run(stopCh)
 		go cont.serviceInformer.Run(stopCh)
@@ -305,7 +309,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	}
 	go cont.replicaSetInformer.Run(stopCh)
 	go cont.deploymentInformer.Run(stopCh)
-	go cont.podInformer.Run(stopCh)
 	if !cont.isCNOEnabled() {
 		go cont.snatInformer.Run(stopCh)
 		go cont.processQueue(cont.snatQueue, cont.snatIndexer,
@@ -406,10 +409,8 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	go cont.crdInformer.Run(stopCh)
 
 	cache.WaitForCacheSync(stopCh,
-		cont.namespaceInformer.HasSynced,
 		cont.replicaSetInformer.HasSynced,
-		cont.deploymentInformer.HasSynced,
-		cont.podInformer.HasSynced)
+		cont.deploymentInformer.HasSynced)
 
 	if !cont.isCNOEnabled() && !cont.config.DisableHppRendering {
 		cache.WaitForCacheSync(stopCh, cont.networkPolicyInformer.HasSynced)

@@ -344,13 +344,44 @@ type ipIndexEntry struct {
 
 type targetPort struct {
 	proto v1.Protocol
-	ports map[int]bool
+	// portServiceMap maps a resolved numeric port number to the set of
+	// service keys whose endpoints resolve the named port to that number.
+	// eg.: {80: {"default/svc1": true, "default/svc2": true}, 8080: {"default/svc3": true}}
+	portServiceMap map[int]map[string]bool
 }
 
+// portIndexEntry is an entry in the targetPortIndex, keyed by a port
+// specification string (e.g. "tcp-name-http" or "tcp-num-80"). It tracks
+// which services have resolved endpoints to specific numeric ports for
+// this port spec, and which network policies reference it.
 type portIndexEntry struct {
-	port              targetPort
-	serviceKeys       map[string]bool
+	portMapping       targetPort
 	networkPolicyKeys map[string]bool
+}
+
+// hasServiceKeys returns true if any per-port inner map contains
+// at least one service key.
+func (e *portIndexEntry) hasServiceKeys() bool {
+	for _, svcKeys := range e.portMapping.portServiceMap {
+		if len(svcKeys) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// removeServiceKey removes a service key from all per-port inner
+// maps. If an inner map becomes empty it is set to nil so the port
+// number itself is preserved (it may still be needed by NP tracking).
+func (e *portIndexEntry) removeServiceKey(key string) {
+	for p, svcKeys := range e.portMapping.portServiceMap {
+		if svcKeys != nil {
+			delete(svcKeys, key)
+			if len(svcKeys) == 0 {
+				e.portMapping.portServiceMap[p] = nil
+			}
+		}
+	}
 }
 
 type namedPortServiceIndexPort struct {
