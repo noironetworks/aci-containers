@@ -297,10 +297,11 @@ type globalVlanConfig struct {
 }
 
 type hppReference struct {
-	RefCount uint              `json:"ref-count,omitempty"`
-	Npkeys   []string          `json:"npkeys,omitempty"`
-	HppObj   apicapi.ApicSlice `json:"hpp-obj,omitempty"`
-	HppCr    hppv1.HostprotPol `json:"hpp-cr,omitempty"`
+	RefCount       uint                       `json:"ref-count,omitempty"`
+	Npkeys         []string                   `json:"npkeys,omitempty"`
+	HppObj         apicapi.ApicSlice          `json:"hpp-obj,omitempty"`
+	HppCr          hppv1.HostprotPol          `json:"hpp-cr,omitempty"`
+	NpIngressRules map[string]map[string]bool `json:"-"` // npKey → set of ingress rule names
 }
 
 type DelayedEpSlice struct {
