@@ -316,6 +316,9 @@ type ControllerConfig struct {
 	// Enable retying request to APIC when a 503 error is encountered
 	EnableApicRequestRetry bool `json:"enable-apic-request-retry-delay,omitempty"`
 
+	// Disable rate-limiting APIC requests; default false means rate limiting is enabled
+	DisableApicRateLimit bool `json:"disable-apic-rate-limit,omitempty"`
+
 	// Disable hpp rendering if set to true
 	DisableHppRendering bool `json:"disable-hpp-rendering,omitempty"`
 

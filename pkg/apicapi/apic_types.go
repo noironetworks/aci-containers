@@ -124,6 +124,7 @@ type ApicConnection struct {
 	ReconnectRetryLimit   int
 	RequestRetryDelayBase int
 	EnableRequestRetry    bool
+	DisableRateLimit      bool
 	VmmDomain             string
 	Flavor                string
 	FilterOpflexDevice    bool
