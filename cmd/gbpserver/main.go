@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/prometheus"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/noironetworks/aci-containers/pkg/gbpserver"
 	"github.com/noironetworks/aci-containers/pkg/gbpserver/watchers"
@@ -38,6 +39,14 @@ type cliOpts struct {
 }
 
 func main() {
+	// Disable WatchListClient feature gate to avoid sendInitialEvents being
+	// sent to apiservers that do not support it.
+	if err := utilfeature.DefaultMutableFeatureGate.Set("WatchListClient=false"); err != nil {
+		logrus.Errorf("Failed to disable WatchListClient feature gate: %v", err)
+	} else {
+		logrus.Info("WatchListClient feature gate disabled")
+	}
+
 	var opts cliOpts
 
 	cfg := &gbpserver.GBPServerConfig{}
