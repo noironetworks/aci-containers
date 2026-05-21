@@ -53,6 +53,7 @@ import (
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	taintutils "k8s.io/kubernetes/pkg/util/taints"
 	"k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	"k8s.io/klog/v2"
 )
@@ -481,6 +482,7 @@ type PodControlInterface interface {
 type RealPodControl struct {
 	KubeClient clientset.Interface
 	Recorder   record.EventRecorder
+	OnWrite    func(*v1.Pod, *metav1.OwnerReference)
 }
 
 var _ PodControlInterface = &RealPodControl{}
@@ -550,11 +552,15 @@ func (r RealPodControl) CreatePodsWithGenerateName(ctx context.Context, namespac
 	if len(generateName) > 0 {
 		pod.ObjectMeta.GenerateName = generateName
 	}
-	return r.createPods(ctx, namespace, pod, controllerObject)
+	return r.createPods(ctx, namespace, pod, controllerObject, controllerRef)
 }
 
 func (r RealPodControl) PatchPod(ctx context.Context, namespace, name string, data []byte) error {
-	_, err := r.KubeClient.CoreV1().Pods(namespace).Patch(ctx, name, types.StrategicMergePatchType, data, metav1.PatchOptions{})
+	pod, err := r.KubeClient.CoreV1().Pods(namespace).Patch(ctx, name, types.StrategicMergePatchType, data, metav1.PatchOptions{})
+	if err == nil && r.OnWrite != nil {
+		ownerRef := metav1.GetControllerOfNoCopy(pod)
+		r.OnWrite(pod, ownerRef)
+	}
 	return err
 }
 
@@ -583,7 +589,7 @@ func GetPodFromTemplate(template *v1.PodTemplateSpec, parentObject runtime.Objec
 	return pod, nil
 }
 
-func (r RealPodControl) createPods(ctx context.Context, namespace string, pod *v1.Pod, object runtime.Object) error {
+func (r RealPodControl) createPods(ctx context.Context, namespace string, pod *v1.Pod, object runtime.Object, controllerRef *metav1.OwnerReference) error {
 	if len(labels.Set(pod.Labels)) == 0 {
 		return fmt.Errorf("unable to create pods, no labels")
 	}
@@ -596,6 +602,9 @@ func (r RealPodControl) createPods(ctx context.Context, namespace string, pod *v
 		return err
 	}
 	logger := klog.FromContext(ctx)
+	if r.OnWrite != nil {
+		r.OnWrite(newPod, controllerRef)
+	}
 	accessor, err := meta.Accessor(object)
 	if err != nil {
 		logger.Error(err, "parentObject does not have ObjectMeta")
@@ -1025,6 +1034,60 @@ func CountTerminatingPods(pods []*v1.Pod) int32 {
 		}
 	}
 	return int32(numberOfTerminatingPods)
+}
+
+// nextPodAvailabilityCheck implements similar logic to podutil.IsPodAvailable
+func nextPodAvailabilityCheck(pod *v1.Pod, minReadySeconds int32, now time.Time) *time.Duration {
+	if !podutil.IsPodReady(pod) || minReadySeconds <= 0 {
+		return nil
+	}
+
+	c := podutil.GetPodReadyCondition(pod.Status)
+	if c.LastTransitionTime.IsZero() {
+		return nil
+	}
+	minReadySecondsDuration := time.Duration(minReadySeconds) * time.Second
+	nextCheck := c.LastTransitionTime.Add(minReadySecondsDuration).Sub(now)
+	if nextCheck > 0 {
+		return ptr.To(nextCheck)
+	}
+	return nil
+}
+
+// findMinNextPodAvailabilitySimpleCheck finds a duration when the next availability check should occur. It also returns the
+// first pod affected by the future availability recalculation (there might be more pods if they became ready at the same time;
+// this helps to implement FindMinNextPodAvailabilityCheck).
+func findMinNextPodAvailabilitySimpleCheck(pods []*v1.Pod, minReadySeconds int32, now time.Time) (*time.Duration, *v1.Pod) {
+	var minAvailabilityCheck *time.Duration
+	var checkPod *v1.Pod
+	for _, p := range pods {
+		nextCheck := nextPodAvailabilityCheck(p, minReadySeconds, now)
+		if nextCheck != nil && (minAvailabilityCheck == nil || *nextCheck < *minAvailabilityCheck) {
+			minAvailabilityCheck = nextCheck
+			checkPod = p
+		}
+	}
+	return minAvailabilityCheck, checkPod
+}
+
+// FindMinNextPodAvailabilityCheck finds a duration when the next availability check should occur.
+// We should check for the availability at the same time as the status evaluation/update occurs (e.g. .status.availableReplicas) by
+// passing lastOwnerStatusEvaluation. This ensures that we will not skip any pods that might become available
+// (findMinNextPodAvailabilitySimpleCheck would return nil in the future time), since the owner status evaluation.
+// clock is then used to calculate the precise time for the next availability check.
+func FindMinNextPodAvailabilityCheck(pods []*v1.Pod, minReadySeconds int32, lastOwnerStatusEvaluation time.Time, clock clock.PassiveClock) *time.Duration {
+	nextCheckAccordingToOwnerStatusEvaluation, checkPod := findMinNextPodAvailabilitySimpleCheck(pods, minReadySeconds, lastOwnerStatusEvaluation)
+	if nextCheckAccordingToOwnerStatusEvaluation == nil || checkPod == nil {
+		return nil
+	}
+	// There must be a nextCheck. We try to calculate a more precise value for the next availability check.
+	// Check the earliest pod to avoid being preempted by a later pod.
+	if updatedNextCheck := nextPodAvailabilityCheck(checkPod, minReadySeconds, clock.Now()); updatedNextCheck != nil {
+		// There is a delay since the last Now() call (lastOwnerStatusEvaluation). Use the updatedNextCheck.
+		return updatedNextCheck
+	}
+	// Fall back to 0 (immediate check) in case the last nextPodAvailabilityCheck call (with a refreshed Now) returns nil, as we might be past the check.
+	return ptr.To(time.Duration(0))
 }
 
 func IsPodActive(p *v1.Pod) bool {
