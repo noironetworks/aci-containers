@@ -29,6 +29,7 @@ import (
 	aciwebhooktypes "github.com/noironetworks/aci-containers/pkg/webhook/types"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -76,6 +77,15 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	// Disable WatchListClient feature gate to avoid sendInitialEvents being
+	// sent to apiservers that do not support it.
+	if err := utilfeature.DefaultMutableFeatureGate.Set("WatchListClient=false"); err != nil {
+		setupLog.Error(err, "Failed to disable WatchListClient feature gate")
+	} else {
+		setupLog.Info("WatchListClient feature gate disabled")
+	}
+
 	ws := webhook.NewServer(webhook.Options{
 		Port:    8443,
 		CertDir: certDir,
