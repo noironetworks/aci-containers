@@ -30,10 +30,20 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"k8s.io/apimachinery/pkg/util/wait"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 func main() {
 	log := logrus.New()
+
+	// Disable WatchListClient feature gate to avoid sendInitialEvents being
+	// sent to apiservers that do not support it.
+	if err := utilfeature.DefaultMutableFeatureGate.Set("WatchListClient=false"); err != nil {
+		log.Errorf("Failed to disable WatchListClient feature gate: %v", err)
+	} else {
+		log.Info("WatchListClient feature gate disabled")
+	}
+
 	config := controller.NewConfig()
 
 	controller.InitFlags(config)

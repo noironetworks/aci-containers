@@ -20,6 +20,7 @@ import (
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
@@ -78,6 +79,14 @@ func getk8sClient() kubernetes.Interface {
 }
 
 func main() {
+	// Disable WatchListClient feature gate to avoid sendInitialEvents being
+	// sent to apiservers that do not support it.
+	if err := utilfeature.DefaultMutableFeatureGate.Set("WatchListClient=false"); err != nil {
+		log.Errorf("Failed to disable WatchListClient feature gate: %v", err)
+	} else {
+		log.Info("WatchListClient feature gate disabled")
+	}
+
 	// get the Aci Opeerator client for connectivity
 	log.Debug("Initializing Aci Operator client")
 	operator_client := getOperatorClient()
