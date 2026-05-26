@@ -530,15 +530,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 		cfMo.AddProperty(propConnTrack, ct)
 	}
 
-	var prot int
-	switch hsc.Attributes["protocol"] {
-	case "udp":
-		prot = 17
-	case "icmp":
-		prot = 1
-	case "tcp":
-		prot = 6
-	}
+	prot := protocolNameToNumber(hsc.Attributes["protocol"])
 	if prot != 0 {
 		cfMo.AddProperty(propProt, prot)
 	}
@@ -589,9 +581,7 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	cfMo.Make(cname, uri)
 	ss.Make(cname, ssUri)
 	for _, addr := range ipSet {
-		if len(strings.Split(addr, "/")) == 1 {
-			addr += "/32"
-		}
+		addr = normalizeRemoteAddr(addr)
 		s := &GBPSubnet{}
 		sUri := fmt.Sprintf("%sGbpLocalSubnet/%s/", ssUri, escapeName(strings.Split(addr, "/")[0], false))
 		s.Make(addr, sUri)
@@ -605,6 +595,35 @@ func (hsc *HpSubjChild) Make(ruleMo *gbpCommonMo, subjName, npName string) error
 	linkParentChild(ruleMo, &ssRef.gbpCommonMo)
 
 	return nil
+}
+
+func protocolNameToNumber(protocol string) int {
+	switch strings.ToLower(protocol) {
+	case "udp":
+		return 17
+	case "icmp":
+		return 1
+	case "tcp":
+		return 6
+	case "icmpv6":
+		return 58
+	default:
+		return 0
+	}
+}
+
+func normalizeRemoteAddr(addr string) string {
+	if strings.Contains(addr, "/") {
+		return addr
+	}
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return addr
+	}
+	if ip.To4() != nil {
+		return addr + "/32"
+	}
+	return addr + "/128"
 }
 
 func (hsc *HpSubjChild) getRemoteIPs() []string {
