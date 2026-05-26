@@ -45,6 +45,27 @@ const DefaultServiceContractScope = "context"
 // Default service ext subnet scope - enable shared security
 const DefaultServiceExtSubNetShared = false
 
+// logOpflexDeviceCacheState dumps ODev cache state for a node (debug helper)
+func (cont *AciController) logOpflexDeviceCacheState(node, reason string) {
+	devices, ok := cont.nodeOpflexDevice[node]
+	if !ok {
+		cont.log.Infof("[ODEV_CACHE_DEBUG] %s: node=%s not in cache", reason, node)
+		return
+	}
+	pathCounts := make(map[string]int)
+	for _, device := range devices {
+		pathCounts[device.GetAttrStr("fabricPathDn")]++
+	}
+	maxCount, activePath := cont.getOpflexOdevCount(node)
+	cont.log.Infof("[ODEV_CACHE_DEBUG] %s: node=%s totalEntries=%d maxCountForPath=%d activePath=%s pathCounts=%v",
+		reason, node, len(devices), maxCount, activePath, pathCounts)
+	for i, device := range devices {
+		cont.log.Debugf("[ODEV_CACHE_DEBUG] idx=%d dn=%s path=%s state=%s delete=%s mac=%s",
+			i, device.GetDn(), device.GetAttrStr("fabricPathDn"), device.GetAttrStr("state"),
+			device.GetAttrStr("delete"), device.GetAttrStr("mac"))
+	}
+}
+
 func (cont *AciController) initEndpointSliceInformerFromClient(
 	kubeClient kubernetes.Interface) {
 	cont.initEndpointSliceInformerBase(
@@ -464,6 +485,7 @@ func (cont *AciController) checkChangeOfOpflexOdevAciPod() {
 		annot, err := cont.createNodeAciPodAnnotation(node)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "Failed to get annotation") {
+				cont.logOpflexDeviceCacheState(node, "checkChangeOfOpflexOdevAciPod_ERROR")
 				now := time.Now()
 				if annot.lastErrorTime.IsZero() || now.Sub(annot.lastErrorTime).Seconds() >= 60 {
 					annot.lastErrorTime = now
@@ -503,6 +525,7 @@ func (cont *AciController) checkChangeOfOdevAciPod() {
 		annot, err := cont.createAciPodAnnotation(node)
 		if err != nil {
 			if strings.Contains(fmt.Sprint(err), "Failed to get annotation") {
+				cont.logOpflexDeviceCacheState(node, "checkChangeOfOdevAciPod_ERROR")
 				now := time.Now()
 				if annot.lastErrorTime.IsZero() || now.Sub(annot.lastErrorTime).Seconds() >= 60 {
 					annot.lastErrorTime = now
@@ -555,6 +578,8 @@ func (cont *AciController) deleteOldOpflexDevices() {
 				cont.log.Info("Opflex device list for node ", node, " after deleting stale entries: ", cont.nodeOpflexDevice[node])
 				if len(newDevices) == 0 {
 					delete(cont.nodeOpflexDevice, node)
+				} else {
+					cont.logOpflexDeviceCacheState(node, "deleteOldOpflexDevices_after_cleanup")
 				}
 				nodeUpdates = append(nodeUpdates, node)
 			}
@@ -1650,6 +1675,7 @@ func (cont *AciController) opflexDeviceChanged(obj apicapi.ApicObject) {
 			nodeUpdates = append(nodeUpdates, node)
 		}
 		cont.log.Info("Opflex device list for node ", obj.GetAttrStr("hostName"), ": ", cont.nodeOpflexDevice[obj.GetAttrStr("hostName")])
+		cont.logOpflexDeviceCacheState(obj.GetAttrStr("hostName"), "opflexDeviceChanged")
 		cont.indexMutex.Unlock()
 
 		for _, node := range nodeUpdates {
@@ -1689,6 +1715,8 @@ func (cont *AciController) opflexDeviceDeleted(dn string) {
 		}
 		if len(devices) == 0 {
 			delete(cont.nodeOpflexDevice, node)
+		} else {
+			cont.logOpflexDeviceCacheState(node, "opflexDeviceDeleted")
 		}
 	}
 
