@@ -1483,28 +1483,50 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 			// Port-scoped: only pod IPs that define the named port.
 			addPodSubnet = false
 		}
+		// In HPP-opt mode the HPP is shared across sibling NPs with the same
+		// spec hash. Using np.Name in rule names would cause gratuitous renames
+		// whenever a different sibling triggers the rebuild. Use proto-port
+		// instead to keep names stable and unique per port entry.
+		entryName := np.Name
+		if cont.config.HppOptimization {
+			if entry.proto != "" {
+				entryName = protoPortKey(entry.proto, entry.fromPort)
+			} else {
+				entryName = "unspecified"
+			}
+		}
 
 		if entry.proto == "" && entry.fromPort == "" {
 			if hasV4 {
-				policyRuleName := util.AciNameForKey(ruleName+"-ipv4", "", np.Name)
+				policyRuleName := util.AciNameForKey(ruleName+"-ipv4", "", entryName)
 				cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv4", "", "", "", entry.ips, addPodSubnet)
 			}
 			if hasV6 {
-				policyRuleName := util.AciNameForKey(ruleName+"-ipv6", "", np.Name)
+				policyRuleName := util.AciNameForKey(ruleName+"-ipv6", "", entryName)
 				cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv6", "", "", "", entry.ips, addPodSubnet)
 			}
 		} else {
 			if hasV4 {
-				prefix := fmt.Sprintf("%s_%d-ipv4", ruleName, ruleCounter)
-				policyRuleName := util.AciNameForKey(prefix, "", np.Name)
+				var prefix string
+				if cont.config.HppOptimization {
+					prefix = ruleName + "-ipv4"
+				} else {
+					prefix = fmt.Sprintf("%s_%d-ipv4", ruleName, ruleCounter)
+				}
+				policyRuleName := util.AciNameForKey(prefix, "", entryName)
 				cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv4", entry.proto, entry.fromPort, entry.toPort, entry.ips, addPodSubnet)
 			}
 			if hasV6 {
-				prefix := fmt.Sprintf("%s_%d-ipv6", ruleName, ruleCounter)
-				policyRuleName := util.AciNameForKey(prefix, "", np.Name)
+				var prefix string
+				if cont.config.HppOptimization {
+					prefix = ruleName + "-ipv6"
+				} else {
+					prefix = fmt.Sprintf("%s_%d-ipv6", ruleName, ruleCounter)
+				}
+				policyRuleName := util.AciNameForKey(prefix, "", entryName)
 				cont.buildNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv6", entry.proto, entry.fromPort, entry.toPort, entry.ips, addPodSubnet)
 			}
@@ -1515,7 +1537,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 
 func (cont *AciController) buildLocalNetPolSubjRules(ruleName string,
 	subj *hppv1.HostprotSubj, direction string,
-	resolved *resolvedPeerPorts, np *v1net.NetworkPolicy) {
+	resolved *resolvedPeerPorts) {
 	hasV4 := !cont.configuredPodNetworkIps.V4.Empty()
 	hasV6 := !cont.configuredPodNetworkIps.V6.Empty()
 	ruleCounter := 0
@@ -1526,28 +1548,35 @@ func (cont *AciController) buildLocalNetPolSubjRules(ruleName string,
 			// Port-scoped: IPBlock CIDRs excluded for named ports.
 			peerIpBlock = nil
 		}
+		// HPP-Direct always shares the HPP CRD across sibling NPs
+		// (spec-hash based key). Use proto-port in rule names to
+		// keep names stable and unique per port entry.
+		entryName := "unspecified"
+		if entry.proto != "" {
+			entryName = protoPortKey(entry.proto, entry.fromPort)
+		}
 
 		if entry.proto == "" && entry.fromPort == "" {
 			if hasV4 {
-				policyRuleName := util.AciNameForKey(ruleName+"-ipv4", "", np.Name)
+				policyRuleName := util.AciNameForKey(ruleName+"-ipv4", "", entryName)
 				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv4", "", "", "", peerNsList, resolved.podSelectors, peerIpBlock)
 			}
 			if hasV6 {
-				policyRuleName := util.AciNameForKey(ruleName+"-ipv6", "", np.Name)
+				policyRuleName := util.AciNameForKey(ruleName+"-ipv6", "", entryName)
 				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv6", "", "", "", peerNsList, resolved.podSelectors, peerIpBlock)
 			}
 		} else {
 			if hasV4 {
-				prefix := fmt.Sprintf("%s_%d-ipv4", ruleName, ruleCounter)
-				policyRuleName := util.AciNameForKey(prefix, "", np.Name)
+				prefix := ruleName + "-ipv4"
+				policyRuleName := util.AciNameForKey(prefix, "", entryName)
 				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv4", entry.proto, entry.fromPort, entry.toPort, peerNsList, resolved.podSelectors, peerIpBlock)
 			}
 			if hasV6 {
-				prefix := fmt.Sprintf("%s_%d-ipv6", ruleName, ruleCounter)
-				policyRuleName := util.AciNameForKey(prefix, "", np.Name)
+				prefix := ruleName + "-ipv6"
+				policyRuleName := util.AciNameForKey(prefix, "", entryName)
 				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv6", entry.proto, entry.fromPort, entry.toPort, peerNsList, resolved.podSelectors, peerIpBlock)
 			}
@@ -2398,6 +2427,8 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		}
 		hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
 
+		var hasNamedPorts bool
+
 		// Generate ingress policies
 		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 			subjIngress :=
@@ -2407,6 +2438,27 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 				resolved := cont.resolveNetPolPeersAndPorts("ingress",
 					ingress.From, ingress.Ports, peerPods, peerNs, np, logger)
 				cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress, "ingress", resolved, np)
+				if resolved.hasNamedPort {
+					hasNamedPorts = true
+				}
+			}
+
+			// Merge sibling NPs' named port resolutions into this subject.
+			// Rule names encode the ingress-rule index + proto-port so siblings
+			// produce identically-named rules. Cache full rule names and pull
+			// missing ones from the previously-written HPP object.
+			if cont.config.HppOptimization && hasNamedPorts {
+				ruleNames := make(map[string]bool)
+				for _, body := range subjIngress {
+					for _, rule := range body.Children {
+						name := rule.GetAttrStr("name")
+						if name != "" {
+							ruleNames[name] = true
+						}
+					}
+				}
+				cont.cacheNpIngressRules(labelKey, key, ruleNames)
+				cont.mergeHppIngressRules(labelKey, key, ruleNames, subjIngress)
 			}
 			hpp.AddChild(subjIngress)
 		}
@@ -2484,6 +2536,8 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			}
 		}
 
+		var hasNamedPorts bool
+
 		// Generate ingress policies
 		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 			subjIngress := &hppv1.HostprotSubj{
@@ -2494,14 +2548,30 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			for i, ingress := range np.Spec.Ingress {
 				resolved := cont.resolveNetPolPeersAndPorts("ingress",
 					ingress.From, ingress.Ports, peerPods, peerNs, np, logger)
+				if resolved.hasNamedPort {
+					hasNamedPorts = true
+				}
 				if isAllowAllForAllNamespaces(ingress.From) {
 					if !slices.Contains(resolved.peerNsList, "nodeips") {
 						resolved.peerNsList = append(resolved.peerNsList, "nodeips")
 					}
 				}
 				if !(!resolved.noPeers && len(resolved.subnetMap) == 0) {
-					cont.buildLocalNetPolSubjRules(strconv.Itoa(i), subjIngress, "ingress", resolved, np)
+					cont.buildLocalNetPolSubjRules(strconv.Itoa(i), subjIngress, "ingress", resolved)
 				}
+			}
+
+			// Merge sibling NPs' named port resolutions into this subject.
+			// Cache full rule names and pull missing ones from the HPP CR.
+			if hasNamedPorts {
+				ruleNames := make(map[string]bool)
+				for _, rule := range subjIngress.HostprotRule {
+					if rule.Name != "" {
+						ruleNames[rule.Name] = true
+					}
+				}
+				cont.cacheNpIngressRules(labelKey, key, ruleNames)
+				cont.mergeHppDirectIngressRules(labelKey, key, ruleNames, subjIngress)
 			}
 			hpp.Spec.HostprotSubj = append(hpp.Spec.HostprotSubj, *subjIngress)
 		}
@@ -2523,7 +2593,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 					}
 				}
 				if !(!resolved.noPeers && len(resolved.subnetMap) == 0) {
-					cont.buildLocalNetPolSubjRules(strconv.Itoa(i), subjEgress, "egress", resolved, np)
+					cont.buildLocalNetPolSubjRules(strconv.Itoa(i), subjEgress, "egress", resolved)
 				}
 
 				subnetMap := resolved.subnetMap
@@ -2610,6 +2680,122 @@ func (cont *AciController) updateNsRemoteIpCont(pod *v1.Pod, deleted bool) bool 
 	return true
 }
 
+// mergeHppIngressRules merges missing ingress rules from sibling NPs into
+// the current subject. It compares full rule names (which encode the ingress
+// rule index + proto-port) to avoid false positives from overlapping ports
+// in different ingress rules. Rules present in the HPP object but missing
+// from the current NP are added if claimed by a sibling's cached rule names.
+func (cont *AciController) mergeHppIngressRules(labelKey, key string,
+	ruleNames map[string]bool, subjIngress apicapi.ApicObject) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+
+	hppRef, ok := cont.hppRef[labelKey]
+	if !ok {
+		return
+	}
+
+	// Collect all rule names claimed by siblings but not in current NP.
+	siblingNames := make(map[string]bool)
+	for _, npKey := range hppRef.Npkeys {
+		if npKey == key {
+			continue
+		}
+		for name := range hppRef.NpIngressRules[npKey] {
+			if !ruleNames[name] {
+				siblingNames[name] = true
+			}
+		}
+	}
+	if len(siblingNames) == 0 {
+		return
+	}
+
+	// Find rules in the HPP object whose names are claimed by siblings.
+	for _, hppObj := range hppRef.HppObj {
+		hppBody, ok := hppObj["hostprotPol"]
+		if !ok || hppBody == nil {
+			continue
+		}
+		for _, child := range hppBody.Children {
+			subj, ok := child["hostprotSubj"]
+			if !ok || subj == nil || subj.Attributes["name"] != "networkpolicy-ingress" {
+				continue
+			}
+			for _, ruleChild := range subj.Children {
+				rule, ok := ruleChild["hostprotRule"]
+				if !ok || rule == nil {
+					continue
+				}
+				name, _ := rule.Attributes["name"].(string)
+				if siblingNames[name] {
+					subjIngress.AddChild(ruleChild)
+					delete(siblingNames, name)
+				}
+			}
+		}
+	}
+}
+
+// mergeHppDirectIngressRules merges missing ingress rules from sibling NPs
+// into the current HPP-Direct subject. Same approach as mergeHppIngressRules
+// but operates on the HPP CR struct instead of the APIC object tree.
+func (cont *AciController) mergeHppDirectIngressRules(labelKey, key string,
+	ruleNames map[string]bool, subjIngress *hppv1.HostprotSubj) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+
+	hppRef, ok := cont.hppRef[labelKey]
+	if !ok {
+		return
+	}
+
+	// Collect all rule names claimed by siblings but not in current NP.
+	siblingNames := make(map[string]bool)
+	for _, npKey := range hppRef.Npkeys {
+		if npKey == key {
+			continue
+		}
+		for name := range hppRef.NpIngressRules[npKey] {
+			if !ruleNames[name] {
+				siblingNames[name] = true
+			}
+		}
+	}
+	if len(siblingNames) == 0 {
+		return
+	}
+
+	// Find rules in the HPP CR whose names are claimed by siblings.
+	for i := range hppRef.HppCr.Spec.HostprotSubj {
+		subj := &hppRef.HppCr.Spec.HostprotSubj[i]
+		if subj.Name != "networkpolicy-ingress" {
+			continue
+		}
+		for _, rule := range subj.HostprotRule {
+			if siblingNames[rule.Name] {
+				subjIngress.HostprotRule = append(subjIngress.HostprotRule, rule)
+				delete(siblingNames, rule.Name)
+			}
+		}
+	}
+}
+
+// cacheNpIngressRules caches the set of ingress rule names produced by a
+// single NP within a shared HPP. Sibling NPs use these names to identify
+// which rules in the HPP object belong to which NP and should be preserved.
+func (cont *AciController) cacheNpIngressRules(labelKey, npKey string, names map[string]bool) {
+	cont.indexMutex.Lock()
+	defer cont.indexMutex.Unlock()
+
+	hppRef := cont.hppRef[labelKey]
+	if hppRef.NpIngressRules == nil {
+		hppRef.NpIngressRules = make(map[string]map[string]bool)
+	}
+	hppRef.NpIngressRules[npKey] = names
+	cont.hppRef[labelKey] = hppRef
+}
+
 func (cont *AciController) addToHppCache(labelKey, key string, hpp apicapi.ApicSlice, hppcr *hppv1.HostprotPol) {
 	cont.indexMutex.Lock()
 	hppRef, ok := cont.hppRef[labelKey]
@@ -2659,8 +2845,15 @@ func (cont *AciController) removeFromHppCache(np *v1net.NetworkPolicy, key strin
 				break
 			}
 		}
+		_, hadRuleCache := hppRef.NpIngressRules[key]
+		delete(hppRef.NpIngressRules, key)
 		if hppRef.RefCount > 0 {
 			cont.hppRef[labelKey] = hppRef
+			// Requeue one sibling so the HPP is rewritten without
+			// the departed NP's cached ingress rules.
+			if hadRuleCache {
+				cont.queueNetPolUpdateByKey(hppRef.Npkeys[0])
+			}
 		} else {
 			delete(cont.hppRef, labelKey)
 			noRef = true
@@ -2722,7 +2915,10 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 
 	if cont.config.HppOptimization || cont.config.EnableHppDirect {
 		if !reflect.DeepEqual(oldnp.Spec, newnp.Spec) {
-			cont.removeFromHppCache(oldnp, npkey)
+			labelKey, noHppRef := cont.removeFromHppCache(oldnp, npkey)
+			if noHppRef && labelKey != "" {
+				cont.apicConn.ClearApicObjects(labelKey)
+			}
 		}
 	}
 
@@ -2774,8 +2970,7 @@ func (cont *AciController) networkPolicyDeleted(obj interface{}) {
 		}
 		np, ok = deletedState.Obj.(*v1net.NetworkPolicy)
 		if !ok {
-			networkPolicyLogger(cont.log, np).
-				Error("DeletedFinalStateUnknown contained non-Networkpolicy object: ", deletedState.Obj)
+			cont.log.Error("DeletedFinalStateUnknown contained non-Networkpolicy object: ", deletedState.Obj)
 			return
 		}
 	}
