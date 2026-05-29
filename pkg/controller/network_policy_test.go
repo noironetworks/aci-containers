@@ -1225,7 +1225,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		nil, allPolicyTypes)
 	hash, _ := util.CreateHashFromNetPol(test0_np)
 	test0_np_name := "kube_np_" + hash
-	test0_rule := createRule(test0_np_name, true, rule_0, "0-ipv4__np1")
+	test0_rule := createRule(test0_np_name, true, rule_0, "0-ipv4__unspecified")
 
 	//allow-http
 	test1_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1234,7 +1234,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 				nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test1_np)
 	test1_np_name := "kube_np_" + hash
-	test1_rule := createRule(test1_np_name, true, rule_1, "0_0-ipv4__np1")
+	test1_rule := createRule(test1_np_name, true, rule_1, "0-ipv4__tcp-80")
 
 	//allow-http-from
 	test2_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1247,7 +1247,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 			)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test2_np)
 	test2_np_name := "kube_np_" + hash
-	test2_rule := createRule(test2_np_name, true, rule_1, "0_0-ipv4__np1")
+	test2_rule := createRule(test2_np_name, true, rule_1, "0-ipv4__tcp-80")
 	test2_rule.AddChild(
 		apicapi.NewHostprotRemoteIp(test2_rule.GetDn(), "8.8.8.0/29"))
 	test2_rule.AddChild(
@@ -1270,7 +1270,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 				port(nil, &port80)}, nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test3_np)
 	test3_np_name := "kube_np_" + hash
-	test3_rule := createRule(test3_np_name, true, rule_1, "0_0-ipv4__np1")
+	test3_rule := createRule(test3_np_name, true, rule_1, "0-ipv4__tcp-80")
 
 	//allow-80-udp
 	test4_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1279,7 +1279,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 				port(&udp, &port80)}, nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test4_np)
 	test4_np_name := "kube_np_" + hash
-	test4_rule := createRule(test4_np_name, true, rule_2, "0_0-ipv4__np1")
+	test4_rule := createRule(test4_np_name, true, rule_2, "0-ipv4__udp-80")
 
 	//allow-80-sctp
 	test5_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1288,7 +1288,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 				port(&sctp, &port80)}, nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test5_np)
 	test5_np_name := "kube_np_" + hash
-	test5_rule := createRule(test5_np_name, true, rule_4, "0_0-ipv4__np1")
+	test5_rule := createRule(test5_np_name, true, rule_4, "0-ipv4__sctp-80")
 
 	//allow-http-https
 	test6_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1298,8 +1298,8 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 			}, nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test6_np)
 	test6_np_name := "kube_np_" + hash
-	test6_rule1 := createRule(test6_np_name, true, rule_1, "0_0-ipv4__np1")
-	test6_rule2 := createRule(test6_np_name, true, rule_3, "0_1-ipv4__np1")
+	test6_rule1 := createRule(test6_np_name, true, rule_1, "0-ipv4__tcp-80")
+	test6_rule2 := createRule(test6_np_name, true, rule_3, "0-ipv4__tcp-443")
 
 	//allow-all-from-ns
 	test7_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1312,7 +1312,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test7_np)
 	test7_np_name := "kube_np_" + hash
-	test7_rule := createRule(test7_np_name, true, rule_0, "0-ipv4__np1")
+	test7_rule := createRule(test7_np_name, true, rule_0, "0-ipv4__unspecified")
 	test7_rule.AddChild(apicapi.NewHostprotRemoteIp(test7_rule.GetDn(), "1.1.1.1"))
 	test7_rule.AddChild(apicapi.NewHostprotRemoteIp(test7_rule.GetDn(), "1.1.1.2"))
 
@@ -1339,7 +1339,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test9_np)
 	test9_np_name := "kube_np_" + hash
-	test9_rule := createRule(test9_np_name, true, rule_0, "0-ipv4__np1")
+	test9_rule := createRule(test9_np_name, true, rule_0, "0-ipv4__unspecified")
 	test9_rule.AddChild(apicapi.NewHostprotRemoteIp(test9_rule.GetDn(), "1.1.1.3"))
 	test9_rule.AddChild(apicapi.NewHostprotRemoteIp(test9_rule.GetDn(), "1.1.1.4"))
 	test9_rule.AddChild(apicapi.NewHostprotRemoteIp(test9_rule.GetDn(), "1.1.1.5"))
@@ -1355,7 +1355,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test10_np)
 	test10_np_name := "kube_np_" + hash
-	test10_rule := createRule(test10_np_name, true, rule_0, "0-ipv4__np1")
+	test10_rule := createRule(test10_np_name, true, rule_0, "0-ipv4__unspecified")
 	test10_rule.AddChild(apicapi.NewHostprotRemoteIp(test10_rule.GetDn(), "1.1.1.1"))
 
 	//allow-all-select-pods-and-ns
@@ -1371,7 +1371,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test11_np)
 	test11_np_name := "kube_np_" + hash
-	test11_rule := createRule(test11_np_name, true, rule_0, "0-ipv4__np1")
+	test11_rule := createRule(test11_np_name, true, rule_0, "0-ipv4__unspecified")
 	test11_rule.AddChild(apicapi.NewHostprotRemoteIp(test11_rule.GetDn(), "1.1.1.3"))
 	test11_rule.AddChild(apicapi.NewHostprotRemoteIp(test11_rule.GetDn(), "1.1.1.5"))
 
@@ -1395,9 +1395,9 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test12_np)
 	test12_np_name := "kube_np_" + hash
-	test12_rule1 := createRule(test12_np_name, true, rule_1, "0_0-ipv4__np1")
+	test12_rule1 := createRule(test12_np_name, true, rule_1, "0-ipv4__tcp-80")
 	test12_rule1.AddChild(apicapi.NewHostprotRemoteIp(test12_rule1.GetDn(), "1.1.1.1"))
-	test12_rule2 := createRule(test12_np_name, true, rule_3, "1_0-ipv4__np1")
+	test12_rule2 := createRule(test12_np_name, true, rule_3, "1-ipv4__tcp-443")
 	test12_rule2.AddChild(apicapi.NewHostprotRemoteIp(test12_rule2.GetDn(), "1.1.1.2"))
 
 	//multiple-from-name
@@ -1422,9 +1422,9 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test13_np)
 	test13_np_name := "kube_np_" + hash
-	test13_rule1 := createRule(test13_np_name, true, rule_1, "0_0-ipv4__np1")
+	test13_rule1 := createRule(test13_np_name, true, rule_1, "0-ipv4__tcp-80")
 	test13_rule1.AddChild(apicapi.NewHostprotRemoteIp(test13_rule1.GetDn(), "1.1.1.1"))
-	test13_rule2 := createRule(test13_np_name, true, rule_3, "1_0-ipv4__np1")
+	test13_rule2 := createRule(test13_np_name, true, rule_3, "1-ipv4__tcp-443")
 	test13_rule2.AddChild(apicapi.NewHostprotRemoteIp(test13_rule2.GetDn(), "1.1.1.2"))
 
 	//egress-allow-all-select-pods-and-ns
@@ -1441,7 +1441,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test14_np)
 	test14_np_name := "kube_np_" + hash
-	test14_rule := createRule(test14_np_name, false, rule_5, "0-ipv4__np1")
+	test14_rule := createRule(test14_np_name, false, rule_5, "0-ipv4__unspecified")
 	test14_rule.AddChild(apicapi.NewHostprotRemoteIp(test14_rule.GetDn(), "1.1.1.3"))
 	test14_rule.AddChild(apicapi.NewHostprotRemoteIp(test14_rule.GetDn(), "1.1.1.5"))
 
@@ -1457,7 +1457,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test15_np)
 	test15_np_name := "kube_np_" + hash
-	test15_rule := createRule(test15_np_name, false, rule_6, "0_0-ipv4__np1")
+	test15_rule := createRule(test15_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test15_rule.AddChild(apicapi.NewHostprotRemoteIp(test15_rule.GetDn(), "1.1.1.1"))
 
 	//egress-allow-http-augment
@@ -1472,7 +1472,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test16_np)
 	test16_np_name := "kube_np_" + hash
-	test16_rule1 := createRule(test16_np_name, false, rule_6, "0_0-ipv4__np1")
+	test16_rule1 := createRule(test16_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test16_rule1.AddChild(apicapi.NewHostprotRemoteIp(test16_rule1.GetDn(), "1.1.1.1"))
 	test16_rule2 := createRule(test16_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test16_rule2.AddChild(apicapi.NewHostprotRemoteIp(test16_rule2.GetDn(), "9.0.0.42"))
@@ -1493,7 +1493,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test17_np)
 	test17_np_name := "kube_np_" + hash
-	test17_rule1 := createRule(test17_np_name, false, rule_6, "0_0-ipv4__np1")
+	test17_rule1 := createRule(test17_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test17_rule1.AddChild(apicapi.NewHostprotRemoteIp(test17_rule1.GetDn(), "1.1.1.1"))
 	test17_rule2 := createRule(test17_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test17_rule2.AddChild(apicapi.NewHostprotRemoteIp(test17_rule2.GetDn(), "9.0.0.42"))
@@ -1506,7 +1506,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test18_np)
 	test18_np_name := "kube_np_" + hash
-	test18_rule1 := createRule(test18_np_name, false, rule_6, "0_0-ipv4__np1")
+	test18_rule1 := createRule(test18_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test18_rule2 := createRule(test18_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test18_rule2.AddChild(apicapi.NewHostprotRemoteIp(test18_rule2.GetDn(), "9.0.0.42"))
 
@@ -1520,7 +1520,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test19_np)
 	test19_np_name := "kube_np_" + hash
-	test19_rule1 := createRule(test19_np_name, false, rule_5, "0-ipv4__np1")
+	test19_rule1 := createRule(test19_np_name, false, rule_5, "0-ipv4__unspecified")
 	test19_rule1.AddChild(apicapi.NewHostprotRemoteIp(test19_rule1.GetDn(), "1.1.1.0/24"))
 	test19_rule2 := createRule(test19_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test19_rule2.AddChild(apicapi.NewHostprotRemoteIp(test19_rule2.GetDn(), "9.0.0.44"))
@@ -1534,7 +1534,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test20_np)
 	test20_np_name := "kube_np_" + hash
-	test20_rule := createRule(test20_np_name, false, rule_5, "0-ipv4__np1")
+	test20_rule := createRule(test20_np_name, false, rule_5, "0-ipv4__unspecified")
 
 	//egress-allow-http-portrange
 	test21_np := netpol("testns", "np1", &metav1.LabelSelector{},
@@ -1548,7 +1548,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test21_np)
 	test21_np_name := "kube_np_" + hash
-	test21_rule := createRule(test21_np_name, false, rule_9, "0_0-ipv4__np1")
+	test21_rule := createRule(test21_np_name, false, rule_9, "0-ipv4__tcp-80")
 	test21_rule.AddChild(apicapi.NewHostprotRemoteIp(test21_rule.GetDn(), "1.1.1.1"))
 
 	//egress-allow-http-portrange-augment
@@ -1563,7 +1563,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test22_np)
 	test22_np_name := "kube_np_" + hash
-	test22_rule1 := createRule(test22_np_name, false, rule_9, "0_0-ipv4__np1")
+	test22_rule1 := createRule(test22_np_name, false, rule_9, "0-ipv4__tcp-80")
 	test22_rule1.AddChild(apicapi.NewHostprotRemoteIp(test22_rule1.GetDn(), "1.1.1.1"))
 	test22_rule2 := createRule(test22_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test22_rule2.AddChild(apicapi.NewHostprotRemoteIp(test22_rule2.GetDn(), "9.0.0.42"))
@@ -2569,7 +2569,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		nil, allPolicyTypes)
 	hash, _ := util.CreateHashFromNetPol(test0_np_v6)
 	test0_np_name_v6 := "kube_np_" + hash
-	test0_rule_v6 := createRule(test0_np_name_v6, true, rule_0_v6, "0-ipv6__npv6")
+	test0_rule_v6 := createRule(test0_np_name_v6, true, rule_0_v6, "0-ipv6__unspecified")
 
 	//allow-http
 	test1_np_v6 := netpol("testnsv6", "npv6", &metav1.LabelSelector{},
@@ -2578,7 +2578,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 				nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test1_np_v6)
 	test1_np_name_v6 := "kube_np_" + hash
-	test1_rule_v6 := createRule(test1_np_name_v6, true, rule_1_v6, "0_0-ipv6__npv6")
+	test1_rule_v6 := createRule(test1_np_name_v6, true, rule_1_v6, "0-ipv6__tcp-80")
 
 	//allow-http-from
 	test2_np_v6 := netpol("testnsv6", "npv6", &metav1.LabelSelector{},
@@ -2590,7 +2590,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 			)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test2_np_v6)
 	test2_np_name_v6 := "kube_np_" + hash
-	test2_rule_v6 := createRule(test2_np_name_v6, true, rule_1_v6, "0_0-ipv6__npv6")
+	test2_rule_v6 := createRule(test2_np_name_v6, true, rule_1_v6, "0-ipv6__tcp-80")
 	test2_rule_v6.AddChild(
 		apicapi.NewHostprotRemoteIp(test2_rule_v6.GetDn(), "2001:db8::/128"))
 	test2_rule_v6.AddChild(
@@ -2605,7 +2605,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 				port(nil, &port80)}, nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test3_np_v6)
 	test3_np_name_v6 := "kube_np_" + hash
-	test3_rule_v6 := createRule(test3_np_name_v6, true, rule_1_v6, "0_0-ipv6__npv6")
+	test3_rule_v6 := createRule(test3_np_name_v6, true, rule_1_v6, "0-ipv6__tcp-80")
 
 	//allow-80-udp
 	test4_np_v6 := netpol("testnsv6", "npv6", &metav1.LabelSelector{},
@@ -2614,7 +2614,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 				port(&udp, &port80)}, nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test4_np_v6)
 	test4_np_name_v6 := "kube_np_" + hash
-	test4_rule_v6 := createRule(test4_np_name_v6, true, rule_2_v6, "0_0-ipv6__npv6")
+	test4_rule_v6 := createRule(test4_np_name_v6, true, rule_2_v6, "0-ipv6__udp-80")
 
 	//allow-http-https
 	test5_np_v6 := netpol("testnsv6", "npv6", &metav1.LabelSelector{},
@@ -2624,8 +2624,8 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 			}, nil)}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test5_np_v6)
 	test5_np_name_v6 := "kube_np_" + hash
-	test5_rule1_v6 := createRule(test5_np_name_v6, true, rule_1_v6, "0_0-ipv6__npv6")
-	test5_rule2_v6 := createRule(test5_np_name_v6, true, rule_3_v6, "0_1-ipv6__npv6")
+	test5_rule1_v6 := createRule(test5_np_name_v6, true, rule_1_v6, "0-ipv6__tcp-80")
+	test5_rule2_v6 := createRule(test5_np_name_v6, true, rule_3_v6, "0-ipv6__tcp-443")
 
 	//allow-all-from-ns
 	test6_np_v6 := netpol("testnsv6", "npv6", &metav1.LabelSelector{},
@@ -2638,7 +2638,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test6_np_v6)
 	test6_np_name_v6 := "kube_np_" + hash
-	test6_rule_v6 := createRule(test6_np_name_v6, true, rule_0_v6, "0-ipv6__npv6")
+	test6_rule_v6 := createRule(test6_np_name_v6, true, rule_0_v6, "0-ipv6__unspecified")
 	test6_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test6_rule_v6.GetDn(), "2001::2"))
 	test6_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test6_rule_v6.GetDn(), "2001::3"))
 
@@ -2665,7 +2665,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test8_np_v6)
 	test8_np_name_v6 := "kube_np_" + hash
-	test8_rule_v6 := createRule(test8_np_name_v6, true, rule_0_v6, "0-ipv6__npv6")
+	test8_rule_v6 := createRule(test8_np_name_v6, true, rule_0_v6, "0-ipv6__unspecified")
 	test8_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test8_rule_v6.GetDn(), "2001::4"))
 	test8_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test8_rule_v6.GetDn(), "2001::5"))
 	test8_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test8_rule_v6.GetDn(), "2001::6"))
@@ -2681,7 +2681,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test9_np_v6)
 	test9_np_name_v6 := "kube_np_" + hash
-	test9_rule_v6 := createRule(test9_np_name_v6, true, rule_0_v6, "0-ipv6__npv6")
+	test9_rule_v6 := createRule(test9_np_name_v6, true, rule_0_v6, "0-ipv6__unspecified")
 	test9_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test9_rule_v6.GetDn(), "2001::2"))
 
 	//allow-all-select-pods-and-ns
@@ -2697,7 +2697,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test10_np_v6)
 	test10_np_name_v6 := "kube_np_" + hash
-	test10_rule_v6 := createRule(test10_np_name_v6, true, rule_0_v6, "0-ipv6__npv6")
+	test10_rule_v6 := createRule(test10_np_name_v6, true, rule_0_v6, "0-ipv6__unspecified")
 	test10_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test10_rule_v6.GetDn(), "2001::4"))
 	test10_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test10_rule_v6.GetDn(), "2001::6"))
 
@@ -2721,9 +2721,9 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, nil, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test11_np_v6)
 	test11_np_name_v6 := "kube_np_" + hash
-	test11_rule1_v6 := createRule(test11_np_name_v6, true, rule_1_v6, "0_0-ipv6__npv6")
+	test11_rule1_v6 := createRule(test11_np_name_v6, true, rule_1_v6, "0-ipv6__tcp-80")
 	test11_rule1_v6.AddChild(apicapi.NewHostprotRemoteIp(test11_rule1_v6.GetDn(), "2001::2"))
-	test11_rule2_v6 := createRule(test11_np_name_v6, true, rule_3_v6, "1_0-ipv6__npv6")
+	test11_rule2_v6 := createRule(test11_np_name_v6, true, rule_3_v6, "1-ipv6__tcp-443")
 	test11_rule2_v6.AddChild(apicapi.NewHostprotRemoteIp(test11_rule2_v6.GetDn(), "2001::3"))
 
 	//egress-allow-all-select-pods-and-ns
@@ -2740,7 +2740,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test12_np_v6)
 	test12_np_name_v6 := "kube_np_" + hash
-	test12_rule_v6 := createRule(test12_np_name_v6, false, rule_4_v6, "0-ipv6__npv6")
+	test12_rule_v6 := createRule(test12_np_name_v6, false, rule_4_v6, "0-ipv6__unspecified")
 	test12_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test12_rule_v6.GetDn(), "2001::4"))
 	test12_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test12_rule_v6.GetDn(), "2001::6"))
 
@@ -2756,7 +2756,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test13_np_v6)
 	test13_np_name_v6 := "kube_np_" + hash
-	test13_rule_v6 := createRule(test13_np_name_v6, false, rule_5_v6, "0_0-ipv6__npv6")
+	test13_rule_v6 := createRule(test13_np_name_v6, false, rule_5_v6, "0-ipv6__tcp-80")
 	test13_rule_v6.AddChild(apicapi.NewHostprotRemoteIp(test13_rule_v6.GetDn(), "2001::2"))
 
 	//egress-allow-http-augment
@@ -2772,7 +2772,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test14_np_v6)
 	test14_np_name_v6 := "kube_np_" + hash
-	test14_rule1_v6 := createRule(test14_np_name_v6, false, rule_5_v6, "0_0-ipv6__npv6")
+	test14_rule1_v6 := createRule(test14_np_name_v6, false, rule_5_v6, "0-ipv6__tcp-80")
 	test14_rule1_v6.AddChild(apicapi.NewHostprotRemoteIp(test14_rule1_v6.GetDn(), "2001::2"))
 	test14_rule2_v6 := createRule(test14_np_name_v6, false, rule_6_v6, "service_tcp_8080-ipv6")
 	test14_rule2_v6.AddChild(apicapi.NewHostprotRemoteIp(test14_rule2_v6.GetDn(), "fd00::1234"))
@@ -2785,7 +2785,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test15_np_v6)
 	test15_np_name_v6 := "kube_np_" + hash
-	test15_rule1_v6 := createRule(test15_np_name_v6, false, rule_5_v6, "0_0-ipv6__npv6")
+	test15_rule1_v6 := createRule(test15_np_name_v6, false, rule_5_v6, "0-ipv6__tcp-80")
 	test15_rule2_v6 := createRule(test15_np_name_v6, false, rule_6_v6, "service_tcp_8080-ipv6")
 	test15_rule2_v6.AddChild(apicapi.NewHostprotRemoteIp(test15_rule2_v6.GetDn(), "fd00::1234"))
 
@@ -2799,7 +2799,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test16_np_v6)
 	test16_np_name_v6 := "kube_np_" + hash
-	test16_rule1_v6 := createRule(test16_np_name_v6, false, rule_4_v6, "0-ipv6__npv6")
+	test16_rule1_v6 := createRule(test16_np_name_v6, false, rule_4_v6, "0-ipv6__unspecified")
 	test16_rule1_v6.AddChild(apicapi.NewHostprotRemoteIp(test16_rule1_v6.GetDn(), "2001::/64"))
 	test16_rule2_v6 := createRule(test16_np_name_v6, false, rule_6_v6, "service_tcp_8080-ipv6")
 	test16_rule2_v6.AddChild(apicapi.NewHostprotRemoteIp(test16_rule2_v6.GetDn(), "fd00::1236"))
@@ -2813,7 +2813,7 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test17_np_v6)
 	test17_np_name_v6 := "kube_np_" + hash
-	test17_rule_v6 := createRule(test17_np_name_v6, false, rule_4_v6, "0-ipv6__npv6")
+	test17_rule_v6 := createRule(test17_np_name_v6, false, rule_4_v6, "0-ipv6__unspecified")
 
 	var np6Tests = []npTest{
 		{test0_np_v6,
@@ -3578,7 +3578,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ := util.CreateHashFromNetPol(test15_np)
 	test15_np_name := "kube_np_" + hash
-	test15_rule := createRule(test15_np_name, false, rule_6, "0_0-ipv4__np1")
+	test15_rule := createRule(test15_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test15_rule.AddChild(apicapi.NewHostprotRemoteIp(test15_rule.GetDn(), "1.1.1.1"))
 
 	//egress-allow-http-augment
@@ -3593,7 +3593,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test16_np)
 	test16_np_name := "kube_np_" + hash
-	test16_rule1 := createRule(test16_np_name, false, rule_6, "0_0-ipv4__np1")
+	test16_rule1 := createRule(test16_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test16_rule1.AddChild(apicapi.NewHostprotRemoteIp(test16_rule1.GetDn(), "1.1.1.1"))
 	test16_rule2 := createRule(test16_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test16_rule2.AddChild(apicapi.NewHostprotRemoteIp(test16_rule2.GetDn(), "9.0.0.42"))
@@ -3614,7 +3614,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test17_np)
 	test17_np_name := "kube_np_" + hash
-	test17_rule1 := createRule(test17_np_name, false, rule_6, "0_0-ipv4__np1")
+	test17_rule1 := createRule(test17_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test17_rule1.AddChild(apicapi.NewHostprotRemoteIp(test17_rule1.GetDn(), "1.1.1.1"))
 	test17_rule2 := createRule(test17_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test17_rule2.AddChild(apicapi.NewHostprotRemoteIp(test17_rule2.GetDn(), "9.0.0.42"))
@@ -3627,7 +3627,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test18_np)
 	test18_np_name := "kube_np_" + hash
-	test18_rule1 := createRule(test18_np_name, false, rule_6, "0_0-ipv4__np1")
+	test18_rule1 := createRule(test18_np_name, false, rule_6, "0-ipv4__tcp-80")
 	test18_rule2 := createRule(test18_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test18_rule2.AddChild(apicapi.NewHostprotRemoteIp(test18_rule2.GetDn(), "9.0.0.42"))
 
@@ -3641,7 +3641,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test19_np)
 	test19_np_name := "kube_np_" + hash
-	test19_rule1 := createRule(test19_np_name, false, rule_5, "0-ipv4__np1")
+	test19_rule1 := createRule(test19_np_name, false, rule_5, "0-ipv4__unspecified")
 	test19_rule1.AddChild(apicapi.NewHostprotRemoteIp(test19_rule1.GetDn(), "1.1.1.0/24"))
 	test19_rule2 := createRule(test19_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test19_rule2.AddChild(apicapi.NewHostprotRemoteIp(test19_rule2.GetDn(), "9.0.0.44"))
@@ -3655,7 +3655,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test20_np)
 	test20_np_name := "kube_np_" + hash
-	test20_rule := createRule(test20_np_name, false, rule_5, "0-ipv4__np1")
+	test20_rule := createRule(test20_np_name, false, rule_5, "0-ipv4__unspecified")
 
 	var npTests = []npTest{
 		{test15_np,
@@ -4154,7 +4154,7 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ := util.CreateHashFromNetPol(test1_np)
 	test1_np_name := "kube_np_" + hash
-	test1_rule1 := createRule(test1_np_name, false, rule_1, "0_0-ipv4__np1")
+	test1_rule1 := createRule(test1_np_name, false, rule_1, "0-ipv4__tcp-80")
 	test1_rule1.AddChild(apicapi.NewHostprotRemoteIp(test1_rule1.GetDn(), "1.1.1.1"))
 	test1_rule2 := createRule(test1_np_name, false, rule_2, "service_tcp_8080-ipv4")
 	test1_rule2.AddChild(apicapi.NewHostprotRemoteIp(test1_rule2.GetDn(), "9.0.0.42"))
@@ -4286,6 +4286,221 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
 	}
+}
+
+// TestNetworkPolicyMultipleNPsSharedHPPNamedPorts tests the scenario where
+// multiple NetworkPolicies with identical rules but different PodSelectors
+// share the same HPP, and use named ports that resolve to different port numbers
+func TestNetworkPolicyMultipleNPsSharedHPPNamedPorts(t *testing.T) {
+	// Simple test to verify the fix works in hpp-optimization mode
+	cont := testController()
+	cont.config.HppOptimization = true
+	cont.config.AciPolicyTenant = "test-tenant"
+	cont.config.NodeServiceIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
+	}
+	cont.config.PodIpPool = []ipam.IpRange{
+		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
+	}
+	cont.AciController.initIpam()
+	cont.fakeNamespaceSource.Add(namespaceLabel("testns",
+		map[string]string{"test": "testv"}))
+
+	// Create two pods with different named ports
+	pod1 := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName:   "test-node",
+			Containers: []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 80}}}},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "testns", Name: "pod1",
+			Labels: map[string]string{"app": "web1"},
+		},
+		Status: v1.PodStatus{PodIP: "1.1.1.1"},
+	}
+
+	pod2 := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName:   "test-node",
+			Containers: []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 8080}}}},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "testns", Name: "pod2",
+			Labels: map[string]string{"app": "web2"},
+		},
+		Status: v1.PodStatus{PodIP: "1.1.1.2"},
+	}
+	// Two NetworkPolicies with same rules but different PodSelectors
+	np1 := netpol("testns", "np1",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web1"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	np2 := netpol("testns", "np2",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web2"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	cont.fakePodSource.Add(pod1)
+	cont.fakePodSource.Add(pod2)
+	cont.run()
+	cont.fakeNetworkPolicySource.Add(np1)
+	cont.fakeNetworkPolicySource.Add(np2)
+
+	// Wait for controller to process the network policies
+	hash, _ := util.CreateHashFromNetPol(np1)
+	labelKey := cont.aciNameForKey("np", hash)
+
+	foundNp1Rule := false
+	foundNp2Rule := false
+
+	tu.WaitFor(t, "multiple-nps-shared-hpp-named-ports", 2000*time.Millisecond,
+		func(last bool) (bool, error) {
+			desiredState := cont.apicConn.GetDesiredState(labelKey)
+			if len(desiredState) == 0 {
+				return false, nil
+			}
+
+			// Verify rules exist for both NPs
+			hppObj := desiredState[0]
+			hppMap, ok := hppObj["hostprotPol"]
+			if !ok || hppMap == nil {
+				return false, nil
+			}
+
+			foundNp1Rule = false
+			foundNp2Rule = false
+
+			for _, child := range hppMap.Children {
+				if subj, ok := child["hostprotSubj"]; ok {
+					if subj != nil && subj.Attributes["name"] == "networkpolicy-ingress" {
+						for _, ruleChild := range subj.Children {
+							if rule, ok := ruleChild["hostprotRule"]; ok {
+								if rule != nil {
+									fromPort, _ := rule.Attributes["fromPort"].(string)
+									if fromPort == "http" {
+										foundNp1Rule = true
+									}
+									if fromPort == "8080" {
+										foundNp2Rule = true
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			return foundNp1Rule && foundNp2Rule, nil
+		})
+
+	cont.stop()
+}
+
+// TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect tests the same
+// sibling-NP merge scenario as TestNetworkPolicyMultipleNPsSharedHPPNamedPorts
+// but for the HPP-Direct (EnableHppDirect) code path, verifying that the
+// HostprotPol CRD contains merged ingress rules from both NPs.
+func TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	os.Setenv("SYSTEM_NAMESPACE", "kube-system")
+	defer os.Unsetenv("SYSTEM_NAMESPACE")
+
+	// Create two pods with different named port resolutions
+	pod1 := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName:   "test-node",
+			Containers: []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 80}}}},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "testns", Name: "pod1",
+			Labels: map[string]string{"app": "web1"},
+		},
+		Status: v1.PodStatus{PodIP: "1.1.1.1"},
+	}
+
+	pod2 := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName:   "test-node",
+			Containers: []v1.Container{{Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 8080}}}},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "testns", Name: "pod2",
+			Labels: map[string]string{"app": "web2"},
+		},
+		Status: v1.PodStatus{PodIP: "1.1.1.2"},
+	}
+
+	// Two NetworkPolicies with identical rules but different PodSelectors
+	np1 := netpol("testns", "np1",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web1"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	np2 := netpol("testns", "np2",
+		&metav1.LabelSelector{MatchLabels: map[string]string{"app": "web2"}},
+		[]v1net.NetworkPolicyIngressRule{
+			ingressRule([]v1net.NetworkPolicyPort{
+				{Protocol: func() *v1.Protocol { p := v1.ProtocolTCP; return &p }(),
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"}},
+			}, nil),
+		}, nil, allPolicyTypes)
+
+	cont.fakePodSource.Add(pod1)
+	cont.fakePodSource.Add(pod2)
+	cont.run()
+	cont.fakeNetworkPolicySource.Add(np1)
+	cont.fakeNetworkPolicySource.Add(np2)
+
+	hash, _ := util.CreateHashFromNetPol(np1)
+	labelKey := cont.aciNameForKey("np", hash)
+	hppName := strings.ReplaceAll(labelKey, "_", "-")
+	ns := os.Getenv("SYSTEM_NAMESPACE")
+
+	tu.WaitFor(t, "multiple-nps-shared-hpp-named-ports-direct", 2000*time.Millisecond,
+		func(last bool) (bool, error) {
+			hpp, err := cont.getHostprotPol(hppName, ns)
+			if err != nil {
+				return false, nil
+			}
+
+			// Find ingress subject
+			var ingressSubj *hppv1.HostprotSubj
+			for i := range hpp.Spec.HostprotSubj {
+				if hpp.Spec.HostprotSubj[i].Name == "networkpolicy-ingress" {
+					ingressSubj = &hpp.Spec.HostprotSubj[i]
+					break
+				}
+			}
+			if ingressSubj == nil {
+				return false, nil
+			}
+
+			// Collect all fromPort values from ingress rules
+			ports := make(map[string]bool)
+			for _, rule := range ingressSubj.HostprotRule {
+				if rule.FromPort != "" && rule.FromPort != "unspecified" {
+					ports[rule.FromPort] = true
+				}
+			}
+
+			// Both port 80 (from NP1/pod1) and 8080 (from NP2/pod2) must be present
+			return ports["80"] && ports["8080"], nil
+		})
+
+	cont.stop()
 }
 
 func TestCreateStaticNetPolCrs(t *testing.T) {
@@ -4656,10 +4871,10 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		entries:      []resolvedPortEntry{{proto: "tcp", fromPort: "8080"}},
 		peerNsList:   []string{"test-namespace"},
 		podSelectors: podSelectors,
-	}, np)
+	})
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, "test-rule_0-ipv4__test-network-policy", subj.HostprotRule[0].Name)
+	assert.Equal(t, "test-rule-ipv4__tcp-8080", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -4699,7 +4914,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		entries:      []resolvedPortEntry{{}},
 		peerNsList:   []string{"test-namespace"},
 		podSelectors: podSelectors,
-	}, np)
+	})
 
 	expected := hppv1.HostprotSubj{
 		HostprotRule: []hppv1.HostprotRule{
@@ -4710,7 +4925,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 				Protocol:            "unspecified",
 				FromPort:            "unspecified",
 				ToPort:              "unspecified",
-				Name:                "test-rule-ipv4__test-network-policy",
+				Name:                "test-rule-ipv4__unspecified",
 				RsRemoteIpContainer: []string{"test-namespace"},
 				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 					{
@@ -4736,7 +4951,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		entries:      []resolvedPortEntry{{}},
 		peerNsList:   nil,
 		podSelectors: podSelectors,
-	}, np)
+	})
 
 	expectedRule := []hppv1.HostprotRule{
 		{
@@ -4746,7 +4961,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "unspecified",
 			FromPort:            "unspecified",
 			ToPort:              "unspecified",
-			Name:                "test-rule-ipv4__test-network-policy",
+			Name:                "test-rule-ipv4__unspecified",
 			RsRemoteIpContainer: nil,
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
@@ -4804,7 +5019,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 			Protocol:            "tcp",
 			FromPort:            "8080",
 			ToPort:              "unspecified",
-			Name:                "test-rule_0-ipv4__test-network-policy",
+			Name:                "test-rule-ipv4__tcp-8080",
 			RsRemoteIpContainer: nil,
 			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
 				{
@@ -4830,7 +5045,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		entries:      []resolvedPortEntry{{proto: "tcp", fromPort: "8080"}},
 		peerNsList:   nil,
 		podSelectors: podSelectors,
-	}, np)
+	})
 
 	assert.Equal(t, expectedRule, subj.HostprotRule)
 
@@ -6924,15 +7139,6 @@ func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	np := netpol("testns", "np1", &metav1.LabelSelector{},
-		nil, []v1net.NetworkPolicyEgressRule{
-			egressRule([]v1net.NetworkPolicyPort{
-				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
-					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
-				},
-			}, nil),
-		}, allPolicyTypes)
-
 	// Simulate the result of resolveNetPolPeersAndPorts for egress no-To with
 	// named port "http" resolved to port 80 (portScoped since IPs are per-pod).
 	resolved := &resolvedPeerPorts{
@@ -6942,10 +7148,10 @@ func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved, np)
+	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved)
 
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule for resolved named port")
-	assert.Equal(t, "0_0-ipv4__np1", subj.HostprotRule[0].Name)
+	assert.Equal(t, "0-ipv4__tcp-80", subj.HostprotRule[0].Name)
 	assert.Equal(t, "egress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -6961,18 +7167,6 @@ func TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	np := netpol("testns", "np1", &metav1.LabelSelector{},
-		nil, []v1net.NetworkPolicyEgressRule{
-			egressRule([]v1net.NetworkPolicyPort{
-				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
-					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
-				},
-				{Protocol: func() *v1.Protocol { a := v1.ProtocolTCP; return &a }(),
-					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "https"},
-				},
-			}, nil),
-		}, allPolicyTypes)
-
 	// Simulate the result of resolveNetPolPeersAndPorts: "http" resolved to ports
 	// 80 and 8080 (two pods), "https" to port 443. Each entry is portScoped.
 	resolved := &resolvedPeerPorts{
@@ -6984,7 +7178,7 @@ func TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts(t *testing.T) {
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved, np)
+	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved)
 
 	// Expect 3 rules: http→80, http→8080, https→443
 	assert.Equal(t, 3, len(subj.HostprotRule),
@@ -7093,7 +7287,7 @@ func TestBuildLocalNetPolSubjRulesIngressNamedPort(t *testing.T) {
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "ingress", resolved, np)
+	cont.buildLocalNetPolSubjRules("0", subj, "ingress", resolved)
 
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have exactly 1 rule for named port")
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
@@ -7193,16 +7387,6 @@ func TestBuildLocalNetPolSubjRulesEgressIPBlockNamedPort(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	np := &v1net.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "np1",
-			Namespace: "testns",
-		},
-		Spec: v1net.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{},
-		},
-	}
-
 	// Simulate resolved egress state: one port-scoped entry (from named port)
 	// with pod IPs, plus ipBlockSubs from an IPBlock peer in the same rule.
 	resolved := &resolvedPeerPorts{
@@ -7222,7 +7406,7 @@ func TestBuildLocalNetPolSubjRulesEgressIPBlockNamedPort(t *testing.T) {
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved, np)
+	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved)
 
 	// With the new behavior, port-scoped egress rules should NOT include
 	// the IPBlock CIDRs (1.1.1.0/24). Pod-level filtering is handled by
