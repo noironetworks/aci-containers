@@ -350,8 +350,7 @@ func TestCheckDeletes(t *testing.T) {
 		delHook2Called := false
 		oldState := make(map[string]map[string]bool)
 		oldState["dn1"] = map[string]bool{"id1": true, "id2": true}
-		conn.subscriptions.ids["id1"] = "value1"
-		conn.subscriptions.ids["id2"] = "value2"
+		oldSubIds := map[string]string{"id1": "value1", "id2": "value2"}
 		conn.subscriptions.subs["value1"] = &subscription{
 			deleteHook: func(dn string) {
 				delHook1Called = true
@@ -363,7 +362,7 @@ func TestCheckDeletes(t *testing.T) {
 			},
 		}
 
-		conn.checkDeletes(oldState)
+		conn.checkDeletes(oldState, oldSubIds)
 
 		assert.True(t, delHook1Called)
 		assert.True(t, delHook2Called)
@@ -375,8 +374,7 @@ func TestCheckDeletes(t *testing.T) {
 		oldState := make(map[string]map[string]bool)
 		oldState["dn2"] = map[string]bool{"id1": true, "id2": true}
 		conn.cacheDnSubIds["dn2"] = map[string]bool{"id1": true, "id2": true}
-		conn.subscriptions.ids["id1"] = "value1"
-		conn.subscriptions.ids["id2"] = "value2"
+		oldSubIds := map[string]string{"id1": "value1", "id2": "value2"}
 		conn.subscriptions.subs["value1"] = &subscription{
 			deleteHook: func(dn string) {
 				delHook1Called = true
@@ -388,7 +386,7 @@ func TestCheckDeletes(t *testing.T) {
 			},
 		}
 
-		conn.checkDeletes(oldState)
+		conn.checkDeletes(oldState, oldSubIds)
 
 		assert.False(t, delHook1Called)
 		assert.False(t, delHook2Called)

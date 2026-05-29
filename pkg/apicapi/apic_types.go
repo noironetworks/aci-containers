@@ -142,6 +142,7 @@ type ApicConnection struct {
 	client        *http.Client
 	restartCh     chan struct{}
 	subscriptions subIndex
+	oldSubIds     map[string]string
 	syncStore     map[string]*syncObj
 	logger        *logrus.Logger
 	log           *logrus.Entry

@@ -358,6 +358,8 @@ func (cont *AciController) isSingleOpflexOdev(fabricPathDn string) (bool, error)
 
 func (cont *AciController) createAciPodAnnotation(node string) (aciPodAnnot, error) {
 	odevCount, fabricPathDn := cont.getOpflexOdevCount(node)
+	cont.log.Debug("FabricPathDn for node ", node, " is ", fabricPathDn, " with count ", odevCount)
+	cont.log.Debug("Opflex devices for node ", node, " are ", cont.nodeOpflexDevice[node])
 	nodeAciPodAnnot := cont.nodeACIPod[node]
 	isSingleOdev := false
 	if odevCount == 1 {

@@ -676,7 +676,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		}
 	}
 	if !hasErr {
-		conn.checkDeletes(oldState)
+		conn.checkDeletes(oldState, conn.oldSubIds)
 		go func() {
 			if conn.FullSyncHook != nil {
 				conn.FullSyncHook()
@@ -721,6 +721,7 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.lldpIfQueue = nil
 		conn.stopped = stop
 		conn.syncEnabled = false
+		conn.oldSubIds = conn.subscriptions.ids
 		conn.subscriptions.ids = make(map[string]string)
 		conn.version = ""
 		conn.indexMutex.Unlock()

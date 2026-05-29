@@ -414,13 +414,13 @@ func (conn *ApicConnection) fullSync() {
 	conn.SyncMutex.Unlock()
 }
 
-func (conn *ApicConnection) checkDeletes(oldState map[string]map[string]bool) {
+func (conn *ApicConnection) checkDeletes(oldState map[string]map[string]bool, oldSubIds map[string]string) {
 	conn.indexMutex.Lock()
 	for dn, ids := range oldState {
 		_, found := conn.cacheDnSubIds[dn]
 		if !found {
 			for id := range ids {
-				value, ok := conn.subscriptions.ids[id]
+				value, ok := oldSubIds[id]
 				if !ok {
 					continue
 				}
@@ -429,6 +429,7 @@ func (conn *ApicConnection) checkDeletes(oldState map[string]map[string]bool) {
 					continue
 				}
 				if sub.deleteHook != nil {
+					conn.log.Debug("Invoking delete hook for subscription id ", id, " dn ", dn, " value ", value, " as dn absent on full sync")
 					sub.deleteHook(dn)
 				}
 			}
