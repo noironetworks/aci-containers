@@ -16,16 +16,15 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"os/user"
-	"path"
-
+	pconfclientset "github.com/noironetworks/aci-containers/pkg/proactiveconf/clientset/versioned"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"os"
+	"os/user"
+	"path"
 )
 
 var kubeconfig string
@@ -120,4 +119,34 @@ func initClientPrintError() kubernetes.Interface {
 		return nil
 	}
 	return kubeClient
+}
+
+func initProactiveClient() (pconfclientset.Interface, error) {
+	var restconfig *restclient.Config
+	var err error
+	if kubeconfig != "" {
+		restconfig, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			&clientcmd.ClientConfigLoadingRules{
+				ExplicitPath: kubeconfig,
+			},
+			&clientcmd.ConfigOverrides{
+				CurrentContext: context,
+			}).ClientConfig()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		restconfig, err = restclient.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	pconfClient, err := pconfclientset.NewForConfig(restconfig)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to intialize ProactiveConf client %v", err)
+		return nil, err
+	}
+
+	return pconfClient, nil
 }
