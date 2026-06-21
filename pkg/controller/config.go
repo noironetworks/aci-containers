@@ -102,6 +102,14 @@ type ControllerConfig struct {
 	// actual subscription refresh-timeout. Will be defaulted to 150Seconds.
 	ApicRefreshTickerAdjust string `json:"apic-refreshticker-adjust,omitempty"`
 
+	// LLDP subscription refresh timeout in seconds.
+	// Will be defaulted to 120 seconds.
+	ApicLldpRefreshTimer string `json:"apic-lldp-refreshtime,omitempty"`
+
+	// How early (seconds) the LLDP subscriptions to be refreshed than
+	// actual LLDP subscription refresh-timeout. Will be defaulted to 20 seconds.
+	ApicLldpRefreshTickerAdjust string `json:"apic-lldp-refreshticker-adjust,omitempty"`
+
 	// A path for a PEM-encoded private key for client certificate
 	// authentication for APIC API
 	ApicPrivateKeyPath string `json:"apic-private-key-path,omitempty"`
