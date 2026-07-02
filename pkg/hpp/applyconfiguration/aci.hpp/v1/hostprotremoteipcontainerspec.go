@@ -17,14 +17,14 @@ limitations under the License.
 
 package v1
 
-// HostprotRemoteIpContainerSpecApplyConfiguration represents an declarative configuration of the HostprotRemoteIpContainerSpec type for use
+// HostprotRemoteIpContainerSpecApplyConfiguration represents a declarative configuration of the HostprotRemoteIpContainerSpec type for use
 // with apply.
 type HostprotRemoteIpContainerSpecApplyConfiguration struct {
-	Name             *string                              `json:"name,omitempty"`
-	HostprotRemoteIp []HostprotRemoteIpApplyConfiguration `json:"hostprotRemoteIp,omitempty"`
+	Name              *string  `json:"name,omitempty"`
+	HostprotRemoteIps []string `json:"hostprotRemoteIps,omitempty"`
 }
 
-// HostprotRemoteIpContainerSpecApplyConfiguration constructs an declarative configuration of the HostprotRemoteIpContainerSpec type for use with
+// HostprotRemoteIpContainerSpecApplyConfiguration constructs a declarative configuration of the HostprotRemoteIpContainerSpec type for use with
 // apply.
 func HostprotRemoteIpContainerSpec() *HostprotRemoteIpContainerSpecApplyConfiguration {
 	return &HostprotRemoteIpContainerSpecApplyConfiguration{}
@@ -38,15 +38,12 @@ func (b *HostprotRemoteIpContainerSpecApplyConfiguration) WithName(value string)
 	return b
 }
 
-// WithHostprotRemoteIp adds the given value to the HostprotRemoteIp field in the declarative configuration
+// WithHostprotRemoteIps adds the given value to the HostprotRemoteIps field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, values provided by each call will be appended to the HostprotRemoteIp field.
-func (b *HostprotRemoteIpContainerSpecApplyConfiguration) WithHostprotRemoteIp(values ...*HostprotRemoteIpApplyConfiguration) *HostprotRemoteIpContainerSpecApplyConfiguration {
+// If called multiple times, values provided by each call will be appended to the HostprotRemoteIps field.
+func (b *HostprotRemoteIpContainerSpecApplyConfiguration) WithHostprotRemoteIps(values ...string) *HostprotRemoteIpContainerSpecApplyConfiguration {
 	for i := range values {
-		if values[i] == nil {
-			panic("nil value passed to WithHostprotRemoteIp")
-		}
-		b.HostprotRemoteIp = append(b.HostprotRemoteIp, *values[i])
+		b.HostprotRemoteIps = append(b.HostprotRemoteIps, values[i])
 	}
 	return b
 }

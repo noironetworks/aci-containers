@@ -34,7 +34,9 @@ func init() {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&HostprotPol{},
+		&HostprotPolList{},
 		&HostprotRemoteIpContainer{},
+		&HostprotRemoteIpContainerList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

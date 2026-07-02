@@ -18,10 +18,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // HostprotPolLister helps list HostprotPols.
@@ -29,7 +29,7 @@ import (
 type HostprotPolLister interface {
 	// List lists all HostprotPols in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.HostprotPol, err error)
+	List(selector labels.Selector) (ret []*acihppv1.HostprotPol, err error)
 	// HostprotPols returns an object that can list and get HostprotPols.
 	HostprotPols(namespace string) HostprotPolNamespaceLister
 	HostprotPolListerExpansion
@@ -37,25 +37,17 @@ type HostprotPolLister interface {
 
 // hostprotPolLister implements the HostprotPolLister interface.
 type hostprotPolLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*acihppv1.HostprotPol]
 }
 
 // NewHostprotPolLister returns a new HostprotPolLister.
 func NewHostprotPolLister(indexer cache.Indexer) HostprotPolLister {
-	return &hostprotPolLister{indexer: indexer}
-}
-
-// List lists all HostprotPols in the indexer.
-func (s *hostprotPolLister) List(selector labels.Selector) (ret []*v1.HostprotPol, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.HostprotPol))
-	})
-	return ret, err
+	return &hostprotPolLister{listers.New[*acihppv1.HostprotPol](indexer, acihppv1.Resource("hostprotpol"))}
 }
 
 // HostprotPols returns an object that can list and get HostprotPols.
 func (s *hostprotPolLister) HostprotPols(namespace string) HostprotPolNamespaceLister {
-	return hostprotPolNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return hostprotPolNamespaceLister{listers.NewNamespaced[*acihppv1.HostprotPol](s.ResourceIndexer, namespace)}
 }
 
 // HostprotPolNamespaceLister helps list and get HostprotPols.
@@ -63,36 +55,15 @@ func (s *hostprotPolLister) HostprotPols(namespace string) HostprotPolNamespaceL
 type HostprotPolNamespaceLister interface {
 	// List lists all HostprotPols in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.HostprotPol, err error)
+	List(selector labels.Selector) (ret []*acihppv1.HostprotPol, err error)
 	// Get retrieves the HostprotPol from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.HostprotPol, error)
+	Get(name string) (*acihppv1.HostprotPol, error)
 	HostprotPolNamespaceListerExpansion
 }
 
 // hostprotPolNamespaceLister implements the HostprotPolNamespaceLister
 // interface.
 type hostprotPolNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all HostprotPols in the indexer for a given namespace.
-func (s hostprotPolNamespaceLister) List(selector labels.Selector) (ret []*v1.HostprotPol, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.HostprotPol))
-	})
-	return ret, err
-}
-
-// Get retrieves the HostprotPol from the indexer for a given namespace and name.
-func (s hostprotPolNamespaceLister) Get(name string) (*v1.HostprotPol, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("hostprotpol"), name)
-	}
-	return obj.(*v1.HostprotPol), nil
+	listers.ResourceIndexer[*acihppv1.HostprotPol]
 }

@@ -8,38 +8,27 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type HostprotPolSpec struct {
-	Name            string         `json:"name,omitempty"`
+	Name            string         `json:"name,omitempty"` // TODO: check redundant
 	HostprotSubj    []HostprotSubj `json:"hostprotSubj,omitempty"`
 	NetworkPolicies []string       `json:"networkPolicies,omitempty"`
 }
 
 type HostprotSubj struct {
-	Name         string         `json:"name,omitempty"`
+	Name         string         `json:"name"`
 	HostprotRule []HostprotRule `json:"hostprotRule,omitempty"`
 }
 
 type HostprotRule struct {
-	Name                     string                    `json:"name,omitempty"`
-	Direction                string                    `json:"direction,omitempty"`
-	Ethertype                string                    `json:"ethertype,omitempty"`
-	ConnTrack                string                    `json:"connTrack,omitempty"`
-	Protocol                 string                    `json:"protocol,omitempty"`
-	ToPort                   string                    `json:"toPort,omitempty"`
-	FromPort                 string                    `json:"fromPort,omitempty"`
-	RsRemoteIpContainer      []string                  `json:"rsRemoteIpContainer,omitempty"`
-	HostprotFilterContainer  []HostprotFilterContainer `json:"hostprotFilterContainer,omitempty"`
-	HostprotRemoteIp         []HostprotRemoteIp        `json:"hostprotRemoteIp,omitempty"`
-	HostprotServiceRemoteIps []string                  `json:"hostprotServiceRemoteIps,omitempty"`
-}
-
-type HostprotFilterContainer struct {
-	HostprotFilter []HostprotFilter `json:"hostprotFilter,omitempty"`
-}
-
-type HostprotFilter struct {
-	Key      string   `json:"key,omitempty"`
-	Operator string   `json:"operator,omitempty"`
-	Values   []string `json:"values,omitempty"`
+	Name                     string   `json:"name"`
+	Direction                string   `json:"direction,omitempty"`
+	Ethertype                string   `json:"ethertype,omitempty"`
+	ConnTrack                string   `json:"connTrack,omitempty"`
+	Protocol                 string   `json:"protocol,omitempty"`
+	ToPort                   string   `json:"toPort,omitempty"`
+	FromPort                 string   `json:"fromPort,omitempty"`
+	RsRemoteIpContainer      string   `json:"rsRemoteIpContainer,omitempty"`
+	HostprotRemoteIps        []string `json:"hostprotRemoteIps,omitempty"`
+	HostprotServiceRemoteIps []string `json:"hostprotServiceRemoteIps,omitempty"`
 }
 
 // +genclient
@@ -60,19 +49,9 @@ type HostprotPolList struct {
 	Items           []HostprotPol `json:"items"`
 }
 
-type HppEpLabel struct {
-	Key   string `json:"key,omitempty"`
-	Value string `json:"value,omitempty"`
-}
-
-type HostprotRemoteIp struct {
-	Addr       string       `json:"addr,omitempty"`
-	HppEpLabel []HppEpLabel `json:"hppEpLabel,omitempty"`
-}
-
 type HostprotRemoteIpContainerSpec struct {
-	Name             string             `json:"name,omitempty"`
-	HostprotRemoteIp []HostprotRemoteIp `json:"hostprotRemoteIp,omitempty"`
+	Name              string   `json:"name,omitempty"`
+	HostprotRemoteIps []string `json:"hostprotRemoteIps,omitempty"`
 }
 
 // +genclient

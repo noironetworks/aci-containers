@@ -18,8 +18,8 @@ limitations under the License.
 package versioned
 
 import (
-	"fmt"
-	"net/http"
+	fmt "fmt"
+	http "net/http"
 
 	aciv1 "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned/typed/aci.hpp/v1"
 	discovery "k8s.io/client-go/discovery"

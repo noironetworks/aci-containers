@@ -17,15 +17,19 @@ limitations under the License.
 
 package v1
 
-// HostprotPolSpecApplyConfiguration represents an declarative configuration of the HostprotPolSpec type for use
+// HostprotPolSpecApplyConfiguration represents a declarative configuration of the HostprotPolSpec type for use
 // with apply.
+//
+// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 type HostprotPolSpecApplyConfiguration struct {
-	Name            *string                          `json:"name,omitempty"`
+	Name *string `json:"name,omitempty"`
+	// TODO: check redundant
 	HostprotSubj    []HostprotSubjApplyConfiguration `json:"hostprotSubj,omitempty"`
 	NetworkPolicies []string                         `json:"networkPolicies,omitempty"`
 }
 
-// HostprotPolSpecApplyConfiguration constructs an declarative configuration of the HostprotPolSpec type for use with
+// HostprotPolSpecApplyConfiguration constructs a declarative configuration of the HostprotPolSpec type for use with
 // apply.
 func HostprotPolSpec() *HostprotPolSpecApplyConfiguration {
 	return &HostprotPolSpecApplyConfiguration{}
