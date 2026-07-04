@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -84,6 +85,7 @@ type AciController struct {
 	fabricVlanPoolQueue    workqueue.RateLimitingInterface
 	netFabL3ConfigQueue    workqueue.RateLimitingInterface
 	remIpContQueue         workqueue.RateLimitingInterface
+	hppQueue               workqueue.RateLimitingInterface
 	epgDnCacheUpdateQueue  workqueue.RateLimitingInterface
 	aaepMonitorConfigQueue workqueue.RateLimitingInterface
 
@@ -136,6 +138,8 @@ type AciController struct {
 	proactiveConfInformer                cache.SharedIndexInformer
 	aaepMonitorInformer                  cache.SharedIndexInformer
 	poster                               *EventPoster
+	hppInformer                          cache.SharedIndexInformer
+	hppRemoteIpInformer                  cache.SharedIndexInformer
 
 	indexMutex sync.Mutex
 	hppMutex   sync.Mutex
@@ -186,6 +190,7 @@ type AciController struct {
 	nodeSyncEnabled     bool
 	serviceSyncEnabled  bool
 	snatSyncEnabled     bool
+	netPolSyncEnabled   atomic.Bool
 	syncQueue           workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 	serviceEndPoints    ServiceEndPointType
@@ -195,10 +200,14 @@ type AciController struct {
 	ctrPortNameCache map[string]*ctrPortNameEntry
 	// named networkPolicies
 	nmPortNp map[string]bool
-	//maps network policy hash to hpp
-	hppRef map[string]hppReference
-	//map for ns to remoteIpConts
-	nsRemoteIpCont map[string]remoteIpConts
+	//maps network policy hash to hpp (HPP-optimization, APIC path)
+	hppOptRef map[string]hppOptReference
+	//maps network policy hash to hpp CR (HPP-Direct path)
+	hppDirRef map[string]hppDirReference
+	// remoteIpCache maps RIC name (peer-selector hash) to sorted resolved IPs
+	remoteIpCache map[string][]string
+	// ricRefCount maps RIC name to the set of hppNames that reference it
+	ricRefCount map[string]map[string]bool
 	// cache to look for Epg DNs which are bound to Vmm domain
 	cachedEpgDns             []string
 	vmmClusterFaultSupported bool
@@ -273,12 +282,6 @@ type NfL3Data struct {
 	Nodes       map[int]fabattv1.FabricL3OutNode
 }
 
-// maps pod name to remoteIpCont
-type remoteIpConts map[string]remoteIpCont
-
-// remoteIpCont maps ip to pod labels
-type remoteIpCont map[string]map[string]string
-
 type NfcData struct {
 	Aeps map[string]bool
 	Epg  fabattv1.Epg
@@ -296,12 +299,23 @@ type globalVlanConfig struct {
 	SharedL3Dom   apicapi.ApicObject
 }
 
-type hppReference struct {
+// hppOptReference is the HPP-optimization (APIC) mode cache entry.
+// Keyed by aciNameForKey("np", CreateHashFromNetPol(np)).
+type hppOptReference struct {
 	RefCount       uint                       `json:"ref-count,omitempty"`
 	Npkeys         []string                   `json:"npkeys,omitempty"`
 	HppObj         apicapi.ApicSlice          `json:"hpp-obj,omitempty"`
+	NpIngressRules map[string]map[string]bool `json:"-"` // npKey → set of ingress rule names
+}
+
+// hppDirReference is the HPP-Direct (CR) mode cache entry.
+// Keyed by aciNameForKey("np", CreateCanonicalHashFromNetPol(np)).
+type hppDirReference struct {
+	RefCount       uint                       `json:"ref-count,omitempty"`
+	Npkeys         []string                   `json:"npkeys,omitempty"`
 	HppCr          hppv1.HostprotPol          `json:"hpp-cr,omitempty"`
 	NpIngressRules map[string]map[string]bool `json:"-"` // npKey → set of ingress rule names
+	RicNames       map[string]bool            `json:"-"` // set of RIC names referenced by rules
 }
 
 type DelayedEpSlice struct {
@@ -529,6 +543,7 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		fabricVlanPoolQueue:    createQueue("fabricvlanpool"),
 		netFabL3ConfigQueue:    createQueue("networkfabricl3configuration"),
 		remIpContQueue:         createQueue("remoteIpContainer"),
+		hppQueue:               createQueue("hostprotPol"),
 		epgDnCacheUpdateQueue:  createQueue("epgDnCache"),
 		aaepMonitorConfigQueue: createQueue("aaepepgmap"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
@@ -560,7 +575,6 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		crdHandlers:                 make(map[string]func(*AciController, <-chan struct{})),
 		ctrPortNameCache:            make(map[string]*ctrPortNameEntry),
 		nmPortNp:                    make(map[string]bool),
-		hppRef:                      make(map[string]hppReference),
 		additionalNetworkCache:      make(map[string]*AdditionalNetworkMeta),
 		sharedEncapCache:            make(map[int]*sharedEncapData),
 		sharedEncapAepCache:         make(map[string]map[int]bool),
@@ -576,8 +590,15 @@ func NewController(config *ControllerConfig, env Environment, log *logrus.Logger
 		fabricVlanPoolMap:           make(map[string]map[string]string),
 		openStackFabricPathDnMap:    make(map[string]openstackOpflexOdevInfo),
 		hostFabricPathDnMap:         make(map[string]hostFabricInfo),
-		nsRemoteIpCont:              make(map[string]remoteIpConts),
+		remoteIpCache:               make(map[string][]string),
 		sharedAaepMonitor:           make(map[string]map[string]*AaepEpgAttachData),
+	}
+	if config.HppOptimization {
+		cont.hppOptRef = make(map[string]hppOptReference)
+	}
+	if config.EnableHppDirect {
+		cont.hppDirRef = make(map[string]hppDirReference)
+		cont.ricRefCount = make(map[string]map[string]bool)
 	}
 	cont.syncProcessors = map[string]func() bool{
 		"snatGlobalInfo": cont.syncSnatGlobalInfo,
@@ -673,9 +694,8 @@ func (cont *AciController) processQueue(queue workqueue.RateLimitingInterface,
 	queue.ShutDown()
 }
 
-func (cont *AciController) processRemIpContQueue(queue workqueue.RateLimitingInterface,
-	handler func(interface{}) bool,
-	postDelHandler func() bool, stopCh <-chan struct{}) {
+func (cont *AciController) processReconcileQueue(queue workqueue.RateLimitingInterface,
+	handler func(string) bool, stopCh <-chan struct{}) {
 	go wait.Until(func() {
 		for {
 			key, quit := queue.Get()
@@ -691,9 +711,6 @@ func (cont *AciController) processRemIpContQueue(queue workqueue.RateLimitingInt
 				if handler != nil {
 					requeue = handler(key)
 				}
-				if postDelHandler != nil {
-					requeue = postDelHandler()
-				}
 			}
 			if requeue {
 				queue.AddRateLimited(key)
@@ -701,7 +718,6 @@ func (cont *AciController) processRemIpContQueue(queue workqueue.RateLimitingInt
 				queue.Forget(key)
 			}
 			queue.Done(key)
-
 		}
 	}, time.Second, stopCh)
 	<-stopCh
@@ -989,7 +1005,7 @@ func (cont *AciController) Run(stopCh <-chan struct{}) {
 					qs = append(qs, cont.netPolQueue)
 				}
 				if cont.config.EnableHppDirect {
-					qs = append(qs, cont.remIpContQueue)
+					qs = append(qs, cont.remIpContQueue, cont.hppQueue)
 				}
 				qs = append(qs, cont.qosQueue, cont.serviceQueue,
 					cont.snatQueue, cont.netflowQueue, cont.snatNodeInfoQueue,

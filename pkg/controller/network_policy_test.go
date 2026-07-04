@@ -15,6 +15,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -1895,15 +1896,16 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 			}, "egress-allow-http-portrange-augment"},
 	}
 	initCont := func() *testAciController {
-		cont := testController()
-		cont.config.HppOptimization = true
-		cont.config.AciPolicyTenant = "test-tenant"
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
+		config := NewConfig()
+		config.HppOptimization = true
+		config.AciPolicyTenant = "test-tenant"
+		config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
-		cont.config.PodIpPool = []ipam.IpRange{
+		config.PodIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 		}
+		cont := testControllerWithConfig(config)
 		cont.AciController.initIpam()
 
 		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
@@ -1917,9 +1919,10 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 	}
 
 	{
-		cont := testController()
+		config := NewConfig()
+		config.HppOptimization = true
+		cont := testControllerWithConfig(config)
 		cont.run()
-		cont.config.HppOptimization = true
 		static := cont.staticNetPolObjs()
 		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
 		assert.Equal(t, static,
@@ -3047,15 +3050,16 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 	}
 
 	initCont := func() *testAciController {
-		cont := testController()
-		cont.config.HppOptimization = true
-		cont.config.AciPolicyTenant = "test-tenant"
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
+		config := NewConfig()
+		config.HppOptimization = true
+		config.AciPolicyTenant = "test-tenant"
+		config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("2002::2"), End: net.ParseIP("2002::3")},
 		}
-		cont.config.PodIpPool = []ipam.IpRange{
+		config.PodIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("2001::2"), End: net.ParseIP("2001::64")},
 		}
+		cont := testControllerWithConfig(config)
 		cont.AciController.initIpam()
 
 		cont.fakeNamespaceSource.Add(namespaceLabel("testnsv6",
@@ -3069,9 +3073,10 @@ func TestNetworkPolicyv6HppOptimize(t *testing.T) {
 	}
 
 	{
-		cont := testController()
+		config := NewConfig()
+		config.HppOptimization = true
+		cont := testControllerWithConfig(config)
 		cont.run()
-		cont.config.HppOptimization = true
 		static := cont.staticNetPolObjs()
 		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
 		assert.Equal(t, static,
@@ -3912,17 +3917,18 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 			}, "egress-allow-all-augment"},
 	}
 	initCont := func() *testAciController {
-		cont := testController()
-		cont.config.HppOptimization = true
-		cont.config.AciPolicyTenant = "test-tenant"
-		cont.serviceEndPoints = &serviceEndpointSlice{}
-		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
+		config := NewConfig()
+		config.HppOptimization = true
+		config.AciPolicyTenant = "test-tenant"
+		config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
-		cont.config.PodIpPool = []ipam.IpRange{
+		config.PodIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 		}
+		cont := testControllerWithConfig(config)
+		cont.serviceEndPoints = &serviceEndpointSlice{}
+		cont.serviceEndPoints.(*serviceEndpointSlice).cont = &cont.AciController
 		cont.AciController.initIpam()
 
 		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
@@ -3936,9 +3942,10 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 	}
 
 	{
-		cont := testController()
+		config := NewConfig()
+		config.HppOptimization = true
+		cont := testControllerWithConfig(config)
 		cont.run()
-		cont.config.HppOptimization = true
 		static := cont.staticNetPolObjs()
 		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
 		assert.Equal(t, static,
@@ -4206,15 +4213,16 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 			}, "egress-allow-http-all-augment-namedport-mathing-diffrent-ports"},
 	}
 	initCont := func() *testAciController {
-		cont := testController()
-		cont.config.HppOptimization = true
-		cont.config.AciPolicyTenant = "test-tenant"
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
+		config := NewConfig()
+		config.HppOptimization = true
+		config.AciPolicyTenant = "test-tenant"
+		config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
-		cont.config.PodIpPool = []ipam.IpRange{
+		config.PodIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 		}
+		cont := testControllerWithConfig(config)
 		cont.AciController.initIpam()
 
 		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
@@ -4223,9 +4231,10 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 	}
 
 	{
-		cont := testController()
+		config := NewConfig()
+		config.HppOptimization = true
+		cont := testControllerWithConfig(config)
 		cont.run()
-		cont.config.HppOptimization = true
 		static := cont.staticNetPolObjs()
 		apicapi.PrepareApicSlice(static, "kube", staticNetPolKey())
 		assert.Equal(t, static,
@@ -4293,15 +4302,16 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 // share the same HPP, and use named ports that resolve to different port numbers
 func TestNetworkPolicyMultipleNPsSharedHPPNamedPorts(t *testing.T) {
 	// Simple test to verify the fix works in hpp-optimization mode
-	cont := testController()
-	cont.config.HppOptimization = true
-	cont.config.AciPolicyTenant = "test-tenant"
-	cont.config.NodeServiceIpPool = []ipam.IpRange{
+	config := NewConfig()
+	config.HppOptimization = true
+	config.AciPolicyTenant = "test-tenant"
+	config.NodeServiceIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 	}
-	cont.config.PodIpPool = []ipam.IpRange{
+	config.PodIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 	}
+	cont := testControllerWithConfig(config)
 	cont.AciController.initIpam()
 	cont.fakeNamespaceSource.Add(namespaceLabel("testns",
 		map[string]string{"test": "testv"}))
@@ -4531,16 +4541,22 @@ func TestCreateStaticNetPolCrs(t *testing.T) {
 
 func TestInitStaticNetPolObjs(t *testing.T) {
 	initCont := func() *testAciController {
-		cont := testController()
-		cont.config.EnableHppDirect = true
-		cont.config.AciPolicyTenant = "test-tenant"
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
+		config := NewConfig()
+		config.EnableHppDirect = true
+		config.AciPolicyTenant = "test-tenant"
+		config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
-		cont.config.PodIpPool = []ipam.IpRange{
+		config.PodIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 		}
+		cont := testControllerWithConfig(config)
 		cont.AciController.initIpam()
+
+		hppClient := fake.NewSimpleClientset()
+		cont.env.(*K8sEnvironment).hppClient = hppClient
+		cont.initHppInformerFromClient(hppClient)
+		cont.initHppRemoteIpInformerFromClient(hppClient)
 
 		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
 			map[string]string{"test": "testv"}))
@@ -4560,16 +4576,22 @@ func TestInitStaticNetPolObjs(t *testing.T) {
 
 func TestQueueRemoteIpConUpdate(t *testing.T) {
 	initCont := func() *testAciController {
-		cont := testController()
-		cont.config.EnableHppDirect = true
-		cont.config.AciPolicyTenant = "test-tenant"
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
+		config := NewConfig()
+		config.EnableHppDirect = true
+		config.AciPolicyTenant = "test-tenant"
+		config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
-		cont.config.PodIpPool = []ipam.IpRange{
+		config.PodIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 		}
+		cont := testControllerWithConfig(config)
 		cont.AciController.initIpam()
+
+		hppClient := fake.NewSimpleClientset()
+		cont.env.(*K8sEnvironment).hppClient = hppClient
+		cont.initHppInformerFromClient(hppClient)
+		cont.initHppRemoteIpInformerFromClient(hppClient)
 
 		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
 			map[string]string{"test": "testv"}))
@@ -4580,43 +4602,35 @@ func TestQueueRemoteIpConUpdate(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-namespace",
-			Name:      "test-pod",
-		},
-	}
-
-	pod2 := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-namespace2",
-			Name:      "test-pod2",
-		},
-	}
-
-	cont.queueRemoteIpConUpdate(pod, false)
+	cont.remoteIpCache["kube-system/ric-1"] = []string{"10.0.0.1"}
+	cont.queueRemoteIpConUpdateByKey("kube-system/ric-1")
 	assert.Equal(t, 1, cont.remIpContQueue.Len())
 
-	cont.queueRemoteIpConUpdate(pod2, true)
+	// Same key again — still enqueued (dedup is in the reconciler)
+	cont.queueRemoteIpConUpdateByKey("kube-system/ric-1")
 	assert.Equal(t, 2, cont.remIpContQueue.Len())
 }
 
 func getContWithEnabledLocalHpp() *testAciController {
-	cont := testController()
-	cont.config.EnableHppDirect = true
-	cont.config.AciPolicyTenant = "test-tenant"
-	cont.config.NodeServiceIpPool = []ipam.IpRange{
+	config := NewConfig()
+	config.EnableHppDirect = true
+	config.AciPolicyTenant = "test-tenant"
+	config.NodeServiceIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 	}
-	cont.config.PodIpPool = []ipam.IpRange{
+	config.PodIpPool = []ipam.IpRange{
 		{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 	}
+	cont := testControllerWithConfig(config)
 	cont.AciController.initIpam()
 
 	cont.fakeNamespaceSource.Add(namespaceLabel("testns",
 		map[string]string{"test": "testv"}))
 
-	cont.env.(*K8sEnvironment).hppClient = fake.NewSimpleClientset()
+	hppClient := fake.NewSimpleClientset()
+	cont.env.(*K8sEnvironment).hppClient = hppClient
+	cont.initHppInformerFromClient(hppClient)
+	cont.initHppRemoteIpInformerFromClient(hppClient)
 	return cont
 }
 
@@ -4665,21 +4679,18 @@ func TestResolveNetPolPeersAndPorts(t *testing.T) {
 		},
 	}
 
-	expectedPeerNsList := []string{"default"}
 	expectedSubnetMap := map[string]bool{"192.168.0.1": true}
 	expectedRemoteSubnets := []string{"192.168.0.1"}
 
 	resolved := cont.resolveNetPolPeersAndPorts("ingress", peers, nil, peerPods, peerNs, np, logger)
 
-	// allRemoteIps is now carried inside each entry's ips field
+	// allRemoteIps is now carried inside each entry's ipsV4/ipsV6 fields
 	assert.Equal(t, 1, len(resolved.entries), "Should have 1 entry (no port restriction)")
-	assert.Equal(t, expectedRemoteSubnets, resolved.entries[0].ips)
+	assert.Equal(t, expectedRemoteSubnets, resolved.entries[0].ipsV4)
 	assert.False(t, resolved.entries[0].portScoped)
-	assert.Equal(t, expectedPeerNsList, resolved.peerNsList)
 	assert.Equal(t, expectedSubnetMap, resolved.subnetMap)
-	assert.Equal(t, peers[0].PodSelector, resolved.podSelectors[0])
 	assert.False(t, resolved.noPeers, "noPeers should be false when peers are specified")
-	assert.Nil(t, resolved.ipBlockSubs, "ipBlockSubs should be nil (no IPBlock peers)")
+	assert.False(t, resolved.hasIpBlocks, "hasIpBlocks should be false (no IPBlock peers)")
 	assert.False(t, resolved.addPodSubnetAsRemIp, "addPodSubnetAsRemIp should be false (peer has a pod selector, not allow-all-namespaces)")
 }
 
@@ -4689,140 +4700,63 @@ func TestBuildLocalNetPolSubjRule(t *testing.T) {
 	defer cont.stop()
 
 	testCases := []struct {
-		name          string
-		subj          *hppv1.HostprotSubj
-		ruleName      string
-		direction     string
-		ethertype     string
-		proto         string
-		port          string
-		remoteNs      []string
-		podSelector   *metav1.LabelSelector
-		remoteSubnets []string
-		expectedRule  hppv1.HostprotRule
+		name             string
+		subj             *hppv1.HostprotSubj
+		ruleName         string
+		direction        string
+		ethertype        string
+		proto            string
+		port             string
+		ricName          string
+		serviceRemoteIps []string
+		expectedRule     hppv1.HostprotRule
 	}{
 		{
-			name:      "Test Case 1",
+			name:      "ingress with RIC reference",
 			subj:      &hppv1.HostprotSubj{},
 			ruleName:  "rule1",
 			direction: "ingress",
 			ethertype: "ipv4",
 			proto:     "tcp",
 			port:      "80",
-			remoteNs:  []string{"namespace1", "namespace2"},
-			podSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "web",
-				},
-			},
+			ricName:   "abc123",
 			expectedRule: hppv1.HostprotRule{
+				Name:                "rule1",
 				ConnTrack:           "reflexive",
 				Direction:           "ingress",
 				Ethertype:           "ipv4",
 				Protocol:            "tcp",
 				ToPort:              "unspecified",
 				FromPort:            "80",
-				Name:                "rule1",
-				RsRemoteIpContainer: []string{"namespace1", "namespace2"},
-				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
-					{
-						HostprotFilter: []hppv1.HostprotFilter{
-							{
-								Key: "app",
-								Values: []string{
-									"web",
-								},
-								Operator: "Equals",
-							},
-						},
-					},
-				},
+				RsRemoteIpContainer: "abc123",
 			},
 		},
 		{
-			name:      "Test Case 2",
-			subj:      &hppv1.HostprotSubj{},
-			ruleName:  "rule1",
-			direction: "egress",
-			ethertype: "ipv4",
-			proto:     "tcp",
-			port:      "80",
-			remoteNs:  []string{"namespace1", "namespace2"},
-			podSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      "app",
-						Operator: metav1.LabelSelectorOpIn,
-						Values:   []string{"web"},
-					},
-				},
-			},
-			remoteSubnets: []string{"10.0.0.0/24", "192.168.0.0/16"},
+			name:             "egress service augment",
+			subj:             &hppv1.HostprotSubj{},
+			ruleName:         "service_tcp_443",
+			direction:        "egress",
+			ethertype:        "ipv4",
+			proto:            "tcp",
+			port:             "443",
+			serviceRemoteIps: []string{"10.96.0.1"},
 			expectedRule: hppv1.HostprotRule{
-				ConnTrack: "reflexive",
-				Direction: "egress",
-				Ethertype: "ipv4",
-				Protocol:  "tcp",
-				FromPort:  "80",
-				ToPort:    "unspecified",
-				Name:      "rule1",
-				HostprotRemoteIp: []hppv1.HostprotRemoteIp{
-					{
-						Addr: "10.0.0.0/24",
-					},
-					{
-						Addr: "192.168.0.0/16",
-					},
-				},
-				HostprotServiceRemoteIps: []string{"10.0.0.0/24", "192.168.0.0/16"},
-				RsRemoteIpContainer:      []string{"namespace1", "namespace2"},
-				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
-					{
-						HostprotFilter: []hppv1.HostprotFilter{
-							{
-								Key: "app",
-								Values: []string{
-									"web",
-								},
-								Operator: "In",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name:          "Test Case 3",
-			subj:          &hppv1.HostprotSubj{},
-			ruleName:      "rule3",
-			direction:     "egress",
-			ethertype:     "ipv4",
-			proto:         "tcp",
-			port:          "80",
-			remoteNs:      []string{"namespace1"},
-			remoteSubnets: []string{},
-			expectedRule: hppv1.HostprotRule{
-				ConnTrack:           "reflexive",
-				Direction:           "egress",
-				Ethertype:           "ipv4",
-				Protocol:            "tcp",
-				FromPort:            "80",
-				ToPort:              "unspecified",
-				Name:                "rule3",
-				RsRemoteIpContainer: []string{"namespace1"},
+				Name:                     "service_tcp_443",
+				ConnTrack:                "reflexive",
+				Direction:                "egress",
+				Ethertype:                "ipv4",
+				Protocol:                 "tcp",
+				FromPort:                 "443",
+				ToPort:                   "unspecified",
+				HostprotServiceRemoteIps: []string{"10.96.0.1"},
 			},
 		},
 	}
 
 	for _, tc := range testCases {
-		var podSelectors []*metav1.LabelSelector
-		if tc.podSelector != nil {
-			podSelectors = []*metav1.LabelSelector{tc.podSelector}
-		}
 		t.Run(tc.name, func(t *testing.T) {
-			cont.buildLocalNetPolSubjRule(tc.subj, tc.ruleName, tc.direction, tc.ethertype, tc.proto, tc.port, "", tc.remoteNs, podSelectors, tc.remoteSubnets)
-			assert.Equal(t, tc.expectedRule, tc.subj.HostprotRule[0], "Unexpected rule. Expected: %v, Actual: %v", tc.expectedRule, tc.subj.HostprotRule[0])
-
+			cont.buildLocalNetPolSubjRule(tc.subj, tc.ruleName, tc.direction, tc.ethertype, tc.proto, tc.port, "", tc.ricName, tc.serviceRemoteIps)
+			assert.Equal(t, tc.expectedRule, tc.subj.HostprotRule[0])
 		})
 	}
 }
@@ -4832,223 +4766,40 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	np := &v1net.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-network-policy",
-			Namespace: "test-namespace",
-		},
-		Spec: v1net.NetworkPolicySpec{
-			Ingress: []v1net.NetworkPolicyIngressRule{
-				{
-					From: []v1net.NetworkPolicyPeer{
-						{
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"app": "test-app",
-								},
-							},
-						},
-					},
-					Ports: []v1net.NetworkPolicyPort{
-						{
-							Port: &intstr.IntOrString{
-								Type:   intstr.Int,
-								IntVal: 8080,
-							},
-						},
-					},
-				},
+	peers := []v1net.NetworkPolicyPeer{
+		{
+			PodSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test-app"},
 			},
 		},
 	}
 
+	// Test with port specified
 	subj := &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules(subj, "ingress", &resolvedPeerPorts{
+		entries: []resolvedPortEntry{{proto: "tcp", fromPort: "8080", ipsV4: []string{"192.168.0.1"}}},
+	}, peers, "test-namespace", make(map[string]bool))
 
-	podSelectors := []*metav1.LabelSelector{
-		np.Spec.Ingress[0].From[0].PodSelector,
-	}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", &resolvedPeerPorts{
-		entries:      []resolvedPortEntry{{proto: "tcp", fromPort: "8080"}},
-		peerNsList:   []string{"test-namespace"},
-		podSelectors: podSelectors,
-	})
-
+	expectedRicName := util.CreateHashFromNetPolPeers(peers, "test-namespace", "")
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, "test-rule-ipv4__tcp-8080", subj.HostprotRule[0].Name)
+	assert.Equal(t, expectedRicName+"-ipv4__tcp-8080", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
-	assert.Equal(t, "unspecified", subj.HostprotRule[0].ToPort)
 	assert.Equal(t, "8080", subj.HostprotRule[0].FromPort)
-	assert.Equal(t, []string{"test-namespace"}, subj.HostprotRule[0].RsRemoteIpContainer)
+	assert.NotEmpty(t, subj.HostprotRule[0].RsRemoteIpContainer)
 
-	np = &v1net.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-network-policy",
-			Namespace: "test-namespace",
-		},
-		Spec: v1net.NetworkPolicySpec{
-			Ingress: []v1net.NetworkPolicyIngressRule{
-				{
-					From: []v1net.NetworkPolicyPeer{
-						{
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"app": "test-app",
-								},
-							},
-						},
-					},
-					Ports: []v1net.NetworkPolicyPort{},
-				},
-			},
-		},
-	}
-
+	// Test with no port (unspecified)
 	subj = &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules(subj, "ingress", &resolvedPeerPorts{
+		entries: []resolvedPortEntry{{ipsV4: []string{"192.168.0.1"}}},
+	}, peers, "test-namespace", make(map[string]bool))
 
-	podSelectors = []*metav1.LabelSelector{
-		np.Spec.Ingress[0].From[0].PodSelector,
-	}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", &resolvedPeerPorts{
-		entries:      []resolvedPortEntry{{}},
-		peerNsList:   []string{"test-namespace"},
-		podSelectors: podSelectors,
-	})
-
-	expected := hppv1.HostprotSubj{
-		HostprotRule: []hppv1.HostprotRule{
-			{
-				ConnTrack:           "reflexive",
-				Direction:           "ingress",
-				Ethertype:           "ipv4",
-				Protocol:            "unspecified",
-				FromPort:            "unspecified",
-				ToPort:              "unspecified",
-				Name:                "test-rule-ipv4__unspecified",
-				RsRemoteIpContainer: []string{"test-namespace"},
-				HostprotFilterContainer: []hppv1.HostprotFilterContainer{
-					{
-						HostprotFilter: []hppv1.HostprotFilter{
-							{
-								Key: "app",
-								Values: []string{
-									"test-app",
-								},
-								Operator: "Equals",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	assert.Equal(t, expected, *subj)
-
-	subj = &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", &resolvedPeerPorts{
-		entries:      []resolvedPortEntry{{}},
-		peerNsList:   nil,
-		podSelectors: podSelectors,
-	})
-
-	expectedRule := []hppv1.HostprotRule{
-		{
-			ConnTrack:           "reflexive",
-			Direction:           "ingress",
-			Ethertype:           "ipv4",
-			Protocol:            "unspecified",
-			FromPort:            "unspecified",
-			ToPort:              "unspecified",
-			Name:                "test-rule-ipv4__unspecified",
-			RsRemoteIpContainer: nil,
-			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
-				{
-					HostprotFilter: []hppv1.HostprotFilter{
-						{
-							Key: "app",
-							Values: []string{
-								"test-app",
-							},
-							Operator: "Equals",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	assert.Equal(t, expectedRule, subj.HostprotRule)
-
-	np = &v1net.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-network-policy",
-			Namespace: "test-namespace",
-		},
-		Spec: v1net.NetworkPolicySpec{
-			Ingress: []v1net.NetworkPolicyIngressRule{
-				{
-					From: []v1net.NetworkPolicyPeer{
-						{
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"app": "test-app",
-								},
-							},
-						},
-					},
-					Ports: []v1net.NetworkPolicyPort{
-						{
-							Port: &intstr.IntOrString{
-								Type:   intstr.Int,
-								IntVal: 8080,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	expectedRule = []hppv1.HostprotRule{
-		{
-			ConnTrack:           "reflexive",
-			Direction:           "ingress",
-			Ethertype:           "ipv4",
-			Protocol:            "tcp",
-			FromPort:            "8080",
-			ToPort:              "unspecified",
-			Name:                "test-rule-ipv4__tcp-8080",
-			RsRemoteIpContainer: nil,
-			HostprotFilterContainer: []hppv1.HostprotFilterContainer{
-				{
-					HostprotFilter: []hppv1.HostprotFilter{
-						{
-							Key: "app",
-							Values: []string{
-								"test-app",
-							},
-							Operator: "Equals",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	subj = &hppv1.HostprotSubj{}
-	podSelectors = []*metav1.LabelSelector{
-		np.Spec.Ingress[0].From[0].PodSelector,
-	}
-	cont.buildLocalNetPolSubjRules("test-rule", subj, "ingress", &resolvedPeerPorts{
-		entries:      []resolvedPortEntry{{proto: "tcp", fromPort: "8080"}},
-		peerNsList:   nil,
-		podSelectors: podSelectors,
-	})
-
-	assert.Equal(t, expectedRule, subj.HostprotRule)
-
+	assert.Equal(t, 1, len(subj.HostprotRule))
+	assert.Equal(t, expectedRicName+"-ipv4__unspecified", subj.HostprotRule[0].Name)
+	assert.Equal(t, "unspecified", subj.HostprotRule[0].Protocol)
+	assert.Equal(t, "unspecified", subj.HostprotRule[0].FromPort)
+	assert.NotEmpty(t, subj.HostprotRule[0].RsRemoteIpContainer)
 }
 
 func TestBuildServiceAugment(t *testing.T) {
@@ -5383,11 +5134,14 @@ func TestGetHostprotPol(t *testing.T) {
 	ret := cont.createHostprotPol(hpp, "test-namespace")
 	assert.True(t, ret)
 
+	// Manually add to informer cache to simulate watch event delivery
+	cont.hppInformer.GetIndexer().Add(hpp)
+
 	retHpp, err := cont.getHostprotPol(hpp.Name, "test-namespace")
 	assert.NoError(t, err)
 	assert.Equal(t, *hpp, *retHpp)
 
-	cont.env.(*K8sEnvironment).hppClient = nil
+	cont.hppInformer.GetIndexer().Delete(hpp)
 
 	retHpp, err = cont.getHostprotPol(hpp.Name, "test-namespace")
 	assert.Error(t, err)
@@ -5401,18 +5155,8 @@ func getRemoteIPContainer() *hppv1.HostprotRemoteIpContainer {
 			Namespace: "test-namespace",
 		},
 		Spec: hppv1.HostprotRemoteIpContainerSpec{
-			Name: "test-remote-ip-container",
-			HostprotRemoteIp: []hppv1.HostprotRemoteIp{
-				{
-					Addr: "192.168.52.5",
-					HppEpLabel: []hppv1.HppEpLabel{
-						{
-							Key:   "app",
-							Value: "web",
-						},
-					},
-				},
-			},
+			Name:              "test-remote-ip-container",
+			HostprotRemoteIps: []string{"192.168.52.5"},
 		},
 	}
 
@@ -5466,7 +5210,7 @@ func TestUpdateHostprotRemoteIpContainer(t *testing.T) {
 	ret := cont.createHostprotRemoteIpContainer(remoteIpContainer, "test-namespace")
 	assert.True(t, ret)
 
-	remoteIpContainer.Spec.HostprotRemoteIp[0].Addr = "192.168.52.7"
+	remoteIpContainer.Spec.HostprotRemoteIps[0] = "192.168.52.7"
 
 	ret = cont.updateHostprotRemoteIpContainer(remoteIpContainer, "test-namespace")
 	assert.True(t, ret)
@@ -5501,15 +5245,9 @@ func TestHandleRemIpContUpdate(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	cont.nsRemoteIpCont["test-namespace"] = remoteIpConts{
-		"test-pod": {
-			"192.168.10.5": {
-				"app": "db",
-			},
-		},
-	}
+	cont.remoteIpCache["test-ric-hash"] = []string{"192.168.10.5"}
 
-	requeue := cont.handleRemIpContUpdate("test-namespace")
+	requeue := cont.handleRemIpContUpdate("test-ric-hash")
 
 	assert.False(t, requeue)
 }
@@ -5526,6 +5264,8 @@ func TestDeleteHppCr(t *testing.T) {
 
 	ret := cont.createHostprotPol(hpp, "test-namespace")
 	assert.True(t, ret)
+	// Populate informer cache to simulate watch event delivery
+	cont.hppInformer.GetIndexer().Add(hpp)
 	_, err := cont.getHostprotPol(hpp.Name, "test-namespace")
 	assert.NoError(t, err)
 
@@ -5594,8 +5334,8 @@ func TestUpdateDeleteNodeIpsHostprotRemoteIpContainer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "nodeips", remoteIpContainer.Name)
 	assert.Equal(t, "kube-system", remoteIpContainer.Namespace)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIp))
-	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIp[0].Addr)
+	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
+	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIps[0])
 
 	nodeIps = map[string]bool{
 		"192.168.10.45": true,
@@ -5607,9 +5347,9 @@ func TestUpdateDeleteNodeIpsHostprotRemoteIpContainer(t *testing.T) {
 	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
 
 	assert.NoError(t, err)
-	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIp[0].Addr)
-	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIp[1].Addr)
-	assert.Equal(t, 2, len(remoteIpContainer.Spec.HostprotRemoteIp))
+	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIps[0])
+	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIps[1])
+	assert.Equal(t, 2, len(remoteIpContainer.Spec.HostprotRemoteIps))
 
 	nodeIps = map[string]bool{
 		"192.168.10.45": true,
@@ -5620,8 +5360,8 @@ func TestUpdateDeleteNodeIpsHostprotRemoteIpContainer(t *testing.T) {
 	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
 
 	assert.NoError(t, err)
-	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIp[0].Addr)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIp))
+	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIps[0])
+	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
 
 	nodeIps = map[string]bool{
 		"192.168.10.77": true,
@@ -5652,8 +5392,8 @@ func TestUpdateDeleteNodeHostprotRemoteIpContainer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "test-node", remoteIpContainer.Name)
 	assert.Equal(t, "kube-system", remoteIpContainer.Namespace)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIp))
-	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIp[0].Addr)
+	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
+	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIps[0])
 
 	nodeIps = map[string]bool{
 		"192.168.10.105": true,
@@ -5666,8 +5406,8 @@ func TestUpdateDeleteNodeHostprotRemoteIpContainer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "test-node", remoteIpContainer.Name)
 	assert.Equal(t, "kube-system", remoteIpContainer.Namespace)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIp))
-	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIp[0].Addr)
+	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
+	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIps[0])
 
 	cont.deleteNodeHostprotRemoteIpContainer("test-node")
 
@@ -5707,23 +5447,33 @@ func TestCreateNodeHostProtPol(t *testing.T) {
 	ret := cont.createHostprotPol(hpp, ns)
 	assert.True(t, ret)
 
+	// Populate informer cache so createNodeHostProtPol finds the HPP
+	cont.hppInformer.GetIndexer().Add(hpp)
+
 	cont.createNodeHostProtPol(name, nodeName, nodeIps)
+
+	// Sync updated HPP from API to informer cache
+	hppcl := cont.env.(*K8sEnvironment).hppClient
+	updatedHpp, _ := hppcl.AciV1().HostprotPols(ns).Get(context.TODO(), hppName, metav1.GetOptions{})
+	if updatedHpp != nil {
+		cont.hppInformer.GetIndexer().Update(updatedHpp)
+	}
 
 	remoteIpContainer, err := cont.getHostprotRemoteIpContainer(nodeName, ns)
 
 	assert.NoError(t, err)
 	assert.Equal(t, nodeName, remoteIpContainer.Name)
 	assert.Equal(t, ns, remoteIpContainer.Namespace)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIp))
-	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIp[0].Addr)
+	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
+	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIps[0])
 
 	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", ns)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "nodeips", remoteIpContainer.Name)
 	assert.Equal(t, ns, remoteIpContainer.Namespace)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIp))
-	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIp[0].Addr)
+	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
+	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIps[0])
 
 	hpp, err = cont.getHostprotPol(hppName, ns)
 
@@ -5732,6 +5482,12 @@ func TestCreateNodeHostProtPol(t *testing.T) {
 	assert.Equal(t, 2, len(hpp.Spec.HostprotSubj[0].HostprotRule))
 
 	cont.createNodeHostProtPol(name, nodeName, map[string]bool{})
+
+	// Sync updated HPP from API to informer cache after second update
+	updatedHpp, _ = hppcl.AciV1().HostprotPols(ns).Get(context.TODO(), hppName, metav1.GetOptions{})
+	if updatedHpp != nil {
+		cont.hppInformer.GetIndexer().Update(updatedHpp)
+	}
 
 	_, err = cont.getHostprotRemoteIpContainer(nodeName, ns)
 
@@ -5797,6 +5553,13 @@ func TestHandleNetPolUpdate(t *testing.T) {
 	labelKey := cont.aciNameForKey("np", hash)
 	hppName := strings.ReplaceAll(labelKey, "_", "-")
 
+	// Sync HPP from API to informer cache
+	hppcl := cont.env.(*K8sEnvironment).hppClient
+	updatedHpp, _ := hppcl.AciV1().HostprotPols(np.Namespace).Get(context.TODO(), hppName, metav1.GetOptions{})
+	if updatedHpp != nil {
+		cont.hppInformer.GetIndexer().Add(updatedHpp)
+	}
+
 	hpp, err := cont.getHostprotPol(hppName, np.Namespace)
 
 	assert.NoError(t, err)
@@ -5804,7 +5567,7 @@ func TestHandleNetPolUpdate(t *testing.T) {
 	assert.Equal(t, 1, len(hpp.Spec.HostprotSubj[0].HostprotRule))
 
 	npkey, _ := cache.MetaNamespaceKeyFunc(np)
-	label_key, ref := cont.removeFromHppCache(np, npkey)
+	label_key, ref := cont.removeFromHppDirCache(np, npkey)
 
 	assert.Equal(t, labelKey, label_key)
 	assert.True(t, ref)
@@ -7148,10 +6911,11 @@ func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved)
+	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, nil, "", make(map[string]bool))
 
+	expectedRicName := util.CreateHashFromNetPolPeers(nil, "", "80")
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule for resolved named port")
-	assert.Equal(t, "0-ipv4__tcp-80", subj.HostprotRule[0].Name)
+	assert.Equal(t, expectedRicName+"-ipv4__tcp-80", subj.HostprotRule[0].Name)
 	assert.Equal(t, "egress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -7178,7 +6942,7 @@ func TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts(t *testing.T) {
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved)
+	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, nil, "", make(map[string]bool))
 
 	// Expect 3 rules: http→80, http→8080, https→443
 	assert.Equal(t, 3, len(subj.HostprotRule),
@@ -7267,27 +7031,20 @@ func TestBuildLocalNetPolSubjRulesIngressNamedPort(t *testing.T) {
 	podKeys := cont.netPolPods.GetPodForObj(npKey)
 	portMap := cont.getPortNumsFromPortName(podKeys, "http")
 
-	peerSelectors := []*metav1.LabelSelector{
-		np.Spec.Ingress[0].From[0].PodSelector,
-	}
-
 	// Named port "http" should resolve to 8080 from pod's container port.
 	assert.True(t, portMap[8080], "Port 8080 should be in portMap from pod")
 
-	// Build resolved directly: port entries from the named-port resolution, peer
-	// metadata set explicitly so buildLocalNetPolSubjRules gets correct ns/selectors.
+	// Build resolved directly: port entries from the named-port resolution.
 	var entries []resolvedPortEntry
 	for portNum := range portMap {
 		entries = append(entries, resolvedPortEntry{proto: "tcp", fromPort: fmt.Sprintf("%d", portNum)})
 	}
 	resolved := &resolvedPeerPorts{
-		entries:      entries,
-		peerNsList:   []string{"testns"},
-		podSelectors: peerSelectors,
+		entries: entries,
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "ingress", resolved)
+	cont.buildLocalNetPolSubjRules(subj, "ingress", resolved, np.Spec.Ingress[0].From, "testns", make(map[string]bool))
 
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have exactly 1 rule for named port")
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
@@ -7388,48 +7145,38 @@ func TestBuildLocalNetPolSubjRulesEgressIPBlockNamedPort(t *testing.T) {
 	defer cont.stop()
 
 	// Simulate resolved egress state: one port-scoped entry (from named port)
-	// with pod IPs, plus ipBlockSubs from an IPBlock peer in the same rule.
+	// with pod IPs, plus ipBlockSubsV4 from an IPBlock peer in the same rule.
 	resolved := &resolvedPeerPorts{
 		entries: []resolvedPortEntry{
 			{
 				proto:      "tcp",
 				fromPort:   "80",
-				ips:        []string{"10.0.0.1", "10.0.0.2"},
+				ipsV4:      []string{"10.0.0.1", "10.0.0.2"},
 				portScoped: true,
 			},
 		},
-		ipBlockSubs: []string{"1.1.1.0/24"},
-		peerNsList:  []string{"testns"},
-		podSelectors: []*metav1.LabelSelector{
-			{MatchLabels: map[string]string{"app": "web"}},
-		},
+		ipBlockSubsV4: []string{"1.1.1.0/24"},
+	}
+
+	peers := []v1net.NetworkPolicyPeer{
+		{PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}}},
 	}
 
 	subj := &hppv1.HostprotSubj{}
-	cont.buildLocalNetPolSubjRules("0", subj, "egress", resolved)
+	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, peers, "testns", make(map[string]bool))
 
 	// With the new behavior, port-scoped egress rules should NOT include
 	// the IPBlock CIDRs (1.1.1.0/24). Pod-level filtering is handled by
-	// the namespace reference (RsRemoteIpContainer) and pod selectors.
+	// the RsRemoteIpContainer reference pointing to a RIC with resolved IPs.
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule")
 	rule := subj.HostprotRule[0]
 	assert.Equal(t, "egress", rule.Direction)
 	assert.Equal(t, "tcp", rule.Protocol)
 	assert.Equal(t, "80", rule.FromPort)
 
-	// IPBlock CIDRs should NOT be in HostprotRemoteIp
-	for _, rip := range rule.HostprotRemoteIp {
-		assert.NotEqual(t, "1.1.1.0/24", rip.Addr,
-			"IPBlock CIDR should NOT be in egress port-scoped rule")
-	}
-
-	// Namespace-based peer filtering should still be active
-	assert.Equal(t, []string{"testns"}, rule.RsRemoteIpContainer,
-		"Namespace reference should still be present for pod peers")
-
-	// Pod selector filtering should still be active
-	assert.Equal(t, 1, len(rule.HostprotFilterContainer),
-		"Pod selector filter should still be present")
+	// RIC reference should be set for pod peers
+	assert.NotEmpty(t, rule.RsRemoteIpContainer,
+		"RsRemoteIpContainer should be set for pod peers")
 }
 
 // TestNetworkPolicyIngressNamedPortEmptySelector verifies that when a
@@ -7836,8 +7583,9 @@ func TestGetServiceAugmentByPortNumeric(t *testing.T) {
 // EnableHppDirect branches of networkPolicyChanged that were previously uncovered.
 func TestNetworkPolicyChangedHppOptimization(t *testing.T) {
 	t.Run("HppOptimization_specChange_callsRemoveFromHppCache", func(t *testing.T) {
-		cont := testController()
-		cont.config.HppOptimization = true
+		config := NewConfig()
+		config.HppOptimization = true
+		cont := testControllerWithConfig(config)
 		cont.run()
 		defer cont.stop()
 

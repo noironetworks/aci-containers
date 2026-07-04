@@ -136,7 +136,12 @@ func NewK8sEnvironment(config *ControllerConfig, log *logrus.Logger) (*K8sEnviro
 		log.Debug("Failed to intialize AciIstio client")
 		return nil, err
 	}
-	hppClient, err := hppclset.NewForConfig(restconfig)
+	// HPP clients use a higher, bounded rate limit than the default
+	// (QPS=5/Burst=10) so CR reconciliation isn't self-throttled under load.
+	hppConfig := restclient.CopyConfig(restconfig)
+	hppConfig.QPS = 50
+	hppConfig.Burst = 100
+	hppClient, err := hppclset.NewForConfig(hppConfig)
 	if err != nil {
 		log.Debug("Failed to intialize hpp client")
 		return nil, err
@@ -224,6 +229,10 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 		cont.initSnatLocalInfoInformerFromClient(env.snatLocalInfoClient)
 		cont.initRdConfigInformerFromClient(env.rdConfigClient)
 		cont.initSnatCfgFromClient(kubeClient)
+		if cont.config.EnableHppDirect && !cont.config.DisableHppRendering {
+			cont.initHppInformerFromClient(env.hppClient)
+			cont.initHppRemoteIpInformerFromClient(env.hppClient)
+		}
 		if cont.config.InstallIstio {
 			/* Commenting code to remove dependency from istio.io/istio package.
 			   Vulnerabilties were detected by quay.io security scan of aci-containers-controller
@@ -278,6 +287,10 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	go cont.namespaceInformer.Run(stopCh)
+	if !cont.isCNOEnabled() && !cont.config.DisableHppRendering && cont.config.EnableHppDirect {
+		go cont.hppInformer.Run(stopCh)
+		go cont.hppRemoteIpInformer.Run(stopCh)
+	}
 	cont.log.Info("Waiting for node/namespace cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.nodeInformer.HasSynced, cont.namespaceInformer.HasSynced)
@@ -340,16 +353,23 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		}, nil, nil, stopCh)
 	if !cont.isCNOEnabled() {
 		if !cont.config.DisableHppRendering {
+			if cont.config.EnableHppDirect {
+				cache.WaitForCacheSync(stopCh, cont.hppInformer.HasSynced, cont.hppRemoteIpInformer.HasSynced)
+			}
 			go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
 				func(obj interface{}) bool {
 					return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 				}, nil, nil, stopCh)
-		}
-		if cont.config.EnableHppDirect {
-			go cont.processRemIpContQueue(cont.remIpContQueue,
-				func(obj interface{}) bool {
-					return cont.handleRemIpContUpdate(obj.(string))
-				}, nil, stopCh)
+			if cont.config.EnableHppDirect {
+				go cont.processReconcileQueue(cont.remIpContQueue,
+					func(key string) bool {
+						return cont.handleRemIpContUpdate(key)
+					}, stopCh)
+				go cont.processReconcileQueue(cont.hppQueue,
+					func(key string) bool {
+						return cont.handleHppUpdate(key)
+					}, stopCh)
+			}
 		}
 		go cont.processEpgDnCacheUpdateQueue(cont.epgDnCacheUpdateQueue,
 			func(obj interface{}) bool {
@@ -414,6 +434,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 
 	if !cont.isCNOEnabled() && !cont.config.DisableHppRendering {
 		cache.WaitForCacheSync(stopCh, cont.networkPolicyInformer.HasSynced)
+		cont.netPolSyncEnabled.Store(true)
 	}
 
 	cont.log.Info("Cache sync successful")

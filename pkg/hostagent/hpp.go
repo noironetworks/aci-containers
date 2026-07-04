@@ -239,9 +239,9 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 				Children: []map[string]HpSubjGrandchild{},
 			}
 
-			hostprotServiceRemoteIps := rule.HostprotServiceRemoteIps
+			hostprotServiceRemoteIps := rule.HostprotServiceRemoteIps //svc aug
 
-			if len(hostprotServiceRemoteIps) > 0 {
+			if len(hostprotServiceRemoteIps) > 0 { // svc aug implies no pod/ns selectors
 				for _, remoteIp := range hostprotServiceRemoteIps {
 					hpSubnet := &HpSubjGrandchild{
 						Attributes: map[string]string{
@@ -272,7 +272,7 @@ func (agent *HostAgent) updateLocalHpp(obj interface{}) {
 					}
 				}
 
-				for _, hostprotRemoteIp := range rule.HostprotRemoteIp {
+				for _, hostprotRemoteIp := range rule.HostprotRemoteIp { // ip blocks
 					hpSubnet := &HpSubjGrandchild{
 						Attributes: map[string]string{
 							"addr": hostprotRemoteIp.Addr,
@@ -336,7 +336,7 @@ func (agent *HostAgent) syncLocalHppMo() bool {
 		pods := agent.netPolPods.GetPodForObj(npkey)
 
 		if len(pods) > 0 {
-			hash, err := util.CreateHashFromNetPol(np)
+			hash, err := util.CreateCanonicalHashFromNetPol(np)
 			if err != nil {
 				agent.log.Error("Failed to create hash for network policy ", npkey)
 				return true

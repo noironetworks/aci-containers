@@ -69,9 +69,6 @@ type GetKeyFunc func(interface{}) (string, error)
 // Callback function for SetPodUpdateCallback or SetObjUpdateCallback
 type UpdateFunc func(key string)
 
-// Callback function for SetRemIpUpdateCallback
-type RemIpUpdateFunc func(pod *v1.Pod, deleted bool)
-
 // Calculate a hash over pod fields to detect pod changes that should
 // trigger an update
 type PodHashFunc func(pod *v1.Pod) string
@@ -95,8 +92,6 @@ type PodSelectorIndex struct {
 	updatePod   UpdateFunc
 	updateObj   UpdateFunc
 	podHashFunc PodHashFunc
-
-	updateRemIpCont RemIpUpdateFunc
 
 	indexMutex sync.Mutex
 
@@ -142,12 +137,6 @@ func (i *PodSelectorIndex) SetPodUpdateCallback(updatePod UpdateFunc) {
 // object change
 func (i *PodSelectorIndex) SetObjUpdateCallback(updateObj UpdateFunc) {
 	i.updateObj = updateObj
-}
-
-// Set a callback that will be called whenever pod selected by
-// network policy change
-func (i *PodSelectorIndex) SetRemIpUpdateCallback(updateRemIpCont RemIpUpdateFunc) {
-	i.updateRemIpCont = updateRemIpCont
 }
 
 // Set a function to compute a hash over pod fields.  When the pod
@@ -272,10 +261,6 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 
 	i.updateObjs(updatedObjs)
 
-	if i.updateRemIpCont != nil {
-		i.updateRemIpCont(pod, false)
-	}
-
 	return podUpdated
 }
 
@@ -302,10 +287,6 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 		delete(i.podIndex, podkey)
 	}
 	i.indexMutex.Unlock()
-
-	if i.updateRemIpCont != nil {
-		i.updateRemIpCont(pod, true)
-	}
 
 	i.updateObjs(updatedObjs)
 }

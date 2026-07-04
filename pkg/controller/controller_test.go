@@ -68,21 +68,16 @@ func TestProcessRemIpContQueue(t *testing.T) {
 	}()
 
 	fake_chan := make(chan string)
-	fake_del_chan := make(chan string)
-	fake_handler := func(s interface{}) bool {
+	fake_handler := func(s string) bool {
 		fake_chan <- "fake_handler_called"
 		return false
 	}
 
-	fake_del_handler := func() bool {
-		fake_del_chan <- "fake_del_handler_called"
-		return false
-	}
-
-	cont.processRemIpContQueue(queue, fake_handler, fake_del_handler, stopCh)
+	// RIC/HPP reconcilers use processReconcileQueue, which hands the raw
+	// string key directly to the handler.
+	go cont.processReconcileQueue(queue, fake_handler, stopCh)
 
 	fake_handler_called := false
-	fake_del_handler_called := false
 
 waitHandler:
 	for {
@@ -91,19 +86,14 @@ waitHandler:
 			if n == "fake_handler_called" {
 				fake_handler_called = true
 			}
-		case m := <-fake_del_chan:
-			if m == "fake_del_handler_called" {
-				fake_del_handler_called = true
-			}
 		case <-time.After(1 * time.Second):
 			assert.True(t, false, "Timeout waiting for handler")
 		}
 
-		if fake_handler_called && fake_del_handler_called {
+		if fake_handler_called {
 			break waitHandler
 		}
 	}
 
 	assert.True(t, fake_handler_called, "fake_handler not called")
-	assert.True(t, fake_del_handler_called, "fake_del_handler not called")
 }

@@ -246,6 +246,10 @@ func (cont *testAciController) InitController() {
 }
 
 func testController() *testAciController {
+	return testControllerWithConfig(NewConfig())
+}
+
+func testControllerWithConfig(config *ControllerConfig) *testAciController {
 	log := logrus.New()
 	log.Level = logrus.DebugLevel
 	log.Formatter = &logrus.TextFormatter{
@@ -253,7 +257,7 @@ func testController() *testAciController {
 	}
 
 	cont := &testAciController{
-		AciController: *NewController(NewConfig(), &K8sEnvironment{}, log, true),
+		AciController: *NewController(config, &K8sEnvironment{}, log, true),
 	}
 	cont.InitController()
 	return cont
