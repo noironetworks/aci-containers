@@ -416,6 +416,9 @@ func (cont *AciController) nodeDeleted(obj interface{}) {
 	}
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node", node.Name))
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("node-vmm", node.Name))
+	if cont.config.EnableHppDirect {
+		cont.deleteNodeHostProtPol(cont.aciNameForKey("node", node.Name), node.Name)
+	}
 	cont.log.Infof("Node deleted: %s", node.ObjectMeta.Name)
 
 	cont.indexMutex.Lock()

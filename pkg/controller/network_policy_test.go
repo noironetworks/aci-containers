@@ -4513,7 +4513,7 @@ func TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect(t *testing.T) {
 	cont.stop()
 }
 
-func TestCreateStaticNetPolCrs(t *testing.T) {
+func TestCacheStaticNetPolCrs(t *testing.T) {
 	initCont := func() *testAciController {
 		cont := testController()
 		cont.config.AciPolicyTenant = "test-tenant"
@@ -4534,9 +4534,11 @@ func TestCreateStaticNetPolCrs(t *testing.T) {
 	cont.run()
 	defer cont.stop()
 
-	ret := cont.createStaticNetPolCrs()
+	cont.createStaticNetPolCrs()
 
-	assert.True(t, ret)
+	cont.hppMutex.Lock()
+	assert.True(t, len(cont.hppDirRef) >= 3)
+	cont.hppMutex.Unlock()
 }
 
 func TestInitStaticNetPolObjs(t *testing.T) {
@@ -5252,129 +5254,67 @@ func TestHandleRemIpContUpdate(t *testing.T) {
 	assert.False(t, requeue)
 }
 
-func TestDeleteHppCr(t *testing.T) {
-	cont := getContWithEnabledLocalHpp()
-	cont.run()
-	defer cont.stop()
+// TestUpdateDeleteNodeIpsHostprotRemoteIpContainer is disabled because
+// "nodeips" CRs are no longer required.
+// func TestUpdateDeleteNodeIpsHostprotRemoteIpContainer(t *testing.T) {
+// 	cont := getContWithEnabledLocalHpp()
+// 	cont.run()
+// 	defer cont.stop()
+//
+// 	nodeIps := map[string]bool{
+// 		"192.168.10.45": true,
+// 	}
+//
+// 	os.Setenv("SYSTEM_NAMESPACE", "kube-system")
+//
+// 	cont.updateNodeIpsHostprotRemoteIpContainer(nodeIps)
+//
+// 	remoteIpContainer, err := cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
+//
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, "nodeips", remoteIpContainer.Name)
+// 	assert.Equal(t, "kube-system", remoteIpContainer.Namespace)
+// 	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
+// 	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIps[0])
+//
+// 	nodeIps = map[string]bool{
+// 		"192.168.10.45": true,
+// 		"192.168.10.77": true,
+// 	}
+//
+// 	cont.updateNodeIpsHostprotRemoteIpContainer(nodeIps)
+//
+// 	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
+//
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIps[0])
+// 	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIps[1])
+// 	assert.Equal(t, 2, len(remoteIpContainer.Spec.HostprotRemoteIps))
+//
+// 	nodeIps = map[string]bool{
+// 		"192.168.10.45": true,
+// 	}
+//
+// 	cont.deleteNodeIpsHostprotRemoteIpContainer(nodeIps)
+//
+// 	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
+//
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIps[0])
+// 	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
+//
+// 	nodeIps = map[string]bool{
+// 		"192.168.10.77": true,
+// 	}
+//
+// 	cont.deleteNodeIpsHostprotRemoteIpContainer(nodeIps)
+//
+// 	_, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
+//
+// 	assert.Error(t, err)
+// }
 
-	hpp := getHppObj()
-
-	hpp.Name = "kube-np-b3d7dff81d4e6d95f9644c097105bd5a"
-	hpp.Spec.NetworkPolicies = []string{"test-hostprot-pol"}
-
-	ret := cont.createHostprotPol(hpp, "test-namespace")
-	assert.True(t, ret)
-	// Populate informer cache to simulate watch event delivery
-	cont.hppInformer.GetIndexer().Add(hpp)
-	_, err := cont.getHostprotPol(hpp.Name, "test-namespace")
-	assert.NoError(t, err)
-
-	np := &v1net.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kube-np-b3d7dff81d4e6d95f9644c097105bd5a",
-			Namespace: "test-namespace",
-		},
-		Spec: v1net.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "test-app",
-				},
-			},
-			Ingress: []v1net.NetworkPolicyIngressRule{
-				{
-					Ports: []v1net.NetworkPolicyPort{
-						{
-							Port: &intstr.IntOrString{
-								Type:   intstr.Int,
-								IntVal: 8080,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	ret = cont.deleteHppCr(np)
-	assert.False(t, ret)
-
-	os.Setenv("SYSTEM_NAMESPACE", "test-namespace")
-
-	ret = cont.deleteHppCr(np)
-	assert.True(t, ret)
-
-	hpp.Spec.NetworkPolicies = []string{}
-
-	ret = cont.updateHostprotPol(hpp, "test-namespace")
-	assert.True(t, ret)
-
-	ret = cont.deleteHppCr(np)
-	assert.True(t, ret)
-
-	cont.env.(*K8sEnvironment).hppClient = nil
-
-	ret = cont.deleteHppCr(np)
-	assert.False(t, ret)
-}
-
-func TestUpdateDeleteNodeIpsHostprotRemoteIpContainer(t *testing.T) {
-	cont := getContWithEnabledLocalHpp()
-	cont.run()
-	defer cont.stop()
-
-	nodeIps := map[string]bool{
-		"192.168.10.45": true,
-	}
-
-	os.Setenv("SYSTEM_NAMESPACE", "kube-system")
-
-	cont.updateNodeIpsHostprotRemoteIpContainer(nodeIps)
-
-	remoteIpContainer, err := cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
-
-	assert.NoError(t, err)
-	assert.Equal(t, "nodeips", remoteIpContainer.Name)
-	assert.Equal(t, "kube-system", remoteIpContainer.Namespace)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
-	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIps[0])
-
-	nodeIps = map[string]bool{
-		"192.168.10.45": true,
-		"192.168.10.77": true,
-	}
-
-	cont.updateNodeIpsHostprotRemoteIpContainer(nodeIps)
-
-	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
-
-	assert.NoError(t, err)
-	assert.Equal(t, "192.168.10.45", remoteIpContainer.Spec.HostprotRemoteIps[0])
-	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIps[1])
-	assert.Equal(t, 2, len(remoteIpContainer.Spec.HostprotRemoteIps))
-
-	nodeIps = map[string]bool{
-		"192.168.10.45": true,
-	}
-
-	cont.deleteNodeIpsHostprotRemoteIpContainer(nodeIps)
-
-	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
-
-	assert.NoError(t, err)
-	assert.Equal(t, "192.168.10.77", remoteIpContainer.Spec.HostprotRemoteIps[0])
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
-
-	nodeIps = map[string]bool{
-		"192.168.10.77": true,
-	}
-
-	cont.deleteNodeIpsHostprotRemoteIpContainer(nodeIps)
-
-	_, err = cont.getHostprotRemoteIpContainer("nodeips", "kube-system")
-
-	assert.Error(t, err)
-}
-
-func TestUpdateDeleteNodeHostprotRemoteIpContainer(t *testing.T) {
+func TestUpdateClearNodeHostprotRemoteIpContainer(t *testing.T) {
 	cont := getContWithEnabledLocalHpp()
 	cont.run()
 	defer cont.stop()
@@ -5409,11 +5349,13 @@ func TestUpdateDeleteNodeHostprotRemoteIpContainer(t *testing.T) {
 	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
 	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIps[0])
 
-	cont.deleteNodeHostprotRemoteIpContainer("test-node")
+	// Clear IPs — CR should still exist but with empty IPs
+	cont.clearNodeHostprotRemoteIps("test-node")
 
-	_, err = cont.getHostprotRemoteIpContainer("test-node", "kube-system")
+	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("test-node", "kube-system")
 
-	assert.Error(t, err)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(remoteIpContainer.Spec.HostprotRemoteIps))
 }
 
 func TestCreateNodeHostProtPol(t *testing.T) {
@@ -7606,7 +7548,7 @@ func TestNetworkPolicyChangedHppOptimization(t *testing.T) {
 		cont.networkPolicyChanged(np, npNew)
 	})
 
-	t.Run("EnableHppDirect_specChange_callsDeleteHppCr", func(t *testing.T) {
+	t.Run("EnableHppDirect_specChange_removesFromCache", func(t *testing.T) {
 		cont := getContWithEnabledLocalHpp()
 		cont.run()
 		defer cont.stop()
@@ -7624,7 +7566,7 @@ func TestNetworkPolicyChangedHppOptimization(t *testing.T) {
 			ingressRule([]v1net.NetworkPolicyPort{port(&tcp, &port443)}, nil),
 		}
 
-		// Exercises EnableHppDirect && spec-changed path (calls removeFromHppCache + deleteHppCr).
+		// Exercises EnableHppDirect && spec-changed path (calls removeFromHppDirCache).
 		cont.networkPolicyChanged(np, npNew)
 	})
 

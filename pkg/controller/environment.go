@@ -229,10 +229,8 @@ func (env *K8sEnvironment) Init(cont *AciController) error {
 		cont.initSnatLocalInfoInformerFromClient(env.snatLocalInfoClient)
 		cont.initRdConfigInformerFromClient(env.rdConfigClient)
 		cont.initSnatCfgFromClient(kubeClient)
-		if cont.config.EnableHppDirect && !cont.config.DisableHppRendering {
-			cont.initHppInformerFromClient(env.hppClient)
-			cont.initHppRemoteIpInformerFromClient(env.hppClient)
-		}
+		cont.initHppInformerFromClient(env.hppClient)
+		cont.initHppRemoteIpInformerFromClient(env.hppClient)
 		if cont.config.InstallIstio {
 			/* Commenting code to remove dependency from istio.io/istio package.
 			   Vulnerabilties were detected by quay.io security scan of aci-containers-controller
