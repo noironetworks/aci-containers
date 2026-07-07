@@ -195,7 +195,7 @@ func (agent *HostAgent) ricChanged(obj interface{}) {
 		}
 		if hpp, ok := obj.(*hppv1.HostprotPol); ok {
 			agent.hppMutex.Lock()
-			agent.applyHpp(hpp)
+			agent.queueHppIfLocal(hpp)
 			agent.hppMutex.Unlock()
 		}
 	}
@@ -258,7 +258,7 @@ func (agent *HostAgent) handleHppAdd(hpp *hppv1.HostprotPol) {
 
 	hppKey := hpp.Namespace + "/" + hpp.Name
 	agent.rebuildRicMappingForHpp(nil, hpp, hppKey)
-	agent.applyHpp(hpp)
+	agent.queueHppIfLocal(hpp)
 }
 
 // handleHppUpdate handles an HPP spec update. It diffs the RIC references
@@ -271,14 +271,14 @@ func (agent *HostAgent) handleHppUpdate(oldHpp, newHpp *hppv1.HostprotPol) {
 
 	hppKey := newHpp.Namespace + "/" + newHpp.Name
 	agent.rebuildRicMappingForHpp(oldHpp, newHpp, hppKey)
-	agent.applyHpp(newHpp)
+	agent.queueHppIfLocal(newHpp)
 }
 
-// applyHpp performs the node-locality gate, renders the HPP into hppMoIndex
+// queueHppIfLocal performs the node-locality gate, renders the HPP into hppMoIndex
 // (or evicts it if no longer locally relevant), eagerly writes static/node
 // policy files, and schedules a sync. Caller must hold hppMutex and must
 // have already reconciled the RIC→HPP mapping if needed.
-func (agent *HostAgent) applyHpp(hpp *hppv1.HostprotPol) {
+func (agent *HostAgent) queueHppIfLocal(hpp *hppv1.HostprotPol) {
 	// Node-locality gate: skip rendering if not relevant to this node.
 	if !agent.isHppLocallyRelevant(hpp) {
 		// If previously local, remove from index (pod may have moved away).
@@ -288,21 +288,31 @@ func (agent *HostAgent) applyHpp(hpp *hppv1.HostprotPol) {
 		}
 		return
 	}
-
+	agent.hppQueue.Add(hpp.Namespace + "/" + hpp.Name)
+}
+func (agent *HostAgent) handleHppQueueItem(obj interface{}) bool {
+	hpp, ok := obj.(*hppv1.HostprotPol)
+	if !ok {
+		agent.log.Errorf("Invalid item in HPP queue: %v", obj)
+		return false
+	}
 	// Render and populate the node-local index.
 	agent.renderHppToIndex(hpp)
-
 	// Static and node policies are critical for baseline connectivity (ARP,
 	// ICMP, node protection). Write them to disk eagerly — don't wait for
 	// the deferred sync queue — so they're available as soon as the
 	// informer delivers them during initial cache sync.
 	if agent.isStaticOrNodeHpp(hpp.Spec.Name) {
-		if modb, ok := agent.hppMoIndex[hpp.Spec.Name]; ok {
+		agent.hppMutex.Lock()
+		modb, ok := agent.hppMoIndex[hpp.Spec.Name]
+		agent.hppMutex.Unlock()
+		if ok {
 			agent.writeNetpolFileAtomic(modb, hpp.Spec.Name)
 		}
 	}
 
 	agent.scheduleSyncLocalHppMo()
+	return true
 }
 
 // handleHppDelete cleans up MO index and the RIC reverse index for a deleted
@@ -439,24 +449,14 @@ func (agent *HostAgent) ensureLocalHppsRendered(labelKeys []string) {
 		// Look up the HPP object from the informer by its k8s key.
 		hppName := strings.ReplaceAll(labelKey, "_", "-")
 		hppKey := ns + "/" + hppName
-		obj, exists, err := agent.hppInformer.GetIndexer().GetByKey(hppKey)
-		if err != nil || !exists {
-			continue
-		}
-		hpp, ok := obj.(*hppv1.HostprotPol)
-		if !ok {
-			continue
-		}
-		agent.renderHppToIndex(hpp)
+		agent.hppQueue.Add(hppKey)
 	}
 }
 
 // renderHppToIndex renders an HPP to GBP MOs and stores in hppMoIndex.
-// Caller must hold hppMutex.
 func (agent *HostAgent) renderHppToIndex(hpp *hppv1.HostprotPol) {
 	logger := HppLogger(agent.log, hpp)
 	ns := agent.config.AciHppObjsNamespace
-
 	agent.initGbpConfig()
 	np := &NetworkPolicy{
 		HostprotPol: Hpp{
@@ -534,7 +534,9 @@ func (agent *HostAgent) renderHppToIndex(hpp *hppv1.HostprotPol) {
 		return
 	}
 	modb := getMoDB()
+	agent.hppMutex.Lock()
 	agent.hppMoIndex[hpp.Spec.Name] = *modb
+	agent.hppMutex.Unlock()
 }
 
 // syncLocalHppMo reconciles the netpol file directory against the node-local

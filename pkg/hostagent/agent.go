@@ -110,6 +110,7 @@ type HostAgent struct {
 	hppMutex               sync.Mutex
 	hppMoIndex             map[string][]*gbpBaseMo
 	ricToHpp               map[string]map[string]bool
+	hppQueue               workqueue.RateLimitingInterface
 	proactiveConfInformer  cache.SharedIndexInformer
 
 	syncEnabled         bool
@@ -215,6 +216,14 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		completedSyncTypes:    make(map[string]struct{}),
 		hppMoIndex:            make(map[string][]*gbpBaseMo),
 		ricToHpp:              make(map[string]map[string]bool),
+		hppQueue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.NewTypedMaxOfRateLimiter(
+				workqueue.NewTypedItemExponentialFailureRateLimiter[any](5*time.Millisecond,
+					10*time.Second),
+				&workqueue.TypedBucketRateLimiter[any]{
+					Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+				},
+			), "hpp"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
@@ -558,6 +567,40 @@ func (agent *HostAgent) checkSyncProcessorsCompletionStatus(stopCh <-chan struct
 	}
 }
 
+func (agent *HostAgent) processQueue(queue workqueue.RateLimitingInterface, store cache.Store,
+	handler func(obj interface{}) bool, queueStop <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			item, quit := queue.Get()
+			if quit {
+				break
+			}
+			key, ok := item.(string)
+			if !ok {
+				agent.log.Errorf("Invalid item in queue: %v", item)
+				queue.Done(item)
+				continue
+			}
+			var requeue bool
+			obj, exists, err := store.GetByKey(key)
+			if err != nil {
+				agent.log.Debugf("Error fetching object with key %s from store: %v", key, err)
+			}
+			//Handle Add/Update/Delete
+			if exists && handler != nil {
+				requeue = handler(obj)
+			}
+			if requeue {
+				queue.AddRateLimited(key)
+			} else {
+				queue.Forget(key)
+			}
+			queue.Done(key)
+		}
+	}, time.Second, queueStop)
+	<-queueStop
+	queue.ShutDown()
+}
 func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
 	go wait.Until(func() {
@@ -653,6 +696,7 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.portSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.hppLocalMoSyncQueue, stopCh)
+		go agent.processQueue(agent.hppQueue, agent.hppInformer.GetStore(), agent.handleHppQueueItem, stopCh)
 	}
 	if agent.config.ChainedMode {
 		agent.FabricDiscoveryCollectDiscoveryData(stopCh)

@@ -161,7 +161,6 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 			labelKeys = append(labelKeys, og.Name)
 		}
 		agent.ensureLocalHppsRendered(labelKeys)
-		agent.scheduleSyncLocalHppMo()
 	}
 
 	return g, nil
