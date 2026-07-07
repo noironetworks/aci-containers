@@ -77,6 +77,11 @@ func (conn *ApicConnection) apicBodyAttrCmp(class string,
 	return true
 }
 
+func (conn *ApicConnection) localSyncTag(obj ApicObject) (string, bool) {
+	tag := obj.GetTag()
+	return tag, conn.isSyncTag(tag)
+}
+
 func (conn *ApicConnection) apicCntCmp(current ApicObject,
 	desired ApicObject) bool {
 	for classc, bodyc := range current {
@@ -110,13 +115,7 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 			for i < len(bodyc.Children) && j < len(bodyd.Children) {
 				cmp := cmpApicObject(bodyc.Children[i], bodyd.Children[j])
 				if cmp < 0 {
-					deletable := true
-					for class := range bodyc.Children[i] {
-						deletable = conn.checkNonDeletable(class)
-						if !deletable {
-							break
-						}
-					}
+					_, deletable := conn.localSyncTag(bodyc.Children[i])
 					if !deletable {
 						i++
 						continue
@@ -139,13 +138,7 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 				}
 			}
 			for i < len(bodyc.Children) {
-				deletable := true
-				for class := range bodyc.Children[i] {
-					deletable = conn.checkNonDeletable(class)
-					if !deletable {
-						break
-					}
-				}
+				_, deletable := conn.localSyncTag(bodyc.Children[i])
 				if !deletable {
 					i++
 					continue
@@ -161,21 +154,6 @@ func (conn *ApicConnection) apicObjCmp(current ApicObject,
 	return
 }
 
-func (conn *ApicConnection) checkNonDeletable(class string) bool {
-	deletable := true
-	if _, ok := metadata[class]; ok {
-		if metadata[class].hints != nil {
-			if val, ok := metadata[class].hints["deletable"]; ok {
-				deletableValue, ok := val.(bool)
-				if ok && deletableValue == false {
-					deletable = false
-				}
-			}
-		}
-	}
-	return deletable
-}
-
 func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	desiredState ApicSlice) (updates ApicSlice, deletes, localDeletes []string) {
 	i := 0
@@ -187,13 +165,7 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	for i < len(currentState) && j < len(desiredState) {
 		cmp := cmpApicObject(currentState[i], desiredState[j])
 		if cmp < 0 {
-			deletable := true
-			for class := range currentState[i] {
-				deletable = conn.checkNonDeletable(class)
-				if !deletable {
-					break
-				}
-			}
+			_, deletable := conn.localSyncTag(currentState[i])
 			if !deletable {
 				localDeletes = append(localDeletes, currentState[i].GetDn())
 				i++
@@ -218,13 +190,7 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 					updates = append(updates, desiredState[j])
 					update = true
 				}
-				deletable := true
-				for class := range currentState[i] {
-					deletable = conn.checkNonDeletable(class)
-					if !deletable {
-						break
-					}
-				}
+				_, deletable := conn.localSyncTag(currentState[i])
 				if !deletable {
 					localDeletes = append(localDeletes, currentState[i].GetDn())
 					i++
@@ -241,13 +207,7 @@ func (conn *ApicConnection) diffApicState(currentState ApicSlice,
 	}
 	// extra old objects
 	for i < len(currentState) {
-		deletable := true
-		for class := range currentState[i] {
-			deletable = conn.checkNonDeletable(class)
-			if !deletable {
-				break
-			}
-		}
+		_, deletable := conn.localSyncTag(currentState[i])
 		if !deletable {
 			i++
 			localDeletes = append(localDeletes, currentState[i].GetDn())
@@ -599,10 +559,14 @@ func (conn *ApicConnection) reconcileApicObject(aci ApicObject) {
 			}
 		}
 	} else {
-		tag := aci.GetTag()
-		if conn.isSyncTag(tag) {
-			conn.log.WithFields(logrus.Fields{"mod": "APICAPI", "DN": dn}).
-				Warning("Deleting unexpected ACI object")
+		tag, owned := conn.localSyncTag(aci)
+		if owned {
+			conn.log.WithFields(logrus.Fields{
+				"mod":     "APICAPI",
+				"DN":      dn,
+				"tag":     tag,
+				"context": "reconcile",
+			}).Warning("Deleting unexpected ACI object")
 			deletes = append(deletes, dn)
 		}
 	}
