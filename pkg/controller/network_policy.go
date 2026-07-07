@@ -2220,6 +2220,7 @@ func (cont *AciController) updateNodeHostprotRemoteIpContainer(name string, node
 	for ip := range nodeIps {
 		ips = append(ips, ip)
 	}
+	slices.Sort(ips)
 	cont.hppMutex.Lock()
 	cont.remoteIpCache[name] = ips
 	cont.hppMutex.Unlock()
