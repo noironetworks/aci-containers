@@ -56,7 +56,7 @@ func TestAciName(t *testing.T) {
 }
 
 func TestProcessRemIpContQueue(t *testing.T) {
-	cont := NewController(nil, nil, nil, false)
+	cont := NewController(&ControllerConfig{}, nil, nil, false)
 	queue := createQueue("remIpContQueue")
 	stopCh := make(chan struct{})
 

@@ -93,7 +93,7 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 					np := obj.(*v1net.NetworkPolicy)
 					hash, err := util.CreateCanonicalHashFromNetPol(np)
 					if err != nil {
-						agent.log.Error("Failed to create hash for network policy ", npkey)
+						agent.log.Error("Failed to get HPP label key for network policy ", npkey)
 						return g, err
 					}
 					labelKey = util.AciNameForKey(agent.config.AciPrefix, "np", hash)
@@ -155,6 +155,12 @@ func (agent *HostAgent) mergeNetPolSg(podkey string, pod *v1.Pod,
 	}
 
 	if agent.config.EnableHppDirect {
+		// Ensure HPPs for locally-matched NPs are rendered into the node-local index.
+		labelKeys := make([]string, 0, len(gset))
+		for og := range gset {
+			labelKeys = append(labelKeys, og.Name)
+		}
+		agent.ensureLocalHppsRendered(labelKeys)
 		agent.scheduleSyncLocalHppMo()
 	}
 

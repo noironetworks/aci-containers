@@ -4515,15 +4515,22 @@ func TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect(t *testing.T) {
 
 func TestCacheStaticNetPolCrs(t *testing.T) {
 	initCont := func() *testAciController {
-		cont := testController()
-		cont.config.AciPolicyTenant = "test-tenant"
-		cont.config.NodeServiceIpPool = []ipam.IpRange{
+		config := NewConfig()
+		config.EnableHppDirect = true
+		config.AciPolicyTenant = "test-tenant"
+		config.NodeServiceIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.1.3")},
 		}
-		cont.config.PodIpPool = []ipam.IpRange{
+		config.PodIpPool = []ipam.IpRange{
 			{Start: net.ParseIP("10.1.1.2"), End: net.ParseIP("10.1.255.254")},
 		}
+		cont := testControllerWithConfig(config)
 		cont.AciController.initIpam()
+
+		hppClient := fake.NewSimpleClientset()
+		cont.env.(*K8sEnvironment).hppClient = hppClient
+		cont.initHppInformerFromClient(hppClient)
+		cont.initHppRemoteIpInformerFromClient(hppClient)
 
 		cont.fakeNamespaceSource.Add(namespaceLabel("testns",
 			map[string]string{"test": "testv"}))

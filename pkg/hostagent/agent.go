@@ -107,7 +107,9 @@ type HostAgent struct {
 	fabricVlanPoolInformer cache.SharedIndexInformer
 	hppInformer            cache.SharedIndexInformer
 	hppRemoteIpInformer    cache.SharedIndexInformer
+	hppMutex               sync.Mutex
 	hppMoIndex             map[string][]*gbpBaseMo
+	ricToHpp               map[string]map[string]bool
 	proactiveConfInformer  cache.SharedIndexInformer
 
 	syncEnabled         bool
@@ -212,6 +214,7 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		podNetworkMetadata:    make(map[string]map[string]map[string]*md.ContainerMetadata),
 		completedSyncTypes:    make(map[string]struct{}),
 		hppMoIndex:            make(map[string][]*gbpBaseMo),
+		ricToHpp:              make(map[string]map[string]bool),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
@@ -498,6 +501,11 @@ func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
 		select {
 		case <-ticker.C:
 			agent.updateOpflexConfig()
+			// Test scaffolding: log HPP/RIC update noise counters
+			agent.log.Infof("HPP update stats: total=%d nochange=%d | RIC update stats: total=%d nochange=%d | netpol file: writes=%d skips=%d",
+				HppUpdateTotal.Load(), HppUpdateNoChange.Load(),
+				RicUpdateTotal.Load(), RicUpdateNoChange.Load(),
+				NetpolFileWrites.Load(), NetpolFileSkips.Load())
 		case <-stopCh:
 			return
 		}
@@ -525,7 +533,11 @@ func (agent *HostAgent) checkSyncProcessorsCompletionStatus(stopCh <-chan struct
 						agent.indexMutex.Lock()
 						count := len(agent.completedSyncTypes)
 						agent.indexMutex.Unlock()
-						if count == 5 {
+						requiredCount := 5
+						if agent.config.EnableHppDirect {
+							requiredCount = 6
+						}
+						if count >= requiredCount {
 							removeTaint = true
 						}
 					}
@@ -561,7 +573,7 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 					requeue = f()
 
 					switch sType {
-					case "services", "eps", "snat", "snatnodeInfo", "nodepodifs":
+					case "services", "eps", "snat", "snatnodeInfo", "nodepodifs", "hpp":
 						if agent.taintRemoved.Load().(bool) {
 							break
 						}
