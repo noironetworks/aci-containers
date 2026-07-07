@@ -77,6 +77,23 @@ func nodePolicyName(agent *HostAgent) string {
 	return util.AciNameForKey(agent.config.AciPrefix, "node", agent.config.NodeName)
 }
 
+// drainHppQueue synchronously processes all pending agent.hppQueue items
+// (mirrors the production processQueue worker), making async HPP rendering
+// deterministic in tests. HPPs must already be in agent.hppInformer's store.
+func drainHppQueue(t *testing.T, agent *testHostAgent) {
+	t.Helper()
+	for agent.hppQueue.Len() > 0 {
+		item, _ := agent.hppQueue.Get()
+		if key, ok := item.(string); ok {
+			if obj, exists, err := agent.hppInformer.GetStore().GetByKey(key); err == nil && exists {
+				agent.handleHppQueueItem(obj)
+			}
+		}
+		agent.hppQueue.Done(item)
+		agent.hppQueue.Forget(item)
+	}
+}
+
 func TestIsStaticOrNodeHpp(t *testing.T) {
 	agent := testAgentHppDirect(t)
 
@@ -238,7 +255,9 @@ func TestHandleHppAddStaticWritesFileEagerly(t *testing.T) {
 	agent := testAgentHppDirect(t)
 
 	hpp := hppWithRics(staticIngressName(agent.HostAgent))
+	assert.NoError(t, agent.hppInformer.GetStore().Add(hpp))
 	agent.handleHppAdd(hpp)
+	drainHppQueue(t, agent)
 
 	agent.hppMutex.Lock()
 	_, present := agent.hppMoIndex[hpp.Spec.Name]
@@ -269,7 +288,9 @@ func TestHandleHppUpdateEvictsWhenNoLongerRelevant(t *testing.T) {
 	agent.netPolPods.UpdatePodNoCallback(pod)
 
 	// Initially relevant — gets rendered.
+	assert.NoError(t, agent.hppInformer.GetStore().Add(hpp))
 	agent.handleHppAdd(hpp)
+	drainHppQueue(t, agent)
 	agent.hppMutex.Lock()
 	_, present := agent.hppMoIndex[hpp.Spec.Name]
 	agent.hppMutex.Unlock()
@@ -295,7 +316,9 @@ func TestHandleHppDeleteCleansUpIndexes(t *testing.T) {
 	assert.NoError(t, agent.hppRemoteIpInformer.GetStore().Add(ric))
 
 	hpp := hppWithRics(staticEgressName(agent.HostAgent), "ric-1")
+	assert.NoError(t, agent.hppInformer.GetStore().Add(hpp))
 	agent.handleHppAdd(hpp)
+	drainHppQueue(t, agent)
 
 	agent.hppMutex.Lock()
 	_, present := agent.hppMoIndex[hpp.Spec.Name]

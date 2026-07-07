@@ -543,7 +543,7 @@ func (agent *HostAgent) checkSyncProcessorsCompletionStatus(stopCh <-chan struct
 						count := len(agent.completedSyncTypes)
 						agent.indexMutex.Unlock()
 						requiredCount := 5
-						if agent.config.EnableHppDirect {
+						if agent.hppDirectEnabled() {
 							requiredCount = 6
 						}
 						if count >= requiredCount {
@@ -696,7 +696,11 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.portSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.hppLocalMoSyncQueue, stopCh)
-		go agent.processQueue(agent.hppQueue, agent.hppInformer.GetStore(), agent.handleHppQueueItem, stopCh)
+		// hppInformer is only initialized when HPP-Direct is active (see
+		// env.Init), so this also implies agent.hppDirectEnabled().
+		if agent.hppInformer != nil {
+			go agent.processQueue(agent.hppQueue, agent.hppInformer.GetStore(), agent.handleHppQueueItem, stopCh)
+		}
 	}
 	if agent.config.ChainedMode {
 		agent.FabricDiscoveryCollectDiscoveryData(stopCh)

@@ -193,7 +193,7 @@ func (env *K8sEnvironment) Init(agent *HostAgent) error {
 	env.agent.initNetworkAttDefInformerFromClient(env.netClient)
 	env.agent.initNadVlanInformerFromClient(env.fabattClient)
 	env.agent.initFabricVlanPoolsInformerFromClient(env.fabattClient)
-	if agent.config.EnableHppDirect {
+	if agent.hppDirectEnabled() {
 		env.agent.initHppInformerFromClient(env.hppClient)
 		env.agent.initHostprotRemoteIpContainerInformerFromClient(env.hppClient)
 	}
@@ -281,7 +281,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	cache.WaitForCacheSync(stopCh, env.agent.netPolInformer.HasSynced)
 	env.agent.log.Info("networkPolicy cache sync successful")
 
-	if env.agent.config.EnableHppDirect {
+	if env.agent.hppDirectEnabled() {
 		env.agent.log.Debug("Starting hpp informers")
 		go env.agent.hppInformer.Run(stopCh)
 		env.agent.log.Info("Waiting for hpp cache sync")

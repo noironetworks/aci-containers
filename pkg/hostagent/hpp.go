@@ -82,6 +82,12 @@ func (agent *HostAgent) initHostprotRemoteIpContainerInformerFromClient(
 		})
 }
 
+func (agent *HostAgent) hppDirectEnabled() bool {
+	return agent.config.EnableHppDirect &&
+		!agent.config.DisableHppRendering &&
+		!agent.config.ChainedMode
+}
+
 func HppLogger(log *logrus.Logger, hpp *hppv1.HostprotPol) *logrus.Entry {
 	return log.WithFields(logrus.Fields{
 		"namespace": hpp.ObjectMeta.Namespace,
@@ -274,10 +280,9 @@ func (agent *HostAgent) handleHppUpdate(oldHpp, newHpp *hppv1.HostprotPol) {
 	agent.queueHppIfLocal(newHpp)
 }
 
-// queueHppIfLocal performs the node-locality gate, renders the HPP into hppMoIndex
-// (or evicts it if no longer locally relevant), eagerly writes static/node
-// policy files, and schedules a sync. Caller must hold hppMutex and must
-// have already reconciled the RIC→HPP mapping if needed.
+// queueHppIfLocal gates on node-locality: if relevant, enqueues the HPP key
+// on hppQueue for deduplicated async rendering (duplicate keys collapse);
+// otherwise evicts any existing render. Caller must hold hppMutex.
 func (agent *HostAgent) queueHppIfLocal(hpp *hppv1.HostprotPol) {
 	// Node-locality gate: skip rendering if not relevant to this node.
 	if !agent.isHppLocallyRelevant(hpp) {
@@ -290,14 +295,18 @@ func (agent *HostAgent) queueHppIfLocal(hpp *hppv1.HostprotPol) {
 	}
 	agent.hppQueue.Add(hpp.Namespace + "/" + hpp.Name)
 }
+
+// handleHppQueueItem renders one dequeued HPP. Returns true to request a
+// rate-limited requeue (render failed), false when done.
 func (agent *HostAgent) handleHppQueueItem(obj interface{}) bool {
 	hpp, ok := obj.(*hppv1.HostprotPol)
 	if !ok {
 		agent.log.Errorf("Invalid item in HPP queue: %v", obj)
 		return false
 	}
-	// Render and populate the node-local index.
-	agent.renderHppToIndex(hpp)
+	if !agent.renderHppToIndex(hpp) {
+		return true
+	}
 	// Static and node policies are critical for baseline connectivity (ARP,
 	// ICMP, node protection). Write them to disk eagerly — don't wait for
 	// the deferred sync queue — so they're available as soon as the
@@ -307,12 +316,15 @@ func (agent *HostAgent) handleHppQueueItem(obj interface{}) bool {
 		modb, ok := agent.hppMoIndex[hpp.Spec.Name]
 		agent.hppMutex.Unlock()
 		if ok {
-			agent.writeNetpolFileAtomic(modb, hpp.Spec.Name)
+			if !agent.writeNetpolFileAtomic(modb, hpp.Spec.Name) {
+				agent.log.Errorf("Failed to write netpol file for HPP: %s", hpp.Spec.Name)
+				return true
+			}
 		}
 	}
 
 	agent.scheduleSyncLocalHppMo()
-	return true
+	return false
 }
 
 // handleHppDelete cleans up MO index and the RIC reverse index for a deleted
@@ -453,8 +465,13 @@ func (agent *HostAgent) ensureLocalHppsRendered(labelKeys []string) {
 	}
 }
 
-// renderHppToIndex renders an HPP to GBP MOs and stores in hppMoIndex.
-func (agent *HostAgent) renderHppToIndex(hpp *hppv1.HostprotPol) {
+// renderHppToIndex renders hpp into GBP MOs and writes hppMoIndex. Returns
+// false if a referenced RIC isn't cached yet (caller should requeue).
+//
+// Runs only on the single hppQueue worker, so building into the global
+// GbpConfig scratch needs no lock; only the final hppMoIndex write takes
+// hppMutex, since other goroutines also touch that map.
+func (agent *HostAgent) renderHppToIndex(hpp *hppv1.HostprotPol) bool {
 	logger := HppLogger(agent.log, hpp)
 	ns := agent.config.AciHppObjsNamespace
 	agent.initGbpConfig()
@@ -500,7 +517,7 @@ func (agent *HostAgent) renderHppToIndex(hpp *hppv1.HostprotPol) {
 					remoteIpCont, err := agent.getHostprotRemoteIpContainer(rule.RsRemoteIpContainer, ns)
 					if err != nil {
 						logger.Error("Error getting HostprotRemoteIpContainer: ", err)
-						return
+						return false
 					}
 					for _, ip := range remoteIpCont.Spec.HostprotRemoteIps {
 						hpSubnet := &HpSubjGrandchild{
@@ -531,12 +548,13 @@ func (agent *HostAgent) renderHppToIndex(hpp *hppv1.HostprotPol) {
 
 	if err := np.Make(); err != nil {
 		agent.log.Errorf("network policy render -- %v", err)
-		return
+		return false
 	}
 	modb := getMoDB()
 	agent.hppMutex.Lock()
 	agent.hppMoIndex[hpp.Spec.Name] = *modb
 	agent.hppMutex.Unlock()
+	return true
 }
 
 // syncLocalHppMo reconciles the netpol file directory against the node-local

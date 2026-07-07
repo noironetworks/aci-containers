@@ -74,7 +74,9 @@ func TestEnsureLocalHppsRenderedViaRealPodCallback(t *testing.T) {
 	// Real callback path: registering the NP selector immediately matches
 	// the already-indexed pod, firing podUpdated -> mergeNetPolSg ->
 	// ensureLocalHppsRendered via the wiring set up in initNetPolPodIndex.
+	// Enqueues async now; drain to render deterministically.
 	agent.netPolPods.UpdateSelectorObjNoCallback(np)
+	drainHppQueue(t, agent)
 
 	agent.hppMutex.Lock()
 	rendered, present := agent.hppMoIndex[specName]
