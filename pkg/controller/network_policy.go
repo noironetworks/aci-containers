@@ -1562,7 +1562,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				} else {
 					ricIpsV4 = entry.ipsV4
 				}
-				ricNameV4 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "ipv4"
+				ricNameV4 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "-ipv4"
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV4] = ricIpsV4
 				cont.queueRemoteIpConUpdateByKey(ricNameV4)
@@ -1587,7 +1587,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				} else {
 					ricIpsV6 = entry.ipsV6
 				}
-				ricNameV6 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "ipv6"
+				ricNameV6 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "-ipv6"
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV6] = ricIpsV6
 				cont.queueRemoteIpConUpdateByKey(ricNameV6)
