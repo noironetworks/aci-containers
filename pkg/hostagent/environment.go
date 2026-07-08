@@ -293,6 +293,12 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 		env.agent.log.Info("Waiting for hostprotremoteipcontainer cache sync")
 		cache.WaitForCacheSync(stopCh, env.agent.hppRemoteIpInformer.HasSynced)
 		env.agent.log.Info("hostprotremoteipcontainer cache sync successful")
+		env.agent.log.Debug("Starting hpp processing queue")
+		go env.agent.processQueue(env.agent.hppQueue, env.agent.hppInformer.GetStore(), env.agent.handleHppQueueItem, stopCh)
+
+		// Checkpoint the initial HPP render batch before stale netpol prune is
+		// enabled (see enableHppSyncAfterCheckpoint).
+		go env.agent.enableHppSyncAfterCheckpoint(stopCh)
 	}
 
 	env.agent.log.Debug("Starting ReplicationController informers")

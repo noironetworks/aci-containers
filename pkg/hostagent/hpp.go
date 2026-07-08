@@ -109,7 +109,7 @@ func (agent *HostAgent) initHppInformerBase(listWatch *cache.ListWatch) {
 		controller.NoResyncPeriodFunc(),
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	agent.hppInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	reg, err := agent.hppInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			hpp := obj.(*hppv1.HostprotPol)
 			agent.handleHppAdd(hpp)
@@ -141,6 +141,11 @@ func (agent *HostAgent) initHppInformerBase(listWatch *cache.ListWatch) {
 			agent.handleHppDelete(hpp)
 		},
 	})
+	if err != nil {
+		agent.log.Errorf("Failed to register hpp event handler: %v", err)
+		return
+	}
+	agent.hppInformerReg = reg
 }
 
 func (agent *HostAgent) initHostprotRemoteIpContainerBase(listWatch *cache.ListWatch) {
@@ -609,7 +614,13 @@ func (agent *HostAgent) syncLocalHppMo() bool {
 			}
 			seen[labelKey] = true
 		} else {
-			// File exists but HPP not in local desired state — remove.
+			// File exists but HPP not in local desired state. Defer this prune
+			// until the initial render batch has drained (hppSyncEnabled); a
+			// partially-populated index at startup must not delete files that
+			// are about to be re-rendered.
+			if !agent.hppSyncEnabled.Load() {
+				continue
+			}
 			filePath := filepath.Join(dir, name)
 			agent.log.Infof("Removing netpol file %s", name)
 			os.Remove(filePath)

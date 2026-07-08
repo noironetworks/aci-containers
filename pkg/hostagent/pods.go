@@ -384,7 +384,7 @@ func (agent *HostAgent) syncOpflexServer() bool {
 }
 
 func (agent *HostAgent) syncEps() bool {
-	if !agent.syncEnabled {
+	if !agent.syncEnabled.Load() {
 		return false
 	}
 
@@ -595,7 +595,7 @@ func (agent *HostAgent) syncEps() bool {
 
 // syncNodePodIfs syncs the NodePodIfs with Eps
 func (agent *HostAgent) syncNodePodIfs() bool {
-	if !agent.syncEnabled || agent.config.ChainedMode {
+	if !agent.syncEnabled.Load() || agent.config.ChainedMode {
 		return false
 	}
 	agent.log.Debug("Syncing NodePodIfs")

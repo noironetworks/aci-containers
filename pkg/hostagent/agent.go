@@ -111,9 +111,11 @@ type HostAgent struct {
 	hppMoIndex             map[string][]*gbpBaseMo
 	ricToHpp               map[string]map[string]bool
 	hppQueue               workqueue.RateLimitingInterface
+	hppInformerReg         cache.ResourceEventHandlerRegistration
+	hppSyncEnabled         atomic.Bool
 	proactiveConfInformer  cache.SharedIndexInformer
 
-	syncEnabled         bool
+	syncEnabled         atomic.Bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
 	epSyncQueue         workqueue.RateLimitingInterface
@@ -575,31 +577,62 @@ func (agent *HostAgent) processQueue(queue workqueue.RateLimitingInterface, stor
 			if quit {
 				break
 			}
-			key, ok := item.(string)
-			if !ok {
-				agent.log.Errorf("Invalid item in queue: %v", item)
-				queue.Done(item)
-				continue
-			}
 			var requeue bool
-			obj, exists, err := store.GetByKey(key)
-			if err != nil {
-				agent.log.Debugf("Error fetching object with key %s from store: %v", key, err)
-			}
-			//Handle Add/Update/Delete
-			if exists && handler != nil {
-				requeue = handler(obj)
+			switch key := item.(type) {
+			case chan struct{}:
+				// Checkpoint sentinel: reaching it means every item enqueued
+				// before it has been processed. Close to wake the waiter.
+				close(key)
+			case string:
+				obj, exists, err := store.GetByKey(key)
+				if err != nil {
+					agent.log.Debugf("Error fetching object with key %s from store: %v", key, err)
+				}
+				if exists && handler != nil {
+					requeue = handler(obj)
+				}
+			default:
+				agent.log.Errorf("Invalid item in queue: %v", item)
 			}
 			if requeue {
-				queue.AddRateLimited(key)
+				queue.AddRateLimited(item)
 			} else {
-				queue.Forget(key)
+				queue.Forget(item)
 			}
-			queue.Done(key)
+			queue.Done(item)
 		}
 	}, time.Second, queueStop)
 	<-queueStop
 	queue.ShutDown()
+}
+
+// enableHppSyncAfterCheckpoint gates stale netpol-file pruning on the
+// completion of the initial HPP render batch. It first waits for the hpp
+// informer's event handler to deliver the entire initial list (every startup
+// HPP enqueued on hppQueue) — stronger than the informer's store-level
+// HasSynced — then drops a sentinel behind that batch. When the render worker
+// drains and closes the sentinel, hppMoIndex reflects the full initial desired
+// state, so it is finally safe for syncLocalHppMo to delete files with no
+// backing entry. Until hppSyncEnabled flips, adds/writes still happen every
+// pass but stale deletes are deferred, avoiding delete-then-readd churn on
+// restart. Runs asynchronously so a render that keeps requeuing (e.g. a
+// referenced RIC not yet created) defers prune rather than blocking startup.
+func (agent *HostAgent) enableHppSyncAfterCheckpoint(stopCh <-chan struct{}) {
+	if agent.hppInformerReg == nil {
+		return
+	}
+	if !cache.WaitForCacheSync(stopCh, agent.hppInformerReg.HasSynced) {
+		return
+	}
+	done := make(chan struct{})
+	agent.hppQueue.Add(done)
+	select {
+	case <-done:
+		agent.hppSyncEnabled.Store(true)
+		agent.log.Info("HPP initial render checkpoint complete; enabling stale netpol prune")
+		agent.scheduleSyncLocalHppMo()
+	case <-stopCh:
+	}
 }
 func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
@@ -639,14 +672,8 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 }
 
 func (agent *HostAgent) EnableSync() (changed bool) {
-	changed = false
-	agent.indexMutex.Lock()
-	if !agent.syncEnabled {
-		agent.syncEnabled = true
+	if agent.syncEnabled.CompareAndSwap(false, true) {
 		changed = true
-	}
-	agent.indexMutex.Unlock()
-	if changed {
 		agent.log.Info("Enabling OpFlex endpoint and service sync")
 		agent.scheduleSyncServices()
 		agent.scheduleSyncEps()
@@ -682,7 +709,8 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	}
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" ||
-		agent.config.OpFlexSnatDir == "" {
+		agent.config.OpFlexSnatDir == "" ||
+		(agent.config.EnableHppDirect && agent.config.OpFlexNetPolDir == "") {
 		if agent.config.EnableHppDirect && agent.config.OpFlexNetPolDir == "" {
 			agent.log.Warn("OpFlex endpoint, service, snat or netpol directories not set")
 		} else {
@@ -696,11 +724,6 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 		go agent.processSyncQueue(agent.epSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.portSyncQueue, stopCh)
 		go agent.processSyncQueue(agent.hppLocalMoSyncQueue, stopCh)
-		// hppInformer is only initialized when HPP-Direct is active (see
-		// env.Init), so this also implies agent.hppDirectEnabled().
-		if agent.hppInformer != nil {
-			go agent.processQueue(agent.hppQueue, agent.hppInformer.GetStore(), agent.handleHppQueueItem, stopCh)
-		}
 	}
 	if agent.config.ChainedMode {
 		agent.FabricDiscoveryCollectDiscoveryData(stopCh)

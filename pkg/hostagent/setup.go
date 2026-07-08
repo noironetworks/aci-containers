@@ -949,7 +949,7 @@ func (agent *HostAgent) cleanupSetup() {
 	agent.log.Info("Checking for stale container setup")
 
 	agent.indexMutex.Lock()
-	if !agent.syncEnabled {
+	if !agent.syncEnabled.Load() {
 		agent.indexMutex.Unlock()
 		agent.log.Info("Sync not enabled, skipping stale container setup")
 		return
