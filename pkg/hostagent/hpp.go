@@ -24,9 +24,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	hppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	hppclset "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -49,6 +51,30 @@ var (
 	NetpolFileWrites  atomic.Int64
 	NetpolFileSkips   atomic.Int64
 )
+
+// Test scaffolding: buffer the old-vs-new Spec diffs of HPP/RIC updates that
+// were counted as changes, so they can be dumped alongside the periodic update
+// stats log line — remove after testing.
+var (
+	updateDiffMutex sync.Mutex
+	updateDiffs     []string
+)
+
+// recordUpdateDiff appends a human-readable diff for a change-counted update.
+func recordUpdateDiff(kind, name, diff string) {
+	updateDiffMutex.Lock()
+	updateDiffs = append(updateDiffs, fmt.Sprintf("%s %s changed:\n%s", kind, name, diff))
+	updateDiffMutex.Unlock()
+}
+
+// drainUpdateDiffs returns and clears the buffered update diffs.
+func drainUpdateDiffs() []string {
+	updateDiffMutex.Lock()
+	diffs := updateDiffs
+	updateDiffs = nil
+	updateDiffMutex.Unlock()
+	return diffs
+}
 
 // hostAgentStartTime records when this process started. Used by stale tmp-file
 // cleanup in syncLocalHppMo: only tmp files with mtime before this time can
@@ -122,6 +148,11 @@ func (agent *HostAgent) initHppInformerBase(listWatch *cache.ListWatch) {
 				HppUpdateNoChange.Add(1)
 				return
 			}
+			if ok1 && ok2 {
+				if diff := cmp.Diff(oldHpp.Spec, newHpp.Spec); diff != "" {
+					recordUpdateDiff("HPP", newHpp.Name, diff)
+				}
+			}
 			agent.handleHppUpdate(oldHpp, newHpp)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -166,6 +197,11 @@ func (agent *HostAgent) initHostprotRemoteIpContainerBase(listWatch *cache.ListW
 			if ok1 && ok2 && reflect.DeepEqual(oldRic.Spec, newRic.Spec) {
 				RicUpdateNoChange.Add(1)
 				return
+			}
+			if ok1 && ok2 {
+				if diff := cmp.Diff(oldRic.Spec, newRic.Spec); diff != "" {
+					recordUpdateDiff("RIC", newRic.Name, diff)
+				}
 			}
 			agent.ricChanged(obj)
 		},
@@ -666,6 +702,16 @@ func (agent *HostAgent) writeNetpolFileAtomic(modb []*gbpBaseMo, labelKey string
 	} else if err != nil && !os.IsNotExist(err) {
 		agent.log.Errorf("Failed to read existing netpol file %s: %v", filePath, err)
 		return false
+	}
+	// Test scaffolding: the on-disk file exists but its content differs from the
+	// freshly-rendered JSON. Log a per-line diff (on-disk -> rendered) so we can
+	// tell whether the render is non-deterministic (e.g. map/slice ordering
+	// churn) versus a genuine spec change — remove after testing.
+	if err == nil {
+		diff := cmp.Diff(
+			strings.Split(string(existingContent), "\n"),
+			strings.Split(string(policyDBJson), "\n"))
+		agent.log.Infof("netpol file %s content differs (on-disk -> rendered):\n%s", labelKey, diff)
 	}
 
 	// Atomic write: create a unique tmp file, write, chmod, rename.

@@ -50,7 +50,6 @@ type HostprotPolList struct {
 }
 
 type HostprotRemoteIpContainerSpec struct {
-	Name              string   `json:"name,omitempty"`
 	HostprotRemoteIps []string `json:"hostprotRemoteIps,omitempty"`
 }
 

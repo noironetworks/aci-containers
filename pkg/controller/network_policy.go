@@ -1474,6 +1474,27 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	}
 }
 
+// stripHppRuleIndex removes a leading "<digits>-" sequential-index prefix
+// (added by canonicalizeHppRules) from a HostprotRule name, recovering the
+// original base name. mergeHppDirectIngressRules needs this because
+// siblingNames (cached by cacheNpDirIngressRules) always holds raw,
+// pre-canonicalization names, while the rules it's matching against come
+// from the stored HPP CR (hppDirRef.HppCr), which always carries the index
+// prefix from the last canonicalizeHppRules call that wrote it. Without
+// stripping, the lookup would never match.
+func stripHppRuleIndex(name string) string {
+	idx := strings.Index(name, "-")
+	if idx <= 0 {
+		return name
+	}
+	for _, r := range name[:idx] {
+		if r < '0' || r > '9' {
+			return name
+		}
+	}
+	return name[idx+1:]
+}
+
 // canonicalizeHppRules sorts rules deterministically regardless of NP spec
 // rule ordering, then prepends a sequential index to guarantee uniqueness.
 func canonicalizeHppRules(rules []hppv1.HostprotRule) {
@@ -1541,7 +1562,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				} else {
 					ricIpsV4 = entry.ipsV4
 				}
-				ricNameV4 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix+"ipv4")
+				ricNameV4 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "ipv4"
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV4] = ricIpsV4
 				cont.queueRemoteIpConUpdateByKey(ricNameV4)
@@ -1549,10 +1570,10 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				cont.hppMutex.Unlock()
 			}
 			if entry.proto == "" && entry.fromPort == "" {
-				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, ricNameV4+policyRuleName, direction,
 					"ipv4", "", "", "", ricNameV4, nil)
 			} else {
-				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, ricNameV4+policyRuleName, direction,
 					"ipv4", entry.proto, entry.fromPort, entry.toPort, ricNameV4, nil)
 			}
 		}
@@ -1566,7 +1587,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				} else {
 					ricIpsV6 = entry.ipsV6
 				}
-				ricNameV6 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix+"ipv6")
+				ricNameV6 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "ipv6"
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV6] = ricIpsV6
 				cont.queueRemoteIpConUpdateByKey(ricNameV6)
@@ -1574,10 +1595,10 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				cont.hppMutex.Unlock()
 			}
 			if entry.proto == "" && entry.fromPort == "" {
-				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, ricNameV6+policyRuleName, direction,
 					"ipv6", "", "", "", ricNameV6, nil)
 			} else {
-				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, ricNameV6+policyRuleName, direction,
 					"ipv6", entry.proto, entry.fromPort, entry.toPort, ricNameV6, nil)
 			}
 		}
@@ -2120,7 +2141,6 @@ func (cont *AciController) handleRemIpContUpdate(ricName string) bool {
 				Namespace: ns,
 			},
 			Spec: hppv1.HostprotRemoteIpContainerSpec{
-				Name:              ricName,
 				HostprotRemoteIps: desiredIps,
 			},
 		}
@@ -2639,9 +2659,15 @@ func (cont *AciController) mergeHppDirectIngressRules(labelKey, key string,
 			continue
 		}
 		for _, rule := range subj.HostprotRule {
-			if siblingNames[rule.Name] {
+			// Stored rule names are already canonicalized (carry a
+			// sequential index prefix), while siblingNames holds raw,
+			// pre-canonicalization names cached by cacheNpDirIngressRules.
+			// Compare base names so the lookup isn't defeated by the index
+			// prefix.
+			baseName := stripHppRuleIndex(rule.Name)
+			if siblingNames[baseName] {
 				subjIngress.HostprotRule = append(subjIngress.HostprotRule, rule)
-				delete(siblingNames, rule.Name)
+				delete(siblingNames, baseName)
 			}
 		}
 	}

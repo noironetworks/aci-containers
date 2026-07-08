@@ -517,6 +517,10 @@ func (agent *HostAgent) runTickers(stopCh <-chan struct{}) {
 				HppUpdateTotal.Load(), HppUpdateNoChange.Load(),
 				RicUpdateTotal.Load(), RicUpdateNoChange.Load(),
 				NetpolFileWrites.Load(), NetpolFileSkips.Load())
+			// Test scaffolding: dump the Spec diffs that were counted as changes
+			for _, diff := range drainUpdateDiffs() {
+				agent.log.Infof("update diff: %s", diff)
+			}
 		case <-stopCh:
 			return
 		}

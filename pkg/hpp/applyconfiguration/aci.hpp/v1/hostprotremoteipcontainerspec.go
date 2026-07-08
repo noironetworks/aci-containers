@@ -20,7 +20,6 @@ package v1
 // HostprotRemoteIpContainerSpecApplyConfiguration represents a declarative configuration of the HostprotRemoteIpContainerSpec type for use
 // with apply.
 type HostprotRemoteIpContainerSpecApplyConfiguration struct {
-	Name              *string  `json:"name,omitempty"`
 	HostprotRemoteIps []string `json:"hostprotRemoteIps,omitempty"`
 }
 
@@ -28,14 +27,6 @@ type HostprotRemoteIpContainerSpecApplyConfiguration struct {
 // apply.
 func HostprotRemoteIpContainerSpec() *HostprotRemoteIpContainerSpecApplyConfiguration {
 	return &HostprotRemoteIpContainerSpecApplyConfiguration{}
-}
-
-// WithName sets the Name field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Name field is set to the value of the last call.
-func (b *HostprotRemoteIpContainerSpecApplyConfiguration) WithName(value string) *HostprotRemoteIpContainerSpecApplyConfiguration {
-	b.Name = &value
-	return b
 }
 
 // WithHostprotRemoteIps adds the given value to the HostprotRemoteIps field in the declarative configuration

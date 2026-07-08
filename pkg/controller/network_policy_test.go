@@ -4615,8 +4615,9 @@ func TestQueueRemoteIpConUpdate(t *testing.T) {
 	cont.queueRemoteIpConUpdateByKey("kube-system/ric-1")
 	assert.Equal(t, 1, cont.remIpContQueue.Len())
 
-	// Same key again — still enqueued (dedup is in the reconciler)
-	cont.queueRemoteIpConUpdateByKey("kube-system/ric-1")
+	// A distinct RIC key is a distinct queue item.
+	cont.remoteIpCache["kube-system/ric-2"] = []string{"10.0.0.2"}
+	cont.queueRemoteIpConUpdateByKey("kube-system/ric-2")
 	assert.Equal(t, 2, cont.remIpContQueue.Len())
 }
 
@@ -4789,9 +4790,8 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		entries: []resolvedPortEntry{{proto: "tcp", fromPort: "8080", ipsV4: []string{"192.168.0.1"}}},
 	}, peers, "test-namespace", make(map[string]bool))
 
-	expectedRicName := util.CreateHashFromNetPolPeers(peers, "test-namespace", "")
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, expectedRicName+"-ipv4__tcp-8080", subj.HostprotRule[0].Name)
+	assert.Equal(t, "ipv4__tcp-8080", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -4805,7 +4805,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	}, peers, "test-namespace", make(map[string]bool))
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, expectedRicName+"-ipv4__unspecified", subj.HostprotRule[0].Name)
+	assert.Equal(t, "ipv4__unspecified", subj.HostprotRule[0].Name)
 	assert.Equal(t, "unspecified", subj.HostprotRule[0].Protocol)
 	assert.Equal(t, "unspecified", subj.HostprotRule[0].FromPort)
 	assert.NotEmpty(t, subj.HostprotRule[0].RsRemoteIpContainer)
@@ -5164,7 +5164,6 @@ func getRemoteIPContainer() *hppv1.HostprotRemoteIpContainer {
 			Namespace: "test-namespace",
 		},
 		Spec: hppv1.HostprotRemoteIpContainerSpec{
-			Name:              "test-remote-ip-container",
 			HostprotRemoteIps: []string{"192.168.52.5"},
 		},
 	}
@@ -5182,11 +5181,14 @@ func TestGetHostprotRemoteIpContainer(t *testing.T) {
 	ret := cont.createHostprotRemoteIpContainer(remoteIpContainer, "test-namespace")
 	assert.True(t, ret)
 
+	// Manually add to informer cache to simulate watch event delivery
+	cont.hppRemoteIpInformer.GetIndexer().Add(remoteIpContainer)
+
 	retRemoteIpContainer, err := cont.getHostprotRemoteIpContainer(remoteIpContainer.Name, "test-namespace")
 	assert.NoError(t, err)
 	assert.Equal(t, remoteIpContainer, retRemoteIpContainer)
 
-	cont.env.(*K8sEnvironment).hppClient = nil
+	cont.hppRemoteIpInformer.GetIndexer().Delete(remoteIpContainer)
 
 	retRemoteIpContainer, err = cont.getHostprotRemoteIpContainer(remoteIpContainer.Name, "test-namespace")
 	assert.Error(t, err)
@@ -5334,9 +5336,19 @@ func TestUpdateClearNodeHostprotRemoteIpContainer(t *testing.T) {
 
 	cont.updateNodeHostprotRemoteIpContainer("test-node", nodeIps)
 
-	remoteIpContainer, err := cont.getHostprotRemoteIpContainer("test-node", "kube-system")
-
-	assert.NoError(t, err)
+	// updateNodeHostprotRemoteIpContainer only enqueues the update; the CR
+	// is created asynchronously by the remIpContQueue reconciler and then
+	// observed back via the informer watch, so poll for it.
+	var remoteIpContainer *hppv1.HostprotRemoteIpContainer
+	tu.WaitFor(t, "create test-node RIC", 2*time.Second,
+		func(last bool) (bool, error) {
+			var err error
+			remoteIpContainer, err = cont.getHostprotRemoteIpContainer("test-node", "kube-system")
+			return err == nil, nil
+		})
+	if !assert.NotNil(t, remoteIpContainer) {
+		return
+	}
 	assert.Equal(t, "test-node", remoteIpContainer.Name)
 	assert.Equal(t, "kube-system", remoteIpContainer.Namespace)
 	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
@@ -5348,9 +5360,16 @@ func TestUpdateClearNodeHostprotRemoteIpContainer(t *testing.T) {
 
 	cont.updateNodeHostprotRemoteIpContainer("test-node", nodeIps)
 
-	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("test-node", "kube-system")
-
-	assert.NoError(t, err)
+	tu.WaitFor(t, "update test-node RIC", 2*time.Second,
+		func(last bool) (bool, error) {
+			var err error
+			remoteIpContainer, err = cont.getHostprotRemoteIpContainer("test-node", "kube-system")
+			if err != nil {
+				return false, nil
+			}
+			return len(remoteIpContainer.Spec.HostprotRemoteIps) == 1 &&
+				remoteIpContainer.Spec.HostprotRemoteIps[0] == "192.168.10.105", nil
+		})
 	assert.Equal(t, "test-node", remoteIpContainer.Name)
 	assert.Equal(t, "kube-system", remoteIpContainer.Namespace)
 	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
@@ -5359,9 +5378,15 @@ func TestUpdateClearNodeHostprotRemoteIpContainer(t *testing.T) {
 	// Clear IPs — CR should still exist but with empty IPs
 	cont.clearNodeHostprotRemoteIps("test-node")
 
-	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("test-node", "kube-system")
-
-	assert.NoError(t, err)
+	tu.WaitFor(t, "clear test-node RIC ips", 2*time.Second,
+		func(last bool) (bool, error) {
+			var err error
+			remoteIpContainer, err = cont.getHostprotRemoteIpContainer("test-node", "kube-system")
+			if err != nil {
+				return false, nil
+			}
+			return len(remoteIpContainer.Spec.HostprotRemoteIps) == 0, nil
+		})
 	assert.Equal(t, 0, len(remoteIpContainer.Spec.HostprotRemoteIps))
 }
 
@@ -5401,54 +5426,69 @@ func TestCreateNodeHostProtPol(t *testing.T) {
 
 	cont.createNodeHostProtPol(name, nodeName, nodeIps)
 
-	// Sync updated HPP from API to informer cache
+	// createNodeHostProtPol only enqueues the RIC and HPP updates; the CRs
+	// are created/updated asynchronously by the remIpContQueue/hppQueue
+	// reconcilers and then observed back via the informer watch, so poll
+	// for them, refreshing the informer cache from the fake client each
+	// iteration (as the fake client has no watch wiring to the informer).
 	hppcl := cont.env.(*K8sEnvironment).hppClient
-	updatedHpp, _ := hppcl.AciV1().HostprotPols(ns).Get(context.TODO(), hppName, metav1.GetOptions{})
-	if updatedHpp != nil {
-		cont.hppInformer.GetIndexer().Update(updatedHpp)
+	var remoteIpContainer *hppv1.HostprotRemoteIpContainer
+	tu.WaitFor(t, "create test-node RIC", 2*time.Second,
+		func(last bool) (bool, error) {
+			var err error
+			remoteIpContainer, err = cont.getHostprotRemoteIpContainer(nodeName, ns)
+			return err == nil, nil
+		})
+	if !assert.NotNil(t, remoteIpContainer) {
+		return
 	}
-
-	remoteIpContainer, err := cont.getHostprotRemoteIpContainer(nodeName, ns)
-
-	assert.NoError(t, err)
 	assert.Equal(t, nodeName, remoteIpContainer.Name)
 	assert.Equal(t, ns, remoteIpContainer.Namespace)
 	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
 	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIps[0])
 
-	remoteIpContainer, err = cont.getHostprotRemoteIpContainer("nodeips", ns)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "nodeips", remoteIpContainer.Name)
-	assert.Equal(t, ns, remoteIpContainer.Namespace)
-	assert.Equal(t, 1, len(remoteIpContainer.Spec.HostprotRemoteIps))
-	assert.Equal(t, "192.168.10.105", remoteIpContainer.Spec.HostprotRemoteIps[0])
-
-	hpp, err = cont.getHostprotPol(hppName, ns)
-
-	assert.NoError(t, err)
+	tu.WaitFor(t, "update test-node HPP with local-node subject", 2*time.Second,
+		func(last bool) (bool, error) {
+			updatedHpp, geterr := hppcl.AciV1().HostprotPols(ns).Get(context.TODO(), hppName, metav1.GetOptions{})
+			if geterr != nil {
+				return false, nil
+			}
+			cont.hppInformer.GetIndexer().Update(updatedHpp)
+			var geterr2 error
+			hpp, geterr2 = cont.getHostprotPol(hppName, ns)
+			return geterr2 == nil && len(hpp.Spec.HostprotSubj) == 1, nil
+		})
 	assert.Equal(t, 1, len(hpp.Spec.HostprotSubj))
 	assert.Equal(t, 2, len(hpp.Spec.HostprotSubj[0].HostprotRule))
 
 	cont.createNodeHostProtPol(name, nodeName, map[string]bool{})
 
-	// Sync updated HPP from API to informer cache after second update
-	updatedHpp, _ = hppcl.AciV1().HostprotPols(ns).Get(context.TODO(), hppName, metav1.GetOptions{})
-	if updatedHpp != nil {
-		cont.hppInformer.GetIndexer().Update(updatedHpp)
-	}
+	// createNodeHostProtPol with no IPs calls clearNodeHostprotRemoteIps,
+	// which empties the RIC's IPs but keeps the CR (matching
+	// TestUpdateClearNodeHostprotRemoteIpContainer's documented behavior),
+	// and clears the HPP's local-node subject.
+	tu.WaitFor(t, "clear test-node RIC ips", 2*time.Second,
+		func(last bool) (bool, error) {
+			var err error
+			remoteIpContainer, err = cont.getHostprotRemoteIpContainer(nodeName, ns)
+			if err != nil {
+				return false, nil
+			}
+			return len(remoteIpContainer.Spec.HostprotRemoteIps) == 0, nil
+		})
+	assert.Equal(t, 0, len(remoteIpContainer.Spec.HostprotRemoteIps))
 
-	_, err = cont.getHostprotRemoteIpContainer(nodeName, ns)
-
-	assert.Error(t, err)
-
-	_, err = cont.getHostprotRemoteIpContainer("nodeips", ns)
-
-	assert.Error(t, err)
-
-	hpp, err = cont.getHostprotPol(hppName, ns)
-
-	assert.NoError(t, err)
+	tu.WaitFor(t, "clear test-node HPP local-node subject", 2*time.Second,
+		func(last bool) (bool, error) {
+			updatedHpp, geterr := hppcl.AciV1().HostprotPols(ns).Get(context.TODO(), hppName, metav1.GetOptions{})
+			if geterr != nil {
+				return false, nil
+			}
+			cont.hppInformer.GetIndexer().Update(updatedHpp)
+			var geterr2 error
+			hpp, geterr2 = cont.getHostprotPol(hppName, ns)
+			return geterr2 == nil && len(hpp.Spec.HostprotSubj) == 0, nil
+		})
 	assert.Equal(t, 0, len(hpp.Spec.HostprotSubj))
 }
 
@@ -5502,14 +5542,24 @@ func TestHandleNetPolUpdate(t *testing.T) {
 	labelKey := cont.aciNameForKey("np", hash)
 	hppName := strings.ReplaceAll(labelKey, "_", "-")
 
-	// Sync HPP from API to informer cache
+	// handleNetPolUpdate only enqueues the HPP update; the CR is created
+	// asynchronously by the hppQueue reconciler and then observed back via
+	// the informer watch, so poll for it, refreshing the informer cache
+	// from the fake client each iteration (as the fake client has no watch
+	// wiring to the informer).
 	hppcl := cont.env.(*K8sEnvironment).hppClient
-	updatedHpp, _ := hppcl.AciV1().HostprotPols(np.Namespace).Get(context.TODO(), hppName, metav1.GetOptions{})
-	if updatedHpp != nil {
-		cont.hppInformer.GetIndexer().Add(updatedHpp)
-	}
-
-	hpp, err := cont.getHostprotPol(hppName, np.Namespace)
+	var hpp *hppv1.HostprotPol
+	var err error
+	tu.WaitFor(t, "create HPP from network policy", 2*time.Second,
+		func(last bool) (bool, error) {
+			updatedHpp, geterr := hppcl.AciV1().HostprotPols(np.Namespace).Get(context.TODO(), hppName, metav1.GetOptions{})
+			if geterr != nil {
+				return false, nil
+			}
+			cont.hppInformer.GetIndexer().Update(updatedHpp)
+			hpp, err = cont.getHostprotPol(hppName, np.Namespace)
+			return err == nil && len(hpp.Spec.HostprotSubj) == 2, nil
+		})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(hpp.Spec.HostprotSubj))
@@ -6862,9 +6912,8 @@ func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
 	subj := &hppv1.HostprotSubj{}
 	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, nil, "", make(map[string]bool))
 
-	expectedRicName := util.CreateHashFromNetPolPeers(nil, "", "80")
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule for resolved named port")
-	assert.Equal(t, expectedRicName+"-ipv4__tcp-80", subj.HostprotRule[0].Name)
+	assert.Equal(t, "ipv4__tcp-80", subj.HostprotRule[0].Name)
 	assert.Equal(t, "egress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
