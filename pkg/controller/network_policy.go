@@ -2205,20 +2205,25 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 		if !cont.hppSyncEnabled.Load() {
 			// Until the NP sync and HPP cache build is complete, we don't have the full
 			// desired list of network policies to compare against, so we can't determine
-			// if an update is needed. Requeue until the sync completes if the change is
-			// only the network policies.
-			if reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) && reflect.DeepEqual(actual.Spec.Name, desired.Spec.Name) {
-				if reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
-					return false // no-op
-				} else {
-					return true
-				}
-			}
-		} else {
-			// Both exist — compare and update if changed.
-			if reflect.DeepEqual(actual.Spec, desired.Spec) {
-				return false // no-op
-			}
+			// if an update is needed.
+			// For ingress named port netpols with conflicting port numbers across different
+			// netpols, all hashing to the same hpp, even hostprotSubj can have inconsistent
+			// intermediate states during the sync.
+			// Requeue until the sync completes.
+
+			// if reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) && reflect.DeepEqual(actual.Spec.Name, desired.Spec.Name) {
+			// 	if reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
+			// 		return false // no-op
+			// 	} else {
+			// 		return true
+			// 	}
+			// }
+
+			return true
+		}
+		// Both exist — compare and update if changed.
+		if reflect.DeepEqual(actual.Spec, desired.Spec) {
+			return false // no-op
 		}
 		updated := actual.DeepCopy()
 		updated.Spec = desired.Spec
