@@ -1553,7 +1553,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 		noRic := resolved.noPeers && !entry.portScoped
 
 		if hasV4 {
-			policyRuleName := util.AciNameForKey("ipv4", "", entryName)
+			namePrefix := "ipv4"
 			var ricNameV4 string
 			if !noRic {
 				var ricIpsV4 []string
@@ -1563,22 +1563,24 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 					ricIpsV4 = entry.ipsV4
 				}
 				ricNameV4 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "-ipv4"
+				namePrefix = ricNameV4
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV4] = ricIpsV4
 				cont.queueRemoteIpConUpdateByKey(ricNameV4)
 				rics[ricNameV4] = true
 				cont.hppMutex.Unlock()
 			}
+			policyRuleName := util.AciNameForKey(namePrefix, "", entryName)
 			if entry.proto == "" && entry.fromPort == "" {
-				cont.buildLocalNetPolSubjRule(subj, ricNameV4+policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv4", "", "", "", ricNameV4, nil)
 			} else {
-				cont.buildLocalNetPolSubjRule(subj, ricNameV4+policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv4", entry.proto, entry.fromPort, entry.toPort, ricNameV4, nil)
 			}
 		}
 		if hasV6 {
-			policyRuleName := util.AciNameForKey("ipv6", "", entryName)
+			namePrefix := "ipv6"
 			var ricNameV6 string
 			if !noRic {
 				var ricIpsV6 []string
@@ -1588,17 +1590,19 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 					ricIpsV6 = entry.ipsV6
 				}
 				ricNameV6 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "-ipv6"
+				namePrefix = ricNameV6
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV6] = ricIpsV6
 				cont.queueRemoteIpConUpdateByKey(ricNameV6)
 				rics[ricNameV6] = true
 				cont.hppMutex.Unlock()
 			}
+			policyRuleName := util.AciNameForKey(namePrefix, "", entryName)
 			if entry.proto == "" && entry.fromPort == "" {
-				cont.buildLocalNetPolSubjRule(subj, ricNameV6+policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv6", "", "", "", ricNameV6, nil)
 			} else {
-				cont.buildLocalNetPolSubjRule(subj, ricNameV6+policyRuleName, direction,
+				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv6", entry.proto, entry.fromPort, entry.toPort, ricNameV6, nil)
 			}
 		}

@@ -4790,8 +4790,9 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		entries: []resolvedPortEntry{{proto: "tcp", fromPort: "8080", ipsV4: []string{"192.168.0.1"}}},
 	}, peers, "test-namespace", make(map[string]bool))
 
+	expectedRicName := util.CreateHashFromNetPolPeers(peers, "test-namespace", "")
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, "ipv4__tcp-8080", subj.HostprotRule[0].Name)
+	assert.Equal(t, expectedRicName+"-ipv4__tcp-8080", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
@@ -4805,7 +4806,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	}, peers, "test-namespace", make(map[string]bool))
 
 	assert.Equal(t, 1, len(subj.HostprotRule))
-	assert.Equal(t, "ipv4__unspecified", subj.HostprotRule[0].Name)
+	assert.Equal(t, expectedRicName+"-ipv4__unspecified", subj.HostprotRule[0].Name)
 	assert.Equal(t, "unspecified", subj.HostprotRule[0].Protocol)
 	assert.Equal(t, "unspecified", subj.HostprotRule[0].FromPort)
 	assert.NotEmpty(t, subj.HostprotRule[0].RsRemoteIpContainer)
@@ -6912,8 +6913,9 @@ func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
 	subj := &hppv1.HostprotSubj{}
 	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, nil, "", make(map[string]bool))
 
+	expectedRicName := util.CreateHashFromNetPolPeers(nil, "", "80")
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule for resolved named port")
-	assert.Equal(t, "ipv4__tcp-80", subj.HostprotRule[0].Name)
+	assert.Equal(t, expectedRicName+"-ipv4__tcp-80", subj.HostprotRule[0].Name)
 	assert.Equal(t, "egress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
