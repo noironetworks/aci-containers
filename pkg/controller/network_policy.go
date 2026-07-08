@@ -1521,21 +1521,33 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 		if entry.proto != "" {
 			entryName = protoPortKey(entry.proto, entry.fromPort)
 		}
+		// A rule with no peer selector at all (ingress: - {} / egress: - {})
+		// has no remote-IP restriction to express: its resolved IP lists are
+		// structurally always empty, not just currently empty. Omit
+		// RsRemoteIpContainer entirely in that case, consistent with the
+		// static/discovery allow-all rules, instead of referencing a RIC
+		// that will forever hold zero IPs. Named-port entries are exempt:
+		// they carry a real, pod-specific IP restriction even when the rule
+		// itself has no From/To (see resolveNetPolPeersAndPorts).
+		noRic := resolved.noPeers && !entry.portScoped
 
 		if hasV4 {
-			var ricIpsV4 []string
-			if resolved.addPodSubnetAsRemIp && !entry.portScoped {
-				ricIpsV4 = cont.buildPodSubnetRemoteIps(entry.ipsV4, resolved.ipBlockSubsV4, "ipv4")
-			} else {
-				ricIpsV4 = entry.ipsV4
-			}
-			ricNameV4 := util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix+"ipv4")
-			cont.hppMutex.Lock()
-			cont.remoteIpCache[ricNameV4] = ricIpsV4
-			cont.queueRemoteIpConUpdateByKey(ricNameV4)
-			rics[ricNameV4] = true
-			cont.hppMutex.Unlock()
 			policyRuleName := util.AciNameForKey("ipv4", "", entryName)
+			var ricNameV4 string
+			if !noRic {
+				var ricIpsV4 []string
+				if resolved.addPodSubnetAsRemIp && !entry.portScoped {
+					ricIpsV4 = cont.buildPodSubnetRemoteIps(entry.ipsV4, resolved.ipBlockSubsV4, "ipv4")
+				} else {
+					ricIpsV4 = entry.ipsV4
+				}
+				ricNameV4 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix+"ipv4")
+				cont.hppMutex.Lock()
+				cont.remoteIpCache[ricNameV4] = ricIpsV4
+				cont.queueRemoteIpConUpdateByKey(ricNameV4)
+				rics[ricNameV4] = true
+				cont.hppMutex.Unlock()
+			}
 			if entry.proto == "" && entry.fromPort == "" {
 				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv4", "", "", "", ricNameV4, nil)
@@ -1545,19 +1557,22 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 			}
 		}
 		if hasV6 {
-			var ricIpsV6 []string
-			if resolved.addPodSubnetAsRemIp && !entry.portScoped {
-				ricIpsV6 = cont.buildPodSubnetRemoteIps(entry.ipsV6, resolved.ipBlockSubsV6, "ipv6")
-			} else {
-				ricIpsV6 = entry.ipsV6
-			}
-			ricNameV6 := util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix+"ipv6")
-			cont.hppMutex.Lock()
-			cont.remoteIpCache[ricNameV6] = ricIpsV6
-			cont.queueRemoteIpConUpdateByKey(ricNameV6)
-			rics[ricNameV6] = true
-			cont.hppMutex.Unlock()
 			policyRuleName := util.AciNameForKey("ipv6", "", entryName)
+			var ricNameV6 string
+			if !noRic {
+				var ricIpsV6 []string
+				if resolved.addPodSubnetAsRemIp && !entry.portScoped {
+					ricIpsV6 = cont.buildPodSubnetRemoteIps(entry.ipsV6, resolved.ipBlockSubsV6, "ipv6")
+				} else {
+					ricIpsV6 = entry.ipsV6
+				}
+				ricNameV6 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix+"ipv6")
+				cont.hppMutex.Lock()
+				cont.remoteIpCache[ricNameV6] = ricIpsV6
+				cont.queueRemoteIpConUpdateByKey(ricNameV6)
+				rics[ricNameV6] = true
+				cont.hppMutex.Unlock()
+			}
 			if entry.proto == "" && entry.fromPort == "" {
 				cont.buildLocalNetPolSubjRule(subj, policyRuleName, direction,
 					"ipv6", "", "", "", ricNameV6, nil)
