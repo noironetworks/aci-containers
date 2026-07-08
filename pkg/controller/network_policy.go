@@ -2130,7 +2130,7 @@ func (cont *AciController) handleRemIpContUpdate(ricName string) bool {
 		return false
 
 	case !desiredExists && actualExists:
-		if !cont.netPolSyncEnabled.Load() {
+		if !cont.hppSyncEnabled.Load() {
 			return true // requeue until NP sync completes
 		}
 		// Desired state removed — delete the CR
@@ -2189,7 +2189,7 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 		return false
 
 	case !desiredExists && actualExists:
-		if !cont.netPolSyncEnabled.Load() {
+		if !cont.hppSyncEnabled.Load() {
 			return true // requeue until NP sync completes
 		}
 		// Desired state removed — delete the CR.
@@ -2202,9 +2202,23 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 		return !cont.createHostprotPol(desired, ns)
 
 	default:
-		// Both exist — compare and update if changed.
-		if reflect.DeepEqual(actual.Spec, desired.Spec) {
-			return false // no-op
+		if !cont.hppSyncEnabled.Load() {
+			// Until the NP sync and HPP cache build is complete, we don't have the full
+			// desired list of network policies to compare against, so we can't determine
+			// if an update is needed. Requeue until the sync completes if the change is
+			// only the network policies.
+			if reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) && reflect.DeepEqual(actual.Spec.Name, desired.Spec.Name) {
+				if reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
+					return false // no-op
+				} else {
+					return true
+				}
+			}
+		} else {
+			// Both exist — compare and update if changed.
+			if reflect.DeepEqual(actual.Spec, desired.Spec) {
+				return false // no-op
+			}
 		}
 		updated := actual.DeepCopy()
 		updated.Spec = desired.Spec

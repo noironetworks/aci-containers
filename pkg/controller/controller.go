@@ -190,7 +190,7 @@ type AciController struct {
 	nodeSyncEnabled     bool
 	serviceSyncEnabled  bool
 	snatSyncEnabled     bool
-	netPolSyncEnabled   atomic.Bool
+	hppSyncEnabled      atomic.Bool
 	syncQueue           workqueue.RateLimitingInterface
 	syncProcessors      map[string]func() bool
 	serviceEndPoints    ServiceEndPointType
@@ -722,6 +722,37 @@ func (cont *AciController) processReconcileQueue(queue workqueue.RateLimitingInt
 	}, time.Second, stopCh)
 	<-stopCh
 	queue.ShutDown()
+}
+
+// enableHppSyncAfterCheckpoint gates deferred deletion of HPP/RIC CRs (see
+// handleHppUpdate / handleRemIpContUpdate) on completion of the initial
+// netPolQueue backlog, not just NetworkPolicy informer cache sync.
+// cache.WaitForCacheSync only confirms every NetworkPolicy present at
+// startup has been enqueued onto netPolQueue by networkPolicyAdded — it says
+// nothing about whether the single netPolQueue worker has actually drained
+// that backlog and populated hppDirRef/remoteIpCache (the desired-state
+// caches) via handleNetPolUpdate. Deleting a CR based on desired-state
+// absence before that backlog drains would delete a CR that is merely not
+// processed yet, not genuinely stale.
+//
+// The caller (PrepareRun) waits for NetworkPolicy informer cache sync before
+// starting this goroutine. This then drops a sentinel behind the backlog on
+// netPolQueue itself (mirroring the hostagent's enableHppSyncAfterCheckpoint
+// / hppQueue checkpoint pattern). Since netPolQueue has a single worker and
+// the informer's initial List is fully delivered to networkPolicyAdded
+// before HasSynced returns, every startup NP key is already ahead of the
+// sentinel in the queue; when the worker processes the sentinel, all of them
+// have been through handleNetPolUpdate at least once. Runs asynchronously so
+// it doesn't block PrepareRun.
+func (cont *AciController) enableHppSyncAfterCheckpoint(stopCh <-chan struct{}) {
+	done := make(chan struct{})
+	cont.netPolQueue.Add(done)
+	select {
+	case <-done:
+		cont.hppSyncEnabled.Store(true)
+		cont.log.Info("NetworkPolicy initial sync checkpoint complete; enabling stale HPP/RIC prune")
+	case <-stopCh:
+	}
 }
 
 func (cont *AciController) processEpgDnCacheUpdateQueue(queue workqueue.RateLimitingInterface,

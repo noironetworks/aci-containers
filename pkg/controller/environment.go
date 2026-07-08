@@ -285,10 +285,6 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 	cont.log.Debug("Starting informers")
 	go cont.nodeInformer.Run(stopCh)
 	go cont.namespaceInformer.Run(stopCh)
-	if !cont.isCNOEnabled() && !cont.config.DisableHppRendering && cont.config.EnableHppDirect {
-		go cont.hppInformer.Run(stopCh)
-		go cont.hppRemoteIpInformer.Run(stopCh)
-	}
 	cont.log.Info("Waiting for node/namespace cache sync")
 	cache.WaitForCacheSync(stopCh,
 		cont.nodeInformer.HasSynced, cont.namespaceInformer.HasSynced)
@@ -343,6 +339,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.log.Info("Snat cache sync successful")
 		if !cont.config.DisableHppRendering {
 			go cont.networkPolicyInformer.Run(stopCh)
+			if cont.config.EnableHppDirect {
+				go cont.hppInformer.Run(stopCh)
+				go cont.hppRemoteIpInformer.Run(stopCh)
+
+			}
 		}
 	}
 	go cont.processQueue(cont.podQueue, cont.podIndexer,
@@ -351,14 +352,13 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		}, nil, nil, stopCh)
 	if !cont.isCNOEnabled() {
 		if !cont.config.DisableHppRendering {
-			if cont.config.EnableHppDirect {
-				cache.WaitForCacheSync(stopCh, cont.hppInformer.HasSynced, cont.hppRemoteIpInformer.HasSynced)
-			}
 			go cont.processQueue(cont.netPolQueue, cont.networkPolicyIndexer,
 				func(obj interface{}) bool {
 					return cont.handleNetPolUpdate(obj.(*v1net.NetworkPolicy))
 				}, nil, nil, stopCh)
 			if cont.config.EnableHppDirect {
+				cont.log.Debug("Waiting for HPP cache sync")
+				cache.WaitForCacheSync(stopCh, cont.hppInformer.HasSynced, cont.hppRemoteIpInformer.HasSynced)
 				go cont.processReconcileQueue(cont.remIpContQueue,
 					func(key string) bool {
 						return cont.handleRemIpContUpdate(key)
@@ -431,8 +431,11 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) error {
 		cont.deploymentInformer.HasSynced)
 
 	if !cont.isCNOEnabled() && !cont.config.DisableHppRendering {
-		cache.WaitForCacheSync(stopCh, cont.networkPolicyInformer.HasSynced)
-		cont.netPolSyncEnabled.Store(true)
+		if cache.WaitForCacheSync(stopCh, cont.networkPolicyInformer.HasSynced) {
+			if cont.config.EnableHppDirect {
+				go cont.enableHppSyncAfterCheckpoint(stopCh)
+			}
+		}
 	}
 
 	cont.log.Info("Cache sync successful")
