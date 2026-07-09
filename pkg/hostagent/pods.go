@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -155,19 +156,22 @@ func (agent *HostAgent) NodeEPRegAdd(nodePodIfEPs map[string]*opflexEndpoint) bo
 
 	var podifs []nodepodif.PodIF
 	for _, ep := range nodePodIfEPs {
-		ipRemEP := strings.Split(ep.IpAddress[0], "/")[0] + "/32"
-		opflexEpLogger(agent.log, ep).Debug("ipRemEP")
-		var podif nodepodif.PodIF
-		podif.PodNS = ep.Attributes["namespace"]
-		podif.PodName = ep.Attributes["vm-name"]
-		podif.ContainerID = ep.Uuid
-		podif.MacAddr = ep.MacAddress
-		podif.IPAddr = ipRemEP
-		// could change
-		podif.EPG = ep.EndpointGroup
-		podif.VTEP = agent.vtepIP
-		podif.IFName = ep.IfaceName
-		podifs = append(podifs, podif)
+		// Register all pod IPs (IPv4 and IPv6 for dual-stack)
+		for _, ipAddr := range ep.IpAddress {
+			ipRemEP := normalizeRemoteAddrForEP(strings.Split(ipAddr, "/")[0])
+			opflexEpLogger(agent.log, ep).Debug("ipRemEP: " + ipRemEP)
+			var podif nodepodif.PodIF
+			podif.PodNS = ep.Attributes["namespace"]
+			podif.PodName = ep.Attributes["vm-name"]
+			podif.ContainerID = ep.Uuid
+			podif.MacAddr = ep.MacAddress
+			podif.IPAddr = ipRemEP
+			// could change
+			podif.EPG = ep.EndpointGroup
+			podif.VTEP = agent.vtepIP
+			podif.IFName = ep.IfaceName
+			podifs = append(podifs, podif)
+		}
 	}
 
 	nodePodif, err := agent.nodePodIFClient.NodePodIFs("kube-system").Get(context.TODO(), agent.getNodePodIFName(agent.config.NodeName), metav1.GetOptions{})
@@ -341,6 +345,28 @@ func writeEp(epfile string, ep *opflexEndpoint) (bool, error) {
 	}
 	err = os.WriteFile(epfile, newdata, 0644)
 	return true, err
+}
+
+// normalizeRemoteAddrForEP adds the appropriate prefix length for IPv4 and IPv6 addresses
+// IPv4 bare addresses get /32, IPv6 bare addresses get /128
+func normalizeRemoteAddrForEP(addr string) string {
+	// If address is empty or already has a prefix, return as-is
+	if addr == "" || strings.Contains(addr, "/") {
+		return addr
+	}
+
+	// Parse the IP to determine family
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		// Invalid IP, return with /32 as fallback
+		return addr + "/32"
+	}
+
+	// IPv4 addresses get /32, IPv6 get /128
+	if ip.To4() != nil {
+		return addr + "/32"
+	}
+	return addr + "/128"
 }
 
 func podLogger(log *logrus.Logger, pod *v1.Pod) *logrus.Entry {
