@@ -702,6 +702,8 @@ func (agent *HostAgent) writeNetpolFileAtomic(modb []*gbpBaseMo, labelKey string
 	} else if err != nil && !os.IsNotExist(err) {
 		agent.log.Errorf("Failed to read existing netpol file %s: %v", filePath, err)
 		return false
+	} else if os.IsNotExist(err) {
+		agent.log.Debugf("J: Netpol file %s does not exist, will create", filePath)
 	}
 	// Test scaffolding: the on-disk file exists but its content differs from the
 	// freshly-rendered JSON. Log a per-line diff (on-disk -> rendered) so we can
