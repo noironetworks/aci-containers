@@ -20,24 +20,21 @@ package applyconfiguration
 import (
 	v1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/applyconfiguration/aci.hpp/v1"
+	internal "github.com/noironetworks/aci-containers/pkg/hpp/applyconfiguration/internal"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
 )
 
 // ForKind returns an apply configuration type for the given GroupVersionKind, or nil if no
 // apply configuration type exists for the given GroupVersionKind.
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
-	// Group=aci.snat, Version=v1
-	case v1.SchemeGroupVersion.WithKind("HostprotFilter"):
-		return &acihppv1.HostprotFilterApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("HostprotFilterContainer"):
-		return &acihppv1.HostprotFilterContainerApplyConfiguration{}
+	// Group=aci.hpp, Version=v1
 	case v1.SchemeGroupVersion.WithKind("HostprotPol"):
 		return &acihppv1.HostprotPolApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("HostprotPolSpec"):
 		return &acihppv1.HostprotPolSpecApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("HostprotRemoteIp"):
-		return &acihppv1.HostprotRemoteIpApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("HostprotRemoteIpContainer"):
 		return &acihppv1.HostprotRemoteIpContainerApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("HostprotRemoteIpContainerSpec"):
@@ -46,9 +43,11 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &acihppv1.HostprotRuleApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("HostprotSubj"):
 		return &acihppv1.HostprotSubjApplyConfiguration{}
-	case v1.SchemeGroupVersion.WithKind("HppEpLabel"):
-		return &acihppv1.HppEpLabelApplyConfiguration{}
 
 	}
 	return nil
+}
+
+func NewTypeConverter(scheme *runtime.Scheme) managedfields.TypeConverter {
+	return managedfields.NewSchemeTypeConverter(scheme, internal.Parser())
 }

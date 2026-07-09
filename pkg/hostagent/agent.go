@@ -107,10 +107,15 @@ type HostAgent struct {
 	fabricVlanPoolInformer cache.SharedIndexInformer
 	hppInformer            cache.SharedIndexInformer
 	hppRemoteIpInformer    cache.SharedIndexInformer
+	hppMutex               sync.Mutex
 	hppMoIndex             map[string][]*gbpBaseMo
+	ricToHpp               map[string]map[string]bool
+	hppQueue               workqueue.RateLimitingInterface
+	hppInformerReg         cache.ResourceEventHandlerRegistration
+	hppSyncEnabled         atomic.Bool
 	proactiveConfInformer  cache.SharedIndexInformer
 
-	syncEnabled         bool
+	syncEnabled         atomic.Bool
 	opflexConfigWritten bool
 	syncQueue           workqueue.RateLimitingInterface
 	epSyncQueue         workqueue.RateLimitingInterface
@@ -212,6 +217,15 @@ func NewHostAgent(config *HostAgentConfig, env Environment, log *logrus.Logger) 
 		podNetworkMetadata:    make(map[string]map[string]map[string]*md.ContainerMetadata),
 		completedSyncTypes:    make(map[string]struct{}),
 		hppMoIndex:            make(map[string][]*gbpBaseMo),
+		ricToHpp:              make(map[string]map[string]bool),
+		hppQueue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.NewTypedMaxOfRateLimiter(
+				workqueue.NewTypedItemExponentialFailureRateLimiter[any](5*time.Millisecond,
+					10*time.Second),
+				&workqueue.TypedBucketRateLimiter[any]{
+					Limiter: rate.NewLimiter(rate.Limit(10), int(100)),
+				},
+			), "hpp"),
 		syncQueue: workqueue.NewNamedRateLimitingQueue(
 			&workqueue.BucketRateLimiter{
 				Limiter: rate.NewLimiter(rate.Limit(10), int(10)),
@@ -525,7 +539,11 @@ func (agent *HostAgent) checkSyncProcessorsCompletionStatus(stopCh <-chan struct
 						agent.indexMutex.Lock()
 						count := len(agent.completedSyncTypes)
 						agent.indexMutex.Unlock()
-						if count == 5 {
+						requiredCount := 5
+						if agent.hppDirectEnabled() {
+							requiredCount = 6
+						}
+						if count >= requiredCount {
 							removeTaint = true
 						}
 					}
@@ -546,6 +564,66 @@ func (agent *HostAgent) checkSyncProcessorsCompletionStatus(stopCh <-chan struct
 	}
 }
 
+func (agent *HostAgent) processQueue(queue workqueue.RateLimitingInterface, store cache.Store,
+	handler func(obj interface{}) bool, queueStop <-chan struct{}) {
+	go wait.Until(func() {
+		for {
+			item, quit := queue.Get()
+			if quit {
+				break
+			}
+			var requeue bool
+			switch key := item.(type) {
+			case chan struct{}:
+				// Checkpoint sentinel: reaching it means every item enqueued
+				// before it has been processed. Close to wake the waiter.
+				close(key)
+			case string:
+				obj, exists, err := store.GetByKey(key)
+				if err != nil {
+					agent.log.Debugf("Error fetching object with key %s from store: %v", key, err)
+				}
+				if exists && handler != nil {
+					requeue = handler(obj)
+				}
+			default:
+				agent.log.Errorf("Invalid item in queue: %v", item)
+			}
+			if requeue {
+				queue.AddRateLimited(item)
+			} else {
+				queue.Forget(item)
+			}
+			queue.Done(item)
+		}
+	}, time.Second, queueStop)
+	<-queueStop
+	queue.ShutDown()
+}
+
+// enableHppSyncAfterCheckpoint defers stale netpol-file pruning until the
+// initial HPP render batch has fully drained: it waits for the hpp informer
+// to sync, then enqueues a sentinel on hppQueue and waits for the render
+// worker to reach it. Only then does hppMoIndex reflect the full initial
+// desired state, so syncLocalHppMo can safely delete files with no backing
+// entry without risking a delete-then-readd churn on restart.
+func (agent *HostAgent) enableHppSyncAfterCheckpoint(stopCh <-chan struct{}) {
+	if agent.hppInformerReg == nil {
+		return
+	}
+	if !cache.WaitForCacheSync(stopCh, agent.hppInformerReg.HasSynced) {
+		return
+	}
+	done := make(chan struct{})
+	agent.hppQueue.Add(done)
+	select {
+	case <-done:
+		agent.hppSyncEnabled.Store(true)
+		agent.log.Info("HPP initial render checkpoint complete; enabling stale netpol prune")
+		agent.scheduleSyncLocalHppMo()
+	case <-stopCh:
+	}
+}
 func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 	queueStop <-chan struct{}) {
 	go wait.Until(func() {
@@ -561,7 +639,7 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 					requeue = f()
 
 					switch sType {
-					case "services", "eps", "snat", "snatnodeInfo", "nodepodifs":
+					case "services", "eps", "snat", "snatnodeInfo", "nodepodifs", "hpp":
 						if agent.taintRemoved.Load().(bool) {
 							break
 						}
@@ -584,14 +662,8 @@ func (agent *HostAgent) processSyncQueue(queue workqueue.RateLimitingInterface,
 }
 
 func (agent *HostAgent) EnableSync() (changed bool) {
-	changed = false
-	agent.indexMutex.Lock()
-	if !agent.syncEnabled {
-		agent.syncEnabled = true
+	if agent.syncEnabled.CompareAndSwap(false, true) {
 		changed = true
-	}
-	agent.indexMutex.Unlock()
-	if changed {
 		agent.log.Info("Enabling OpFlex endpoint and service sync")
 		agent.scheduleSyncServices()
 		agent.scheduleSyncEps()
@@ -627,7 +699,8 @@ func (agent *HostAgent) Run(stopCh <-chan struct{}) {
 	}
 	if agent.config.OpFlexEndpointDir == "" ||
 		agent.config.OpFlexServiceDir == "" ||
-		agent.config.OpFlexSnatDir == "" {
+		agent.config.OpFlexSnatDir == "" ||
+		(agent.config.EnableHppDirect && agent.config.OpFlexNetPolDir == "") {
 		if agent.config.EnableHppDirect && agent.config.OpFlexNetPolDir == "" {
 			agent.log.Warn("OpFlex endpoint, service, snat or netpol directories not set")
 		} else {

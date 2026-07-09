@@ -18,7 +18,7 @@ limitations under the License.
 package externalversions
 
 import (
-	"fmt"
+	fmt "fmt"
 
 	v1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -51,7 +51,7 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=aci.snat, Version=v1
+	// Group=aci.hpp, Version=v1
 	case v1.SchemeGroupVersion.WithResource("hostprotpols"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Aci().V1().HostprotPols().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("hostprotremoteipcontainers"):
