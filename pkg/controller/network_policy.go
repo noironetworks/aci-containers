@@ -2165,10 +2165,10 @@ func (cont *AciController) handleRemIpContUpdate(ricName string) bool {
 
 func (cont *AciController) handleHppUpdate(hppName string) bool {
 	ns := os.Getenv("SYSTEM_NAMESPACE")
-
 	// Read desired state from the NP-derived cache.
 	cont.hppMutex.Lock()
 	ref, desiredExists := cont.hppDirRef[hppName]
+	hasIngressRuleNamedPort := len(ref.NpIngressRules) > 0
 	var desired *hppv1.HostprotPol
 	if desiredExists {
 		desired = ref.HppCr.DeepCopy()
@@ -2203,27 +2203,29 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 
 	default:
 		if !cont.hppSyncEnabled.Load() {
-			// Until the NP sync and HPP cache build is complete, we don't have the full
-			// desired list of network policies to compare against, so we can't determine
-			// if an update is needed.
-			// For ingress named port netpols with conflicting port numbers across different
-			// netpols, all hashing to the same hpp, even hostprotSubj can have inconsistent
-			// intermediate states during the sync.
-			// Requeue until the sync completes.
 
-			// if reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) && reflect.DeepEqual(actual.Spec.Name, desired.Spec.Name) {
-			// 	if reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
-			// 		return false // no-op
-			// 	} else {
-			// 		return true
-			// 	}
-			// }
-
-			return true
-		}
-		// Both exist — compare and update if changed.
-		if reflect.DeepEqual(actual.Spec, desired.Spec) {
-			return false // no-op
+			if actual.Spec.Name == desired.Spec.Name {
+				if !reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) {
+					if hasIngressRuleNamedPort {
+						// For ingress named port netpols with varying named port resolutions across different
+						// netpols, all hashing to the same hpp, even hostprotSubj can have inconsistent
+						// intermediate desired states during the sync.
+						return true // requeue until NP sync completes
+					}
+				} else if !reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
+					// Until the NP sync and HPP cache build is complete, we don't have the full
+					// desired list of network policies to compare against, so we can't determine
+					// if an update is needed.
+					return true // requeue until NP sync completes
+				} else {
+					return false // no-op
+				}
+			}
+		} else {
+			// Both exist — compare and update if changed.
+			if reflect.DeepEqual(actual.Spec, desired.Spec) {
+				return false // no-op
+			}
 		}
 		updated := actual.DeepCopy()
 		updated.Spec = desired.Spec
