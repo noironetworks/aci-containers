@@ -18,18 +18,15 @@ limitations under the License.
 package v1
 
 import (
-	"context"
-	json "encoding/json"
-	"fmt"
-	"time"
+	context "context"
 
-	v1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
-	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/applyconfiguration/aci.hpp/v1"
+	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
+	applyconfigurationacihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/applyconfiguration/aci.hpp/v1"
 	scheme "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // HostprotRemoteIpContainersGetter has a method to return a HostprotRemoteIpContainerInterface.
@@ -40,168 +37,33 @@ type HostprotRemoteIpContainersGetter interface {
 
 // HostprotRemoteIpContainerInterface has methods to work with HostprotRemoteIpContainer resources.
 type HostprotRemoteIpContainerInterface interface {
-	Create(ctx context.Context, hostprotRemoteIpContainer *v1.HostprotRemoteIpContainer, opts metav1.CreateOptions) (*v1.HostprotRemoteIpContainer, error)
-	Update(ctx context.Context, hostprotRemoteIpContainer *v1.HostprotRemoteIpContainer, opts metav1.UpdateOptions) (*v1.HostprotRemoteIpContainer, error)
+	Create(ctx context.Context, hostprotRemoteIpContainer *acihppv1.HostprotRemoteIpContainer, opts metav1.CreateOptions) (*acihppv1.HostprotRemoteIpContainer, error)
+	Update(ctx context.Context, hostprotRemoteIpContainer *acihppv1.HostprotRemoteIpContainer, opts metav1.UpdateOptions) (*acihppv1.HostprotRemoteIpContainer, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.HostprotRemoteIpContainer, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.HostprotRemoteIpContainerList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*acihppv1.HostprotRemoteIpContainer, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*acihppv1.HostprotRemoteIpContainerList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HostprotRemoteIpContainer, err error)
-	Apply(ctx context.Context, hostprotRemoteIpContainer *acihppv1.HostprotRemoteIpContainerApplyConfiguration, opts metav1.ApplyOptions) (result *v1.HostprotRemoteIpContainer, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *acihppv1.HostprotRemoteIpContainer, err error)
+	Apply(ctx context.Context, hostprotRemoteIpContainer *applyconfigurationacihppv1.HostprotRemoteIpContainerApplyConfiguration, opts metav1.ApplyOptions) (result *acihppv1.HostprotRemoteIpContainer, err error)
 	HostprotRemoteIpContainerExpansion
 }
 
 // hostprotRemoteIpContainers implements HostprotRemoteIpContainerInterface
 type hostprotRemoteIpContainers struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithListAndApply[*acihppv1.HostprotRemoteIpContainer, *acihppv1.HostprotRemoteIpContainerList, *applyconfigurationacihppv1.HostprotRemoteIpContainerApplyConfiguration]
 }
 
 // newHostprotRemoteIpContainers returns a HostprotRemoteIpContainers
 func newHostprotRemoteIpContainers(c *AciV1Client, namespace string) *hostprotRemoteIpContainers {
 	return &hostprotRemoteIpContainers{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithListAndApply[*acihppv1.HostprotRemoteIpContainer, *acihppv1.HostprotRemoteIpContainerList, *applyconfigurationacihppv1.HostprotRemoteIpContainerApplyConfiguration](
+			"hostprotremoteipcontainers",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *acihppv1.HostprotRemoteIpContainer { return &acihppv1.HostprotRemoteIpContainer{} },
+			func() *acihppv1.HostprotRemoteIpContainerList { return &acihppv1.HostprotRemoteIpContainerList{} },
+		),
 	}
-}
-
-// Get takes name of the hostprotRemoteIpContainer, and returns the corresponding hostprotRemoteIpContainer object, and an error if there is any.
-func (c *hostprotRemoteIpContainers) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.HostprotRemoteIpContainer, err error) {
-	result = &v1.HostprotRemoteIpContainer{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of HostprotRemoteIpContainers that match those selectors.
-func (c *hostprotRemoteIpContainers) List(ctx context.Context, opts metav1.ListOptions) (result *v1.HostprotRemoteIpContainerList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1.HostprotRemoteIpContainerList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested hostprotRemoteIpContainers.
-func (c *hostprotRemoteIpContainers) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a hostprotRemoteIpContainer and creates it.  Returns the server's representation of the hostprotRemoteIpContainer, and an error, if there is any.
-func (c *hostprotRemoteIpContainers) Create(ctx context.Context, hostprotRemoteIpContainer *v1.HostprotRemoteIpContainer, opts metav1.CreateOptions) (result *v1.HostprotRemoteIpContainer, err error) {
-	result = &v1.HostprotRemoteIpContainer{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(hostprotRemoteIpContainer).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a hostprotRemoteIpContainer and updates it. Returns the server's representation of the hostprotRemoteIpContainer, and an error, if there is any.
-func (c *hostprotRemoteIpContainers) Update(ctx context.Context, hostprotRemoteIpContainer *v1.HostprotRemoteIpContainer, opts metav1.UpdateOptions) (result *v1.HostprotRemoteIpContainer, err error) {
-	result = &v1.HostprotRemoteIpContainer{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		Name(hostprotRemoteIpContainer.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(hostprotRemoteIpContainer).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the hostprotRemoteIpContainer and deletes it. Returns an error if one occurs.
-func (c *hostprotRemoteIpContainers) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *hostprotRemoteIpContainers) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched hostprotRemoteIpContainer.
-func (c *hostprotRemoteIpContainers) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HostprotRemoteIpContainer, err error) {
-	result = &v1.HostprotRemoteIpContainer{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Apply takes the given apply declarative configuration, applies it and returns the applied hostprotRemoteIpContainer.
-func (c *hostprotRemoteIpContainers) Apply(ctx context.Context, hostprotRemoteIpContainer *acihppv1.HostprotRemoteIpContainerApplyConfiguration, opts metav1.ApplyOptions) (result *v1.HostprotRemoteIpContainer, err error) {
-	if hostprotRemoteIpContainer == nil {
-		return nil, fmt.Errorf("hostprotRemoteIpContainer provided to Apply must not be nil")
-	}
-	patchOpts := opts.ToPatchOptions()
-	data, err := json.Marshal(hostprotRemoteIpContainer)
-	if err != nil {
-		return nil, err
-	}
-	name := hostprotRemoteIpContainer.Name
-	if name == nil {
-		return nil, fmt.Errorf("hostprotRemoteIpContainer.Name must be provided to Apply")
-	}
-	result = &v1.HostprotRemoteIpContainer{}
-	err = c.client.Patch(types.ApplyPatchType).
-		Namespace(c.ns).
-		Resource("hostprotremoteipcontainers").
-		Name(*name).
-		VersionedParams(&patchOpts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

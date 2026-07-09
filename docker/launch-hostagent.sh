@@ -146,15 +146,11 @@ if [ -w ${PREFIX} ]; then
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/endpoints
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/services
     mkdir -p ${VARDIR}/lib/opflex-agent-ovs/snats
+    mkdir -p ${VARDIR}/lib/opflex-agent-ovs/netpols
     if [  -z !=  $GENERIC_VETH_MODE ] && [ $GENERIC_VETH_MODE = "True" ]; then
         mkdir -p ${VARDIR}/lib/aci-containers/generic-veth
     else
         mkdir -p ${VARDIR}/lib/aci-containers/k8s-pod-network
-    fi
-    if [ -d "${VARDIR}/lib/opflex-agent-ovs/netpols" ]; then
-        rm -rf "${VARDIR}/lib/opflex-agent-ovs/netpols"/*
-    else
-        mkdir -p "${VARDIR}/lib/opflex-agent-ovs/netpols"
     fi
     if [ -d "${VARDIR}/lib/opflex-agent-ovs/outofband" ]; then
         rm -rf "${VARDIR}/lib/opflex-agent-ovs/outofband"/*

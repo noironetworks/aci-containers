@@ -18,10 +18,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // HostprotRemoteIpContainerLister helps list HostprotRemoteIpContainers.
@@ -29,7 +29,7 @@ import (
 type HostprotRemoteIpContainerLister interface {
 	// List lists all HostprotRemoteIpContainers in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.HostprotRemoteIpContainer, err error)
+	List(selector labels.Selector) (ret []*acihppv1.HostprotRemoteIpContainer, err error)
 	// HostprotRemoteIpContainers returns an object that can list and get HostprotRemoteIpContainers.
 	HostprotRemoteIpContainers(namespace string) HostprotRemoteIpContainerNamespaceLister
 	HostprotRemoteIpContainerListerExpansion
@@ -37,25 +37,17 @@ type HostprotRemoteIpContainerLister interface {
 
 // hostprotRemoteIpContainerLister implements the HostprotRemoteIpContainerLister interface.
 type hostprotRemoteIpContainerLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*acihppv1.HostprotRemoteIpContainer]
 }
 
 // NewHostprotRemoteIpContainerLister returns a new HostprotRemoteIpContainerLister.
 func NewHostprotRemoteIpContainerLister(indexer cache.Indexer) HostprotRemoteIpContainerLister {
-	return &hostprotRemoteIpContainerLister{indexer: indexer}
-}
-
-// List lists all HostprotRemoteIpContainers in the indexer.
-func (s *hostprotRemoteIpContainerLister) List(selector labels.Selector) (ret []*v1.HostprotRemoteIpContainer, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.HostprotRemoteIpContainer))
-	})
-	return ret, err
+	return &hostprotRemoteIpContainerLister{listers.New[*acihppv1.HostprotRemoteIpContainer](indexer, acihppv1.Resource("hostprotremoteipcontainer"))}
 }
 
 // HostprotRemoteIpContainers returns an object that can list and get HostprotRemoteIpContainers.
 func (s *hostprotRemoteIpContainerLister) HostprotRemoteIpContainers(namespace string) HostprotRemoteIpContainerNamespaceLister {
-	return hostprotRemoteIpContainerNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return hostprotRemoteIpContainerNamespaceLister{listers.NewNamespaced[*acihppv1.HostprotRemoteIpContainer](s.ResourceIndexer, namespace)}
 }
 
 // HostprotRemoteIpContainerNamespaceLister helps list and get HostprotRemoteIpContainers.
@@ -63,36 +55,15 @@ func (s *hostprotRemoteIpContainerLister) HostprotRemoteIpContainers(namespace s
 type HostprotRemoteIpContainerNamespaceLister interface {
 	// List lists all HostprotRemoteIpContainers in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.HostprotRemoteIpContainer, err error)
+	List(selector labels.Selector) (ret []*acihppv1.HostprotRemoteIpContainer, err error)
 	// Get retrieves the HostprotRemoteIpContainer from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.HostprotRemoteIpContainer, error)
+	Get(name string) (*acihppv1.HostprotRemoteIpContainer, error)
 	HostprotRemoteIpContainerNamespaceListerExpansion
 }
 
 // hostprotRemoteIpContainerNamespaceLister implements the HostprotRemoteIpContainerNamespaceLister
 // interface.
 type hostprotRemoteIpContainerNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all HostprotRemoteIpContainers in the indexer for a given namespace.
-func (s hostprotRemoteIpContainerNamespaceLister) List(selector labels.Selector) (ret []*v1.HostprotRemoteIpContainer, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.HostprotRemoteIpContainer))
-	})
-	return ret, err
-}
-
-// Get retrieves the HostprotRemoteIpContainer from the indexer for a given namespace and name.
-func (s hostprotRemoteIpContainerNamespaceLister) Get(name string) (*v1.HostprotRemoteIpContainer, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("hostprotremoteipcontainer"), name)
-	}
-	return obj.(*v1.HostprotRemoteIpContainer), nil
+	listers.ResourceIndexer[*acihppv1.HostprotRemoteIpContainer]
 }

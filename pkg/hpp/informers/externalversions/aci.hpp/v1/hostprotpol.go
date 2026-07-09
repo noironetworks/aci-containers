@@ -18,15 +18,16 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
+	apisacihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	versioned "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned"
 	internalinterfaces "github.com/noironetworks/aci-containers/pkg/hpp/informers/externalversions/internalinterfaces"
-	v1 "github.com/noironetworks/aci-containers/pkg/hpp/listers/aci.hpp/v1"
+	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/listers/aci.hpp/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -35,7 +36,7 @@ import (
 // HostprotPols.
 type HostprotPolInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.HostprotPolLister
+	Lister() acihppv1.HostprotPolLister
 }
 
 type hostprotPolInformer struct {
@@ -48,42 +49,67 @@ type hostprotPolInformer struct {
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewHostprotPolInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredHostprotPolInformer(client, namespace, resyncPeriod, indexers, nil)
+	return NewHostprotPolInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
 }
 
 // NewFilteredHostprotPolInformer constructs a new informer for HostprotPol type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredHostprotPolInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+	return NewHostprotPolInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewHostprotPolInformerWithOptions constructs a new informer for HostprotPol type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewHostprotPolInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	gvr := schema.GroupVersionResource{Group: "aci.hpp", Version: "v1", Resource: "hostprotpols"}
+	identifier := options.InformerName.WithResource(gvr)
+	tweakListOptions := options.TweakListOptions
+	return cache.NewSharedIndexInformerWithOptions(
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
+			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.AciV1().HostprotPols(namespace).List(context.TODO(), options)
+				return client.AciV1().HostprotPols(namespace).List(context.Background(), opts)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.AciV1().HostprotPols(namespace).Watch(context.TODO(), options)
+				return client.AciV1().HostprotPols(namespace).Watch(context.Background(), opts)
 			},
+			ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&opts)
+				}
+				return client.AciV1().HostprotPols(namespace).List(ctx, opts)
+			},
+			WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&opts)
+				}
+				return client.AciV1().HostprotPols(namespace).Watch(ctx, opts)
+			},
+		}, client),
+		&apisacihppv1.HostprotPol{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: options.ResyncPeriod,
+			Indexers:     options.Indexers,
+			Identifier:   identifier,
 		},
-		&acihppv1.HostprotPol{},
-		resyncPeriod,
-		indexers,
 	)
 }
 
 func (f *hostprotPolInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredHostprotPolInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewHostprotPolInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *hostprotPolInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&acihppv1.HostprotPol{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisacihppv1.HostprotPol{}, f.defaultInformer)
 }
 
-func (f *hostprotPolInformer) Lister() v1.HostprotPolLister {
-	return v1.NewHostprotPolLister(f.Informer().GetIndexer())
+func (f *hostprotPolInformer) Lister() acihppv1.HostprotPolLister {
+	return acihppv1.NewHostprotPolLister(f.Informer().GetIndexer())
 }

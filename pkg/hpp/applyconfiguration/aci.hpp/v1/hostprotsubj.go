@@ -17,14 +17,14 @@ limitations under the License.
 
 package v1
 
-// HostprotSubjApplyConfiguration represents an declarative configuration of the HostprotSubj type for use
+// HostprotSubjApplyConfiguration represents a declarative configuration of the HostprotSubj type for use
 // with apply.
 type HostprotSubjApplyConfiguration struct {
 	Name         *string                          `json:"name,omitempty"`
 	HostprotRule []HostprotRuleApplyConfiguration `json:"hostprotRule,omitempty"`
 }
 
-// HostprotSubjApplyConfiguration constructs an declarative configuration of the HostprotSubj type for use with
+// HostprotSubjApplyConfiguration constructs a declarative configuration of the HostprotSubj type for use with
 // apply.
 func HostprotSubj() *HostprotSubjApplyConfiguration {
 	return &HostprotSubjApplyConfiguration{}
