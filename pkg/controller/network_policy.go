@@ -1474,39 +1474,33 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 	}
 }
 
-// stripHppRuleIndex removes a leading "<digits>-" sequential-index prefix
-// (added by canonicalizeHppRules) from a HostprotRule name, recovering the
-// original base name. mergeHppDirectIngressRules needs this because
-// siblingNames (cached by cacheNpDirIngressRules) always holds raw,
-// pre-canonicalization names, while the rules it's matching against come
-// from the stored HPP CR (hppDirRef.HppCr), which always carries the index
-// prefix from the last canonicalizeHppRules call that wrote it. Without
-// stripping, the lookup would never match.
-func stripHppRuleIndex(name string) string {
-	idx := strings.Index(name, "-")
-	if idx <= 0 {
-		return name
-	}
-	for _, r := range name[:idx] {
-		if r < '0' || r > '9' {
-			return name
-		}
-	}
-	return name[idx+1:]
-}
-
-// canonicalizeHppRules sorts rules deterministically regardless of NP spec
-// rule ordering, then prepends a sequential index to guarantee uniqueness.
-func canonicalizeHppRules(rules []hppv1.HostprotRule) {
+// canonicalizeHppRules sorts rules deterministically by name regardless of
+// NP spec rule ordering, then collapses adjacent rules that share the same
+// Name into a single entry. Rule names are content-derived (they encode the
+// peer/RIC hash, namespace, protocol and port, or a fixed literal for
+// allow-all/service-augment rules), so two rules sharing a Name are expected
+// to carry identical content. If that invariant is ever violated, only the
+// first occurrence is kept and a warning is logged rather than writing both
+// to the HPP CR: opflex-agent's GBP MOs are keyed by URI (which embeds the
+// rule Name), so a duplicate Name would otherwise silently overwrite one
+// rule's remote-IP restriction on the agent side with no diagnostic.
+func canonicalizeHppRules(rules []hppv1.HostprotRule, logger *logrus.Entry) []hppv1.HostprotRule {
 	sort.SliceStable(rules, func(i, j int) bool {
-		if rules[i].Name != rules[j].Name {
-			return rules[i].Name < rules[j].Name
-		}
-		return rules[i].RsRemoteIpContainer < rules[j].RsRemoteIpContainer
+		return rules[i].Name < rules[j].Name
 	})
-	for i := range rules {
-		rules[i].Name = strconv.Itoa(i) + "-" + rules[i].Name
+	deduped := rules[:0]
+	for _, rule := range rules {
+		if n := len(deduped); n > 0 && deduped[n-1].Name == rule.Name {
+			// Test scaffolding: remove deep equality check when rule content is guaranteed to be identical for a given Name.
+			if !reflect.DeepEqual(deduped[n-1], rule) {
+				logger.Warningf("J: HostprotRule name collision with differing "+
+					"content, dropping duplicate: %s", rule.Name)
+			}
+			continue
+		}
+		deduped = append(deduped, rule)
 	}
+	return deduped
 }
 
 func (cont *AciController) buildPodSubnetRemoteIps(ips []string, ipBlockSubs []string, ethertype string) []string {
@@ -2540,7 +2534,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 				cont.cacheNpDirIngressRules(hppName, key, ruleNames)
 				cont.mergeHppDirectIngressRules(hppName, key, ruleNames, subjIngress)
 			}
-			canonicalizeHppRules(subjIngress.HostprotRule)
+			subjIngress.HostprotRule = canonicalizeHppRules(subjIngress.HostprotRule, logger)
 			hpp.Spec.HostprotSubj = append(hpp.Spec.HostprotSubj, *subjIngress)
 		}
 
@@ -2581,7 +2575,7 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			}
 
 			cont.buildServiceAugment(nil, subjEgress, portRemoteSubs, logger)
-			canonicalizeHppRules(subjEgress.HostprotRule)
+			subjEgress.HostprotRule = canonicalizeHppRules(subjEgress.HostprotRule, logger)
 			hpp.Spec.HostprotSubj = append(hpp.Spec.HostprotSubj, *subjEgress)
 		}
 
@@ -2684,15 +2678,9 @@ func (cont *AciController) mergeHppDirectIngressRules(labelKey, key string,
 			continue
 		}
 		for _, rule := range subj.HostprotRule {
-			// Stored rule names are already canonicalized (carry a
-			// sequential index prefix), while siblingNames holds raw,
-			// pre-canonicalization names cached by cacheNpDirIngressRules.
-			// Compare base names so the lookup isn't defeated by the index
-			// prefix.
-			baseName := stripHppRuleIndex(rule.Name)
-			if siblingNames[baseName] {
+			if siblingNames[rule.Name] {
 				subjIngress.HostprotRule = append(subjIngress.HostprotRule, rule)
-				delete(siblingNames, baseName)
+				delete(siblingNames, rule.Name)
 			}
 		}
 	}
