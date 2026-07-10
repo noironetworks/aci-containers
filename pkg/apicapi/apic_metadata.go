@@ -277,9 +277,6 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"infraGeneric": {
-		hints: map[string]interface{}{
-			"deletable": false,
-		},
 		attributes: map[string]interface{}{
 			"name":      "",
 			"nameAlias": "",
@@ -314,9 +311,6 @@ var metadata = map[string]*apicMeta{
 		children: []string{},
 	},
 	"fvRsBd": {
-		hints: map[string]interface{}{
-			"deletable": false,
-		},
 		attributes: map[string]interface{}{
 			"tnFvBDName": "",
 		},
@@ -342,9 +336,6 @@ var metadata = map[string]*apicMeta{
 		},
 	},
 	"fvRsCtx": {
-		hints: map[string]interface{}{
-			"deletable": false,
-		},
 		attributes: map[string]interface{}{
 			"tnFvCtxName": "",
 		},
