@@ -277,7 +277,7 @@ func opflexServiceLogger(log *logrus.Logger, as *opflexService) *logrus.Entry {
 }
 
 func (agent *HostAgent) syncServices() bool {
-	if !agent.syncEnabled {
+	if !agent.syncEnabled.Load() {
 		return false
 	}
 

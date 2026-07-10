@@ -128,7 +128,7 @@ func (agent *HostAgent) FormRdFilePath() string {
 }
 
 func (agent *HostAgent) syncRdConfig() bool {
-	if !agent.syncEnabled || agent.config.ChainedMode {
+	if !agent.syncEnabled.Load() || agent.config.ChainedMode {
 		return false
 	}
 	rdfile := agent.FormRdFilePath()

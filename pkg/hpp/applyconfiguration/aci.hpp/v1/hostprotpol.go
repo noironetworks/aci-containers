@@ -18,35 +18,37 @@ limitations under the License.
 package v1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apismetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
-// HostprotPolApplyConfiguration represents an declarative configuration of the HostprotPol type for use
+// HostprotPolApplyConfiguration represents a declarative configuration of the HostprotPol type for use
 // with apply.
 type HostprotPolApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
-	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *HostprotPolSpecApplyConfiguration `json:"spec,omitempty"`
+	metav1.TypeMetaApplyConfiguration    `json:",inline"`
+	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
+	Spec                                 *HostprotPolSpecApplyConfiguration `json:"spec,omitempty"`
 }
 
-// HostprotPol constructs an declarative configuration of the HostprotPol type for use with
+// HostprotPol constructs a declarative configuration of the HostprotPol type for use with
 // apply.
 func HostprotPol(name, namespace string) *HostprotPolApplyConfiguration {
 	b := &HostprotPolApplyConfiguration{}
 	b.WithName(name)
 	b.WithNamespace(namespace)
 	b.WithKind("HostprotPol")
-	b.WithAPIVersion("aci.snat/v1")
+	b.WithAPIVersion("aci.hpp/v1")
 	return b
 }
+
+func (b HostprotPolApplyConfiguration) IsApplyConfiguration() {}
 
 // WithKind sets the Kind field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithKind(value string) *HostprotPolApplyConfiguration {
-	b.Kind = &value
+	b.TypeMetaApplyConfiguration.Kind = &value
 	return b
 }
 
@@ -54,7 +56,7 @@ func (b *HostprotPolApplyConfiguration) WithKind(value string) *HostprotPolApply
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the APIVersion field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithAPIVersion(value string) *HostprotPolApplyConfiguration {
-	b.APIVersion = &value
+	b.TypeMetaApplyConfiguration.APIVersion = &value
 	return b
 }
 
@@ -63,7 +65,7 @@ func (b *HostprotPolApplyConfiguration) WithAPIVersion(value string) *HostprotPo
 // If called multiple times, the Name field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithName(value string) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Name = &value
+	b.ObjectMetaApplyConfiguration.Name = &value
 	return b
 }
 
@@ -72,7 +74,7 @@ func (b *HostprotPolApplyConfiguration) WithName(value string) *HostprotPolApply
 // If called multiple times, the GenerateName field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithGenerateName(value string) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.GenerateName = &value
+	b.ObjectMetaApplyConfiguration.GenerateName = &value
 	return b
 }
 
@@ -81,7 +83,7 @@ func (b *HostprotPolApplyConfiguration) WithGenerateName(value string) *Hostprot
 // If called multiple times, the Namespace field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithNamespace(value string) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Namespace = &value
+	b.ObjectMetaApplyConfiguration.Namespace = &value
 	return b
 }
 
@@ -90,7 +92,7 @@ func (b *HostprotPolApplyConfiguration) WithNamespace(value string) *HostprotPol
 // If called multiple times, the UID field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithUID(value types.UID) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.UID = &value
+	b.ObjectMetaApplyConfiguration.UID = &value
 	return b
 }
 
@@ -99,7 +101,7 @@ func (b *HostprotPolApplyConfiguration) WithUID(value types.UID) *HostprotPolApp
 // If called multiple times, the ResourceVersion field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithResourceVersion(value string) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.ResourceVersion = &value
+	b.ObjectMetaApplyConfiguration.ResourceVersion = &value
 	return b
 }
 
@@ -108,25 +110,25 @@ func (b *HostprotPolApplyConfiguration) WithResourceVersion(value string) *Hostp
 // If called multiple times, the Generation field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithGeneration(value int64) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.Generation = &value
+	b.ObjectMetaApplyConfiguration.Generation = &value
 	return b
 }
 
 // WithCreationTimestamp sets the CreationTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CreationTimestamp field is set to the value of the last call.
-func (b *HostprotPolApplyConfiguration) WithCreationTimestamp(value metav1.Time) *HostprotPolApplyConfiguration {
+func (b *HostprotPolApplyConfiguration) WithCreationTimestamp(value apismetav1.Time) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.CreationTimestamp = &value
+	b.ObjectMetaApplyConfiguration.CreationTimestamp = &value
 	return b
 }
 
 // WithDeletionTimestamp sets the DeletionTimestamp field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the DeletionTimestamp field is set to the value of the last call.
-func (b *HostprotPolApplyConfiguration) WithDeletionTimestamp(value metav1.Time) *HostprotPolApplyConfiguration {
+func (b *HostprotPolApplyConfiguration) WithDeletionTimestamp(value apismetav1.Time) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionTimestamp = &value
+	b.ObjectMetaApplyConfiguration.DeletionTimestamp = &value
 	return b
 }
 
@@ -135,7 +137,7 @@ func (b *HostprotPolApplyConfiguration) WithDeletionTimestamp(value metav1.Time)
 // If called multiple times, the DeletionGracePeriodSeconds field is set to the value of the last call.
 func (b *HostprotPolApplyConfiguration) WithDeletionGracePeriodSeconds(value int64) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	b.DeletionGracePeriodSeconds = &value
+	b.ObjectMetaApplyConfiguration.DeletionGracePeriodSeconds = &value
 	return b
 }
 
@@ -145,11 +147,11 @@ func (b *HostprotPolApplyConfiguration) WithDeletionGracePeriodSeconds(value int
 // overwriting an existing map entries in Labels field with the same key.
 func (b *HostprotPolApplyConfiguration) WithLabels(entries map[string]string) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Labels == nil && len(entries) > 0 {
-		b.Labels = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Labels == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Labels = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Labels[k] = v
+		b.ObjectMetaApplyConfiguration.Labels[k] = v
 	}
 	return b
 }
@@ -160,11 +162,11 @@ func (b *HostprotPolApplyConfiguration) WithLabels(entries map[string]string) *H
 // overwriting an existing map entries in Annotations field with the same key.
 func (b *HostprotPolApplyConfiguration) WithAnnotations(entries map[string]string) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
-	if b.Annotations == nil && len(entries) > 0 {
-		b.Annotations = make(map[string]string, len(entries))
+	if b.ObjectMetaApplyConfiguration.Annotations == nil && len(entries) > 0 {
+		b.ObjectMetaApplyConfiguration.Annotations = make(map[string]string, len(entries))
 	}
 	for k, v := range entries {
-		b.Annotations[k] = v
+		b.ObjectMetaApplyConfiguration.Annotations[k] = v
 	}
 	return b
 }
@@ -172,13 +174,13 @@ func (b *HostprotPolApplyConfiguration) WithAnnotations(entries map[string]strin
 // WithOwnerReferences adds the given value to the OwnerReferences field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the OwnerReferences field.
-func (b *HostprotPolApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerReferenceApplyConfiguration) *HostprotPolApplyConfiguration {
+func (b *HostprotPolApplyConfiguration) WithOwnerReferences(values ...*metav1.OwnerReferenceApplyConfiguration) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithOwnerReferences")
 		}
-		b.OwnerReferences = append(b.OwnerReferences, *values[i])
+		b.ObjectMetaApplyConfiguration.OwnerReferences = append(b.ObjectMetaApplyConfiguration.OwnerReferences, *values[i])
 	}
 	return b
 }
@@ -189,14 +191,14 @@ func (b *HostprotPolApplyConfiguration) WithOwnerReferences(values ...*v1.OwnerR
 func (b *HostprotPolApplyConfiguration) WithFinalizers(values ...string) *HostprotPolApplyConfiguration {
 	b.ensureObjectMetaApplyConfigurationExists()
 	for i := range values {
-		b.Finalizers = append(b.Finalizers, values[i])
+		b.ObjectMetaApplyConfiguration.Finalizers = append(b.ObjectMetaApplyConfiguration.Finalizers, values[i])
 	}
 	return b
 }
 
 func (b *HostprotPolApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 	if b.ObjectMetaApplyConfiguration == nil {
-		b.ObjectMetaApplyConfiguration = &v1.ObjectMetaApplyConfiguration{}
+		b.ObjectMetaApplyConfiguration = &metav1.ObjectMetaApplyConfiguration{}
 	}
 }
 
@@ -206,4 +208,26 @@ func (b *HostprotPolApplyConfiguration) ensureObjectMetaApplyConfigurationExists
 func (b *HostprotPolApplyConfiguration) WithSpec(value *HostprotPolSpecApplyConfiguration) *HostprotPolApplyConfiguration {
 	b.Spec = value
 	return b
+}
+
+// GetKind retrieves the value of the Kind field in the declarative configuration.
+func (b *HostprotPolApplyConfiguration) GetKind() *string {
+	return b.TypeMetaApplyConfiguration.Kind
+}
+
+// GetAPIVersion retrieves the value of the APIVersion field in the declarative configuration.
+func (b *HostprotPolApplyConfiguration) GetAPIVersion() *string {
+	return b.TypeMetaApplyConfiguration.APIVersion
+}
+
+// GetName retrieves the value of the Name field in the declarative configuration.
+func (b *HostprotPolApplyConfiguration) GetName() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Name
+}
+
+// GetNamespace retrieves the value of the Namespace field in the declarative configuration.
+func (b *HostprotPolApplyConfiguration) GetNamespace() *string {
+	b.ensureObjectMetaApplyConfigurationExists()
+	return b.ObjectMetaApplyConfiguration.Namespace
 }

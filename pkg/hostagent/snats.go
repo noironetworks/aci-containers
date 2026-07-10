@@ -504,7 +504,7 @@ func (agent *HostAgent) applyPolicy(poduids []string, res ResourceType, snatPoli
 
 // Sync the NodeInfo
 func (agent *HostAgent) syncSnatNodeInfo() bool {
-	if !agent.syncEnabled || agent.config.ChainedMode {
+	if !agent.syncEnabled.Load() || agent.config.ChainedMode {
 		return false
 	}
 	snatPolicyNames := make(map[string]bool)
@@ -742,7 +742,7 @@ func (agent *HostAgent) snatGlobalInfoDelete(obj interface{}) {
 }
 
 func (agent *HostAgent) syncSnat() bool {
-	if !agent.syncEnabled || agent.config.ChainedMode {
+	if !agent.syncEnabled.Load() || agent.config.ChainedMode {
 		return false
 	}
 	agent.log.Debug("Syncing snats")
