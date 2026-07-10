@@ -18,18 +18,15 @@ limitations under the License.
 package v1
 
 import (
-	"context"
-	json "encoding/json"
-	"fmt"
-	"time"
+	context "context"
 
-	v1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
-	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/applyconfiguration/aci.hpp/v1"
+	acihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
+	applyconfigurationacihppv1 "github.com/noironetworks/aci-containers/pkg/hpp/applyconfiguration/aci.hpp/v1"
 	scheme "github.com/noironetworks/aci-containers/pkg/hpp/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // HostprotPolsGetter has a method to return a HostprotPolInterface.
@@ -40,168 +37,33 @@ type HostprotPolsGetter interface {
 
 // HostprotPolInterface has methods to work with HostprotPol resources.
 type HostprotPolInterface interface {
-	Create(ctx context.Context, hostprotPol *v1.HostprotPol, opts metav1.CreateOptions) (*v1.HostprotPol, error)
-	Update(ctx context.Context, hostprotPol *v1.HostprotPol, opts metav1.UpdateOptions) (*v1.HostprotPol, error)
+	Create(ctx context.Context, hostprotPol *acihppv1.HostprotPol, opts metav1.CreateOptions) (*acihppv1.HostprotPol, error)
+	Update(ctx context.Context, hostprotPol *acihppv1.HostprotPol, opts metav1.UpdateOptions) (*acihppv1.HostprotPol, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.HostprotPol, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.HostprotPolList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*acihppv1.HostprotPol, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*acihppv1.HostprotPolList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HostprotPol, err error)
-	Apply(ctx context.Context, hostprotPol *acihppv1.HostprotPolApplyConfiguration, opts metav1.ApplyOptions) (result *v1.HostprotPol, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *acihppv1.HostprotPol, err error)
+	Apply(ctx context.Context, hostprotPol *applyconfigurationacihppv1.HostprotPolApplyConfiguration, opts metav1.ApplyOptions) (result *acihppv1.HostprotPol, err error)
 	HostprotPolExpansion
 }
 
 // hostprotPols implements HostprotPolInterface
 type hostprotPols struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithListAndApply[*acihppv1.HostprotPol, *acihppv1.HostprotPolList, *applyconfigurationacihppv1.HostprotPolApplyConfiguration]
 }
 
 // newHostprotPols returns a HostprotPols
 func newHostprotPols(c *AciV1Client, namespace string) *hostprotPols {
 	return &hostprotPols{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithListAndApply[*acihppv1.HostprotPol, *acihppv1.HostprotPolList, *applyconfigurationacihppv1.HostprotPolApplyConfiguration](
+			"hostprotpols",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *acihppv1.HostprotPol { return &acihppv1.HostprotPol{} },
+			func() *acihppv1.HostprotPolList { return &acihppv1.HostprotPolList{} },
+		),
 	}
-}
-
-// Get takes name of the hostprotPol, and returns the corresponding hostprotPol object, and an error if there is any.
-func (c *hostprotPols) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.HostprotPol, err error) {
-	result = &v1.HostprotPol{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of HostprotPols that match those selectors.
-func (c *hostprotPols) List(ctx context.Context, opts metav1.ListOptions) (result *v1.HostprotPolList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1.HostprotPolList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested hostprotPols.
-func (c *hostprotPols) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a hostprotPol and creates it.  Returns the server's representation of the hostprotPol, and an error, if there is any.
-func (c *hostprotPols) Create(ctx context.Context, hostprotPol *v1.HostprotPol, opts metav1.CreateOptions) (result *v1.HostprotPol, err error) {
-	result = &v1.HostprotPol{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(hostprotPol).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a hostprotPol and updates it. Returns the server's representation of the hostprotPol, and an error, if there is any.
-func (c *hostprotPols) Update(ctx context.Context, hostprotPol *v1.HostprotPol, opts metav1.UpdateOptions) (result *v1.HostprotPol, err error) {
-	result = &v1.HostprotPol{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		Name(hostprotPol.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(hostprotPol).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the hostprotPol and deletes it. Returns an error if one occurs.
-func (c *hostprotPols) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *hostprotPols) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched hostprotPol.
-func (c *hostprotPols) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HostprotPol, err error) {
-	result = &v1.HostprotPol{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Apply takes the given apply declarative configuration, applies it and returns the applied hostprotPol.
-func (c *hostprotPols) Apply(ctx context.Context, hostprotPol *acihppv1.HostprotPolApplyConfiguration, opts metav1.ApplyOptions) (result *v1.HostprotPol, err error) {
-	if hostprotPol == nil {
-		return nil, fmt.Errorf("hostprotPol provided to Apply must not be nil")
-	}
-	patchOpts := opts.ToPatchOptions()
-	data, err := json.Marshal(hostprotPol)
-	if err != nil {
-		return nil, err
-	}
-	name := hostprotPol.Name
-	if name == nil {
-		return nil, fmt.Errorf("hostprotPol.Name must be provided to Apply")
-	}
-	result = &v1.HostprotPol{}
-	err = c.client.Patch(types.ApplyPatchType).
-		Namespace(c.ns).
-		Resource("hostprotpols").
-		Name(*name).
-		VersionedParams(&patchOpts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

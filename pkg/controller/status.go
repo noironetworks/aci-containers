@@ -65,7 +65,11 @@ func (cont *AciController) RunStatus() {
 	http.HandleFunc("/hpp", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		cont.indexMutex.Lock()
-		json.NewEncoder(w).Encode(&cont.hppRef)
+		if cont.config.EnableHppDirect {
+			json.NewEncoder(w).Encode(&cont.hppDirRef)
+		} else {
+			json.NewEncoder(w).Encode(&cont.hppOptRef)
+		}
 		cont.indexMutex.Unlock()
 	})
 

@@ -220,6 +220,14 @@ func (agent *HostAgent) initNetPolPodIndex() {
 			agent.podUpdated(podobj.(*v1.Pod))
 		}
 	})
+	if agent.config.EnableHppDirect {
+		// When an NP's local pod set changes (pod deleted, labels changed, etc.),
+		// evict exactly the HPP derived from that NP if it's no longer locally
+		// relevant.
+		agent.netPolPods.SetObjUpdateCallback(func(npkey string) {
+			agent.evictStaleHppForNp(npkey)
+		})
+	}
 }
 
 func (agent *HostAgent) initQoSPolicyInformerFromClient(

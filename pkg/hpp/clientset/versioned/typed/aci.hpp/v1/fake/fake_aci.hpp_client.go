@@ -28,11 +28,11 @@ type FakeAciV1 struct {
 }
 
 func (c *FakeAciV1) HostprotPols(namespace string) v1.HostprotPolInterface {
-	return &FakeHostprotPols{c, namespace}
+	return newFakeHostprotPols(c, namespace)
 }
 
 func (c *FakeAciV1) HostprotRemoteIpContainers(namespace string) v1.HostprotRemoteIpContainerInterface {
-	return &FakeHostprotRemoteIpContainers{c, namespace}
+	return newFakeHostprotRemoteIpContainers(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -205,3 +205,187 @@ func labelSelectorToStr(labelsel *metav1.LabelSelector) string {
 	}
 	return str
 }
+
+// --- Canonical variants (HPP-direct mode only) ---
+//
+// These are added alongside the originals so that existing HPP-optimisation
+// deployments are not affected. Used only in HPP-direct mode; the originals
+// can be removed once HPP-direct is the only supported mode.
+
+func CreateCanonicalHashFromNetPol(np *v1net.NetworkPolicy) (string, error) {
+	_, err := cache.MetaNamespaceKeyFunc(np)
+	if err != nil {
+		return "", err
+	}
+
+	var in, e, pt string
+	if np.Spec.Ingress != nil && len(np.Spec.Ingress) > 0 {
+		in = canonicalIngressStrSorted(np)
+	}
+	if np.Spec.Egress != nil && len(np.Spec.Egress) > 0 {
+		e = canonicalEgressStrSorted(np)
+	}
+	key := in + e
+	if np.Spec.PolicyTypes != nil && len(np.Spec.PolicyTypes) > 0 {
+		for _, policyType := range sortPolicyTypes(np.Spec.PolicyTypes) {
+			pt += policyType
+		}
+	}
+
+	key += pt
+
+	return Hash(key), nil
+}
+
+func CreateHashFromNetPolPeers(peers []v1net.NetworkPolicyPeer, namespace string, suffix string) string {
+	return Hash(canonicalSelectorsToStr(peers, namespace) + canonicalPeersToStr(peers) + suffix)
+}
+
+func canonicalPeersToStr(peers []v1net.NetworkPolicyPeer) string {
+	var blocks []string
+	for _, p := range peers {
+		if p.IPBlock != nil {
+			b := p.IPBlock.CIDR
+			if len(p.IPBlock.Except) != 0 {
+				excepts := make([]string, len(p.IPBlock.Except))
+				copy(excepts, p.IPBlock.Except)
+				sort.Strings(excepts)
+				b += "[except"
+				for _, e := range excepts {
+					b += fmt.Sprintf("-%s", e)
+				}
+				b += "]"
+			}
+			blocks = append(blocks, b)
+		}
+	}
+	sort.Strings(blocks)
+	return "[" + strings.Join(blocks, "+") + "]"
+}
+
+func canonicalPortsToStr(ports []v1net.NetworkPolicyPort) string {
+	var portStrs []string
+	for _, p := range ports {
+		s := ""
+		if p.Protocol != nil {
+			s += string(*p.Protocol)
+		}
+		if p.Port != nil {
+			s += ":" + p.Port.String()
+		}
+		portStrs = append(portStrs, s)
+	}
+	sort.Strings(portStrs)
+	return "[" + strings.Join(portStrs, "+") + "]"
+}
+
+func canonicalEgressStrSorted(np *v1net.NetworkPolicy) string {
+	var rules []string
+	for _, rule := range np.Spec.Egress {
+		eStr := ""
+		eStr += canonicalSelectorsToStr(rule.To, np.Namespace)
+		eStr += canonicalPeersToStr(rule.To)
+		eStr += canonicalPortsToStr(rule.Ports)
+		rules = append(rules, eStr)
+	}
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i] < rules[j]
+	})
+	eStr := ""
+	for _, rule := range rules {
+		eStr += rule
+		eStr += "+"
+	}
+	eStr = strings.TrimSuffix(eStr, "+")
+	return eStr
+}
+
+func canonicalIngressStrSorted(np *v1net.NetworkPolicy) string {
+	var rules []string
+	for _, rule := range np.Spec.Ingress {
+		iStr := ""
+		iStr += canonicalSelectorsToStr(rule.From, np.Namespace)
+		iStr += canonicalPeersToStr(rule.From)
+		iStr += canonicalPortsToStr(rule.Ports)
+		rules = append(rules, iStr)
+	}
+	sort.Slice(rules, func(i, j int) bool {
+		return rules[i] < rules[j]
+	})
+	iStr := ""
+	for _, rule := range rules {
+		iStr += rule
+		iStr += "+"
+	}
+	iStr = strings.TrimSuffix(iStr, "+")
+	return iStr
+}
+
+func canonicalSelectorsToStr(peers []v1net.NetworkPolicyPeer, ns string) string {
+	selectors := make([]string, 0, len(peers))
+	for _, p := range peers {
+		podSel := canonicalLabelSelectorToStr(p.PodSelector)
+		nsSel := canonicalLabelSelectorToStr(p.NamespaceSelector)
+		if podSel != "" && nsSel == "" {
+			selectors = append(selectors, podSel+ns)
+		} else if podSel != "" || nsSel != "" {
+			selectors = append(selectors, podSel+nsSel)
+		}
+	}
+	sort.Strings(selectors)
+	var str string
+	for _, s := range selectors {
+		str += s
+	}
+	return str
+}
+
+func canonicalLabelSelectorToStr(labelsel *metav1.LabelSelector) string {
+	var str string
+	if labelsel != nil {
+		str = "["
+		matchLKeys := make([]string, 0, len(labelsel.MatchLabels))
+		for k := range labelsel.MatchLabels {
+			matchLKeys = append(matchLKeys, k)
+		}
+		sort.Strings(matchLKeys)
+		for _, key := range matchLKeys {
+			str += key + "=" + labelsel.MatchLabels[key]
+		}
+		exprs := make([]metav1.LabelSelectorRequirement, len(labelsel.MatchExpressions))
+		copy(exprs, labelsel.MatchExpressions)
+		for i := range exprs {
+			vals := make([]string, len(exprs[i].Values))
+			copy(vals, exprs[i].Values)
+			sort.Strings(vals)
+			exprs[i].Values = vals
+		}
+		sort.Slice(exprs, func(i, j int) bool {
+			return lessLabelSelectorRequirement(exprs[i], exprs[j])
+		})
+		for _, expressions := range exprs {
+			str += expressions.Key
+			str += string(expressions.Operator)
+			for _, values := range expressions.Values {
+				str += values
+			}
+		}
+		str += "]"
+	}
+	return str
+}
+
+func lessLabelSelectorRequirement(a, b metav1.LabelSelectorRequirement) bool {
+	if a.Key != b.Key {
+		return a.Key < b.Key
+	}
+	if a.Operator != b.Operator {
+		return a.Operator < b.Operator
+	}
+	for i := 0; i < len(a.Values) && i < len(b.Values); i++ {
+		if a.Values[i] != b.Values[i] {
+			return a.Values[i] < b.Values[i]
+		}
+	}
+	return len(a.Values) < len(b.Values)
+}
