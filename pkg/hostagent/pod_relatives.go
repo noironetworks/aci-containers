@@ -221,9 +221,9 @@ func (agent *HostAgent) initNetPolPodIndex() {
 		}
 	})
 	if agent.config.EnableHppDirect {
-		// When an NP's local pod set changes (pod deleted, labels changed, etc.),
-		// evict exactly the HPP derived from that NP if it's no longer locally
-		// relevant.
+		// The callback runs when a NetworkPolicy selector is registered or its
+		// local pod set changes (pod deleted, labels changed, etc.).  Evict the
+		// HPP derived from that NP only when it is no longer locally relevant.
 		agent.netPolPods.SetObjUpdateCallback(func(npkey string) {
 			agent.evictStaleHppForNp(npkey)
 		})
