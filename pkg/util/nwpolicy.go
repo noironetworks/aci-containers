@@ -25,6 +25,7 @@ import (
 
 	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -68,6 +69,9 @@ func CreateHashFromNetPol(np *v1net.NetworkPolicy) (string, error) {
 	}
 
 	key += pt
+	if subjectHash := ingressNamedPortSubjectHash(np); subjectHash != "" {
+		key += subjectHash
+	}
 
 	return Hash(key), nil
 }
@@ -227,7 +231,32 @@ func CreateCanonicalHashFromNetPol(np *v1net.NetworkPolicy) (string, error) {
 	in := canonicalIngressStrSorted(np)
 	e := canonicalEgressStrSorted(np)
 	pt := "[" + strings.Join(sortPolicyTypes(np.Spec.PolicyTypes), ",") + "]"
-	return Hash("{" + in + ";" + e + ";" + pt + "}"), nil
+	var key string
+	if subjectHash := ingressNamedPortSubjectHash(np); subjectHash != "" {
+		key = "{" + in + ";" + e + ";" + pt + ";" + subjectHash + "}"
+	} else {
+		key = "{" + in + ";" + e + ";" + pt + "}"
+	}
+	return Hash(key), nil
+}
+
+// CreateCanonicalHashFromPodSelector returns the canonical identity of a
+// NetworkPolicy's selected pods. Namespace is part of the identity because a
+// PodSelector only selects pods in the policy's own namespace.
+func CreateCanonicalHashFromPodSelector(podSelector *metav1.LabelSelector,
+	namespace string) string {
+	return Hash("{" + canonicalLabelSelectorToStr(podSelector) + ";" + namespace + "}")
+}
+
+func ingressNamedPortSubjectHash(np *v1net.NetworkPolicy) string {
+	for _, ingress := range np.Spec.Ingress {
+		for _, port := range ingress.Ports {
+			if port.Port != nil && port.Port.Type == intstr.String {
+				return CreateCanonicalHashFromPodSelector(&np.Spec.PodSelector, np.Namespace)
+			}
+		}
+	}
+	return ""
 }
 
 func CreateHashFromNetPolPeers(peers []v1net.NetworkPolicyPeer, namespace string) string {

@@ -930,8 +930,6 @@ type resolvedPeerPorts struct {
 	noPeers bool
 	// addPodSubnetAsRemIp is true when the rule allows all namespaces.
 	addPodSubnetAsRemIp bool
-	// hasNamedPort is true when the rule contains at least one named port.
-	hasNamedPort bool
 	// hasIpBlocks is true when there are IPBlock peers in this rule.
 	hasIpBlocks bool
 }
@@ -1226,7 +1224,6 @@ func (cont *AciController) resolveNetPolPeersAndPorts(
 
 		// Named port resolution.
 		portName := ports[j].Port.String()
-		result.hasNamedPort = true
 
 		if direction == "ingress" {
 			var portMap map[int]bool
@@ -2164,7 +2161,6 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 	// Read desired state from the NP-derived cache.
 	cont.hppMutex.Lock()
 	ref, desiredExists := cont.hppDirRef[hppName]
-	hasIngressRuleNamedPort := len(ref.NpIngressRules) > 0
 	var desired *hppv1.HostprotPol
 	if desiredExists {
 		desired = ref.HppCr.DeepCopy()
@@ -2201,19 +2197,13 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 		if !cont.hppSyncEnabled.Load() {
 
 			if actual.Spec.Name == desired.Spec.Name {
-				if !reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) {
-					if hasIngressRuleNamedPort {
-						// For ingress named port netpols with varying named port resolutions across different
-						// netpols, all hashing to the same hpp, even hostprotSubj can have inconsistent
-						// intermediate desired states during the sync.
+				if reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) {
+					if !reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
+						// Until the NP sync and HPP cache build is complete, we don't have the full
+						// desired list of network policies to compare against, so we can't determine
+						// if an update is needed.
 						return true // requeue until NP sync completes
 					}
-				} else if !reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
-					// Until the NP sync and HPP cache build is complete, we don't have the full
-					// desired list of network policies to compare against, so we can't determine
-					// if an update is needed.
-					return true // requeue until NP sync completes
-				} else {
 					return false // no-op
 				}
 			}
@@ -2358,8 +2348,6 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		}
 		hpp := apicapi.NewHostprotPol(cont.config.AciPolicyTenant, labelKey)
 
-		var hasNamedPorts bool
-
 		// Generate ingress policies
 		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 			subjIngress :=
@@ -2369,27 +2357,6 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 				resolved := cont.resolveNetPolPeersAndPorts("ingress",
 					ingress.From, ingress.Ports, peerPods, peerNs, np, logger)
 				cont.buildNetPolSubjRules(strconv.Itoa(i), subjIngress, "ingress", resolved, np)
-				if resolved.hasNamedPort {
-					hasNamedPorts = true
-				}
-			}
-
-			// Merge sibling NPs' named port resolutions into this subject.
-			// Rule names encode the ingress-rule index + proto-port so siblings
-			// produce identically-named rules. Cache full rule names and pull
-			// missing ones from the previously-written HPP object.
-			if cont.config.HppOptimization && hasNamedPorts {
-				ruleNames := make(map[string]bool)
-				for _, body := range subjIngress {
-					for _, rule := range body.Children {
-						name := rule.GetAttrStr("name")
-						if name != "" {
-							ruleNames[name] = true
-						}
-					}
-				}
-				cont.cacheNpOptIngressRules(labelKey, key, ruleNames)
-				cont.mergeHppOptIngressRules(labelKey, key, ruleNames, subjIngress)
 			}
 			hpp.AddChild(subjIngress)
 		}
@@ -2454,8 +2421,6 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		}
 		var rics = make(map[string]bool)
 
-		var hasNamedPorts bool
-
 		// Generate ingress policies
 		if np.Spec.PolicyTypes == nil || ptypeset[v1net.PolicyTypeIngress] {
 			subjIngress := &hppv1.HostprotSubj{
@@ -2466,25 +2431,9 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 			for _, ingress := range np.Spec.Ingress {
 				resolved := cont.resolveNetPolPeersAndPorts("ingress",
 					ingress.From, ingress.Ports, peerPods, peerNs, np, logger)
-				if resolved.hasNamedPort {
-					hasNamedPorts = true
-				}
 				if !(!resolved.noPeers && len(resolved.subnetMap) == 0) {
 					cont.buildLocalNetPolSubjRules(subjIngress, "ingress", resolved, ingress.From, np.ObjectMeta.Namespace, rics)
 				}
-			}
-
-			// Merge sibling NPs' named port resolutions into this subject.
-			// Cache full rule names and pull missing ones from the HPP CR.
-			if hasNamedPorts {
-				ruleNames := make(map[string]bool)
-				for _, rule := range subjIngress.HostprotRule {
-					if rule.Name != "" {
-						ruleNames[rule.Name] = true
-					}
-				}
-				cont.cacheNpDirIngressRules(hppName, key, ruleNames)
-				cont.mergeHppDirectIngressRules(hppName, key, ruleNames, subjIngress)
 			}
 			subjIngress.HostprotRule = canonicalizeHppRules(subjIngress.HostprotRule, logger)
 			hpp.Spec.HostprotSubj = append(hpp.Spec.HostprotSubj, *subjIngress)
@@ -2530,129 +2479,6 @@ func (cont *AciController) handleNetPolUpdate(np *v1net.NetworkPolicy) bool {
 		cont.queueHppUpdateByKey(hppName)
 	}
 	return false
-}
-
-// mergeHppOptIngressRules merges missing ingress rules from sibling NPs into
-// the current subject. It compares full rule names (which encode the ingress
-// rule index + proto-port) to avoid false positives from overlapping ports
-// in different ingress rules. Rules present in the HPP object but missing
-// from the current NP are added if claimed by a sibling's cached rule names.
-func (cont *AciController) mergeHppOptIngressRules(labelKey, key string,
-	ruleNames map[string]bool, subjIngress apicapi.ApicObject) {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-
-	hppRef, ok := cont.hppOptRef[labelKey]
-	if !ok {
-		return
-	}
-
-	// Collect all rule names claimed by siblings but not in current NP.
-	siblingNames := make(map[string]bool)
-	for _, npKey := range hppRef.Npkeys {
-		if npKey == key {
-			continue
-		}
-		for name := range hppRef.NpIngressRules[npKey] {
-			if !ruleNames[name] {
-				siblingNames[name] = true
-			}
-		}
-	}
-	if len(siblingNames) == 0 {
-		return
-	}
-
-	// Find rules in the HPP object whose names are claimed by siblings.
-	for _, hppObj := range hppRef.HppObj {
-		hppBody, ok := hppObj["hostprotPol"]
-		if !ok || hppBody == nil {
-			continue
-		}
-		for _, child := range hppBody.Children {
-			subj, ok := child["hostprotSubj"]
-			if !ok || subj == nil || subj.Attributes["name"] != "networkpolicy-ingress" {
-				continue
-			}
-			for _, ruleChild := range subj.Children {
-				rule, ok := ruleChild["hostprotRule"]
-				if !ok || rule == nil {
-					continue
-				}
-				name, _ := rule.Attributes["name"].(string)
-				if siblingNames[name] {
-					subjIngress.AddChild(ruleChild)
-					delete(siblingNames, name)
-				}
-			}
-		}
-	}
-}
-
-// mergeHppDirectIngressRules merges missing ingress rules from sibling NPs
-// into the current HPP-Direct subject. Same approach as mergeHppIngressRules
-// but operates on the HPP CR struct instead of the APIC object tree.
-func (cont *AciController) mergeHppDirectIngressRules(labelKey, key string,
-	ruleNames map[string]bool, subjIngress *hppv1.HostprotSubj) {
-	cont.hppMutex.Lock()
-	defer cont.hppMutex.Unlock()
-
-	hppRef, ok := cont.hppDirRef[labelKey]
-	if !ok {
-		return
-	}
-
-	// Collect all rule names claimed by siblings but not in current NP.
-	siblingNames := make(map[string]bool)
-	for _, npKey := range hppRef.Npkeys {
-		if npKey == key {
-			continue
-		}
-		for name := range hppRef.NpIngressRules[npKey] {
-			if !ruleNames[name] {
-				siblingNames[name] = true
-			}
-		}
-	}
-	if len(siblingNames) == 0 {
-		return
-	}
-
-	// Find rules in the HPP CR whose names are claimed by siblings.
-	for i := range hppRef.HppCr.Spec.HostprotSubj {
-		subj := &hppRef.HppCr.Spec.HostprotSubj[i]
-		if subj.Name != "networkpolicy-ingress" {
-			continue
-		}
-		for _, rule := range subj.HostprotRule {
-			if siblingNames[rule.Name] {
-				subjIngress.HostprotRule = append(subjIngress.HostprotRule, rule)
-				delete(siblingNames, rule.Name)
-			}
-		}
-	}
-}
-
-func (cont *AciController) cacheNpOptIngressRules(labelKey, npKey string, names map[string]bool) {
-	cont.indexMutex.Lock()
-	defer cont.indexMutex.Unlock()
-	ref := cont.hppOptRef[labelKey]
-	if ref.NpIngressRules == nil {
-		ref.NpIngressRules = make(map[string]map[string]bool)
-	}
-	ref.NpIngressRules[npKey] = names
-	cont.hppOptRef[labelKey] = ref
-}
-
-func (cont *AciController) cacheNpDirIngressRules(labelKey, npKey string, names map[string]bool) {
-	cont.hppMutex.Lock()
-	defer cont.hppMutex.Unlock()
-	ref := cont.hppDirRef[labelKey]
-	if ref.NpIngressRules == nil {
-		ref.NpIngressRules = make(map[string]map[string]bool)
-	}
-	ref.NpIngressRules[npKey] = names
-	cont.hppDirRef[labelKey] = ref
 }
 
 func (cont *AciController) addToHppOptCache(labelKey, key string, hpp apicapi.ApicSlice) {
@@ -2746,17 +2572,11 @@ func (cont *AciController) removeFromHppDirCache(np *v1net.NetworkPolicy, key st
 			ref.Npkeys = slices.Delete(ref.Npkeys, pos, pos+1)
 			ref.RefCount--
 		}
-		_, hadRuleCache := ref.NpIngressRules[key]
-		delete(ref.NpIngressRules, key)
 		if ref.RefCount > 0 {
 			ref.HppCr.Spec.NetworkPolicies = ref.Npkeys
 			cont.hppDirRef[hppName] = ref
-			if hadRuleCache {
-				cont.queueNetPolUpdateByKey(ref.Npkeys[0])
-			} else {
-				// NetworkPolicies list changed; reconcile the HPP CR.
-				cont.queueHppUpdateByKey(hppName)
-			}
+			// NetworkPolicies list changed; reconcile the HPP CR.
+			cont.queueHppUpdateByKey(hppName)
 		} else {
 			// Clean up RIC reverse index for this HPP.
 			for ric := range ref.RicNames {
@@ -2797,13 +2617,8 @@ func (cont *AciController) removeFromHppOptCache(np *v1net.NetworkPolicy, key st
 				break
 			}
 		}
-		_, hadRuleCache := ref.NpIngressRules[key]
-		delete(ref.NpIngressRules, key)
 		if ref.RefCount > 0 {
 			cont.hppOptRef[labelKey] = ref
-			if hadRuleCache {
-				cont.queueNetPolUpdateByKey(ref.Npkeys[0])
-			}
 		} else {
 			delete(cont.hppOptRef, labelKey)
 			noRef = true
