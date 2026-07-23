@@ -939,6 +939,7 @@ type resolvedPeerPorts struct {
 // resolvedPortEntry is a single port (or port range) with its associated remote IPs.
 type resolvedPortEntry struct {
 	proto    string
+	portName string
 	fromPort string
 	toPort   string
 	// ipsV4/ipsV6 contain the remote IPs for this entry split by address family.
@@ -1291,6 +1292,7 @@ func (cont *AciController) resolveNetPolPeersAndPorts(
 			sort.Strings(ipsV6)
 			result.entries = append(result.entries, resolvedPortEntry{
 				proto:      proto,
+				portName:   portName,
 				fromPort:   strconv.Itoa(portNum),
 				ipsV4:      ipsV4,
 				ipsV6:      ipsV6,
@@ -1522,10 +1524,6 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 	hasV4 := !cont.configuredPodNetworkIps.V4.Empty()
 	hasV6 := !cont.configuredPodNetworkIps.V6.Empty()
 	for _, entry := range resolved.entries {
-		ricSuffix := ""
-		if entry.portScoped {
-			ricSuffix = entry.fromPort
-		}
 		entryName := "unspecified"
 		if entry.proto != "" {
 			entryName = protoPortKey(entry.proto, entry.fromPort)
@@ -1540,6 +1538,16 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 		// itself has no From/To (see resolveNetPolPeersAndPorts).
 		noRic := resolved.noPeers && !entry.portScoped
 
+		var ricHash string
+		if !noRic {
+			if entry.portScoped {
+				ricHash = util.CreateHashFromNetPolPeersWithNamedPort(peers,
+					netPolNs, entry.proto, entry.portName, entry.fromPort)
+			} else {
+				ricHash = util.CreateHashFromNetPolPeers(peers, netPolNs)
+			}
+		}
+
 		if hasV4 {
 			namePrefix := "ipv4"
 			var ricNameV4 string
@@ -1550,7 +1558,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				} else {
 					ricIpsV4 = entry.ipsV4
 				}
-				ricNameV4 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "-ipv4"
+				ricNameV4 = ricHash + "-ipv4"
 				namePrefix = ricNameV4
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV4] = ricIpsV4
@@ -1577,7 +1585,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 				} else {
 					ricIpsV6 = entry.ipsV6
 				}
-				ricNameV6 = util.CreateHashFromNetPolPeers(peers, netPolNs, ricSuffix) + "-ipv6"
+				ricNameV6 = ricHash + "-ipv6"
 				namePrefix = ricNameV6
 				cont.hppMutex.Lock()
 				cont.remoteIpCache[ricNameV6] = ricIpsV6
