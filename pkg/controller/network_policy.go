@@ -1700,18 +1700,23 @@ func portProto(protocol *v1.Protocol) string {
 }
 
 func portKey(p *v1net.NetworkPolicyPort) string {
+	if p == nil {
+		return ""
+	}
+
+	if p.Port == nil {
+		return portProto(p.Protocol) + "-none-"
+	}
+
 	portType := ""
 	port := ""
-	if p != nil && p.Port != nil {
-		if p.Port.Type == intstr.Int {
-			portType = "num"
-		} else {
-			portType = "name"
-		}
-		port = p.Port.String()
-		return portProto(p.Protocol) + "-" + portType + "-" + port
+	if p.Port.Type == intstr.Int {
+		portType = "num"
+	} else {
+		portType = "name"
 	}
-	return ""
+	port = p.Port.String()
+	return portProto(p.Protocol) + "-" + portType + "-" + port
 }
 
 func checkEndpointslices(subnetIndex cidranger.Ranger,
@@ -2878,7 +2883,7 @@ func (seps *serviceEndpointSlice) SetNpServiceAugmentForService(servicekey strin
 func isNamedPortPresenInNp(np *v1net.NetworkPolicy) bool {
 	for _, egress := range np.Spec.Egress {
 		for _, p := range egress.Ports {
-			if p.Port.Type == intstr.String {
+			if p.Port != nil && p.Port.Type == intstr.String {
 				return true
 			}
 		}
@@ -2900,7 +2905,7 @@ func (cont *AciController) checkPodNmpMatchesNp(npkey, podkey string) bool {
 		np := npobj.(*v1net.NetworkPolicy)
 		for _, egress := range np.Spec.Egress {
 			for _, p := range egress.Ports {
-				if p.Port.Type == intstr.String {
+				if p.Port != nil && p.Port.Type == intstr.String {
 					_, err := k8util.LookupContainerPortNumberByName(*pod, p.Port.String())
 					if err == nil {
 						return true
