@@ -283,15 +283,17 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 
 	if env.agent.hppDirectEnabled() {
 		env.agent.log.Debug("Starting hpp informers")
+		env.agent.log.Debug("Starting hostprotremoteipcontainer informers")
+		go env.agent.hppRemoteIpInformer.Run(stopCh)
 		go env.agent.hppInformer.Run(stopCh)
+		// HPP rendering resolves RIC references from the RIC informer store.
+		// Synchronize that store before starting the HPP worker so every RIC
+		// referenced by an HPP that existed at startup is already available.
+		env.agent.log.Info("Waiting for hostprotremoteipcontainer cache sync")
+		cache.WaitForCacheSync(stopCh, env.agent.hppRemoteIpInformer.HasSynced)
 		env.agent.log.Info("Waiting for hpp cache sync")
 		cache.WaitForCacheSync(stopCh, env.agent.hppInformer.HasSynced)
 		env.agent.log.Info("hpp cache sync successful")
-
-		env.agent.log.Debug("Starting hostprotremoteipcontainer informers")
-		go env.agent.hppRemoteIpInformer.Run(stopCh)
-		env.agent.log.Info("Waiting for hostprotremoteipcontainer cache sync")
-		cache.WaitForCacheSync(stopCh, env.agent.hppRemoteIpInformer.HasSynced)
 		env.agent.log.Info("hostprotremoteipcontainer cache sync successful")
 		env.agent.log.Debug("Starting hpp processing queue")
 		go env.agent.processQueue(env.agent.hppQueue, env.agent.hppInformer.GetStore(), env.agent.handleHppQueueItem, stopCh)
