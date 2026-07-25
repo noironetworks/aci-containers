@@ -30,11 +30,13 @@ func TestProtocolNameToNumber(t *testing.T) {
 		{"udp lowercase", "udp", 17},
 		{"icmp lowercase", "icmp", 1},
 		{"icmpv6 lowercase", "icmpv6", 58},
+		{"sctp lowercase", "sctp", 132},
 		{"tcp uppercase", "TCP", 6},
 		{"udp uppercase", "UDP", 17},
 		{"icmp mixed case", "IcMp", 1},
 		{"icmpv6 mixed case", "ICMPv6", 58},
-		{"unknown protocol", "sctp", 0},
+		{"sctp uppercase", "SCTP", 132},
+		{"unknown protocol", "foo", 0},
 		{"empty string", "", 0},
 	}
 
