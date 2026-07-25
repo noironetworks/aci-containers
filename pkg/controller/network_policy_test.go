@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -4297,11 +4298,9 @@ func TestNetworkPolicyEgressNmPortHppOptimize(t *testing.T) {
 	}
 }
 
-// TestNetworkPolicyMultipleNPsSharedHPPNamedPorts tests the scenario where
-// multiple NetworkPolicies with identical rules but different PodSelectors
-// share the same HPP, and use named ports that resolve to different port numbers
-func TestNetworkPolicyMultipleNPsSharedHPPNamedPorts(t *testing.T) {
-	// Simple test to verify the fix works in hpp-optimization mode
+// TestNetworkPolicyIngressNamedPortsUseDistinctHPPs verifies that ingress
+// named-port policies selecting different target pods do not share an APIC HPP.
+func TestNetworkPolicyIngressNamedPortsUseDistinctHPPs(t *testing.T) {
 	config := NewConfig()
 	config.HppOptimization = true
 	config.AciPolicyTenant = "test-tenant"
@@ -4362,64 +4361,57 @@ func TestNetworkPolicyMultipleNPsSharedHPPNamedPorts(t *testing.T) {
 	cont.fakePodSource.Add(pod1)
 	cont.fakePodSource.Add(pod2)
 	cont.run()
+	waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 	cont.fakeNetworkPolicySource.Add(np1)
 	cont.fakeNetworkPolicySource.Add(np2)
 
-	// Wait for controller to process the network policies
-	hash, _ := util.CreateHashFromNetPol(np1)
-	labelKey := cont.aciNameForKey("np", hash)
+	hash1, err := util.CreateHashFromNetPol(np1)
+	assert.NoError(t, err)
+	hash2, err := util.CreateHashFromNetPol(np2)
+	assert.NoError(t, err)
+	assert.NotEqual(t, hash1, hash2)
+	labelKey1 := cont.aciNameForKey("np", hash1)
+	labelKey2 := cont.aciNameForKey("np", hash2)
 
-	foundNp1Rule := false
-	foundNp2Rule := false
-
-	tu.WaitFor(t, "multiple-nps-shared-hpp-named-ports", 2000*time.Millisecond,
-		func(last bool) (bool, error) {
-			desiredState := cont.apicConn.GetDesiredState(labelKey)
-			if len(desiredState) == 0 {
-				return false, nil
-			}
-
-			// Verify rules exist for both NPs
-			hppObj := desiredState[0]
-			hppMap, ok := hppObj["hostprotPol"]
-			if !ok || hppMap == nil {
-				return false, nil
-			}
-
-			foundNp1Rule = false
-			foundNp2Rule = false
-
-			for _, child := range hppMap.Children {
-				if subj, ok := child["hostprotSubj"]; ok {
-					if subj != nil && subj.Attributes["name"] == "networkpolicy-ingress" {
-						for _, ruleChild := range subj.Children {
-							if rule, ok := ruleChild["hostprotRule"]; ok {
-								if rule != nil {
-									fromPort, _ := rule.Attributes["fromPort"].(string)
-									if fromPort == "http" {
-										foundNp1Rule = true
-									}
-									if fromPort == "8080" {
-										foundNp2Rule = true
-									}
-								}
-							}
+	waitForOnlyIngressPort := func(labelKey, wantPort string) {
+		t.Helper()
+		tu.WaitFor(t, labelKey+"-port-"+wantPort, 2000*time.Millisecond,
+			func(last bool) (bool, error) {
+				desiredState := cont.apicConn.GetDesiredState(labelKey)
+				if len(desiredState) != 1 {
+					return false, nil
+				}
+				hppBody := desiredState[0]["hostprotPol"]
+				if hppBody == nil {
+					return false, nil
+				}
+				var ports []string
+				for _, child := range hppBody.Children {
+					subj := child["hostprotSubj"]
+					if subj == nil || subj.Attributes["name"] != "networkpolicy-ingress" {
+						continue
+					}
+					for _, ruleChild := range subj.Children {
+						rule := ruleChild["hostprotRule"]
+						if rule != nil {
+							ports = append(ports,
+								rule.Attributes["fromPort"].(string))
 						}
 					}
 				}
-			}
+				return len(ports) == 1 && ports[0] == wantPort, nil
+			})
+	}
 
-			return foundNp1Rule && foundNp2Rule, nil
-		})
+	waitForOnlyIngressPort(labelKey1, "http")
+	waitForOnlyIngressPort(labelKey2, "8080")
 
 	cont.stop()
 }
 
-// TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect tests the same
-// sibling-NP merge scenario as TestNetworkPolicyMultipleNPsSharedHPPNamedPorts
-// but for the HPP-Direct (EnableHppDirect) code path, verifying that the
-// HostprotPol CRD contains merged ingress rules from both NPs.
-func TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect(t *testing.T) {
+// TestNetworkPolicyIngressNamedPortsUseDistinctHPPsDirect verifies the same
+// subject isolation for HPP-direct HostprotPol custom resources.
+func TestNetworkPolicyIngressNamedPortsUseDistinctHPPsDirect(t *testing.T) {
 	cont := getContWithEnabledLocalHpp()
 	os.Setenv("SYSTEM_NAMESPACE", "kube-system")
 	defer os.Unsetenv("SYSTEM_NAMESPACE")
@@ -4471,44 +4463,45 @@ func TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect(t *testing.T) {
 	cont.fakePodSource.Add(pod1)
 	cont.fakePodSource.Add(pod2)
 	cont.run()
+	waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 	cont.fakeNetworkPolicySource.Add(np1)
 	cont.fakeNetworkPolicySource.Add(np2)
 
-	hash, _ := util.CreateCanonicalHashFromNetPol(np1)
-	labelKey := cont.aciNameForKey("np", hash)
-	hppName := strings.ReplaceAll(labelKey, "_", "-")
+	hash1, err := util.CreateCanonicalHashFromNetPol(np1)
+	assert.NoError(t, err)
+	hash2, err := util.CreateCanonicalHashFromNetPol(np2)
+	assert.NoError(t, err)
+	assert.NotEqual(t, hash1, hash2)
+	hppName1 := strings.ReplaceAll(cont.aciNameForKey("np", hash1), "_", "-")
+	hppName2 := strings.ReplaceAll(cont.aciNameForKey("np", hash2), "_", "-")
 	ns := os.Getenv("SYSTEM_NAMESPACE")
 
-	tu.WaitFor(t, "multiple-nps-shared-hpp-named-ports-direct", 2000*time.Millisecond,
-		func(last bool) (bool, error) {
-			hpp, err := cont.getHostprotPol(hppName, ns)
-			if err != nil {
-				return false, nil
-			}
-
-			// Find ingress subject
-			var ingressSubj *hppv1.HostprotSubj
-			for i := range hpp.Spec.HostprotSubj {
-				if hpp.Spec.HostprotSubj[i].Name == "networkpolicy-ingress" {
-					ingressSubj = &hpp.Spec.HostprotSubj[i]
-					break
+	waitForOnlyIngressPort := func(hppName, npKey, wantPort string) {
+		t.Helper()
+		tu.WaitFor(t, hppName+"-port-"+wantPort, 2000*time.Millisecond,
+			func(last bool) (bool, error) {
+				hpp, err := cont.getHostprotPol(hppName, ns)
+				if err != nil {
+					return false, nil
 				}
-			}
-			if ingressSubj == nil {
-				return false, nil
-			}
-
-			// Collect all fromPort values from ingress rules
-			ports := make(map[string]bool)
-			for _, rule := range ingressSubj.HostprotRule {
-				if rule.FromPort != "" && rule.FromPort != "unspecified" {
-					ports[rule.FromPort] = true
+				if !reflect.DeepEqual(hpp.Spec.NetworkPolicies, []string{npKey}) {
+					return false, nil
 				}
-			}
+				var ports []string
+				for _, subj := range hpp.Spec.HostprotSubj {
+					if subj.Name != "networkpolicy-ingress" {
+						continue
+					}
+					for _, rule := range subj.HostprotRule {
+						ports = append(ports, rule.FromPort)
+					}
+				}
+				return len(ports) == 1 && ports[0] == wantPort, nil
+			})
+	}
 
-			// Both port 80 (from NP1/pod1) and 8080 (from NP2/pod2) must be present
-			return ports["80"] && ports["8080"], nil
-		})
+	waitForOnlyIngressPort(hppName1, "testns/np1", "80")
+	waitForOnlyIngressPort(hppName2, "testns/np2", "8080")
 
 	cont.stop()
 }

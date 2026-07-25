@@ -238,6 +238,131 @@ func npWithRules(ingress []v1net.NetworkPolicyIngressRule, egress []v1net.Networ
 	}
 }
 
+func netPolWithIngressPort(namespace string, podSelector metav1.LabelSelector,
+	port intstr.IntOrString) *v1net.NetworkPolicy {
+	tcp := v1.ProtocolTCP
+	return &v1net.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "policy", Namespace: namespace},
+		Spec: v1net.NetworkPolicySpec{
+			PodSelector: podSelector,
+			Ingress: []v1net.NetworkPolicyIngressRule{{
+				Ports: []v1net.NetworkPolicyPort{{Protocol: &tcp, Port: &port}},
+			}},
+			PolicyTypes: []v1net.PolicyType{v1net.PolicyTypeIngress},
+		},
+	}
+}
+
+func TestNetPolHashesScopeIngressNamedPortsBySelectedPods(t *testing.T) {
+	web := metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}}
+	api := metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}}
+	namedPort := intstr.FromString("http")
+
+	webPolicy := netPolWithIngressPort("default", web, namedPort)
+	apiPolicy := netPolWithIngressPort("default", api, namedPort)
+
+	webLegacy, err := CreateHashFromNetPol(webPolicy)
+	if err != nil {
+		t.Fatalf("hash legacy web policy: %v", err)
+	}
+	apiLegacy, err := CreateHashFromNetPol(apiPolicy)
+	if err != nil {
+		t.Fatalf("hash legacy api policy: %v", err)
+	}
+	if webLegacy == apiLegacy {
+		t.Errorf("legacy HPP hash collapsed distinct named-port subject selectors: %q",
+			webLegacy)
+	}
+
+	webCanonical, err := CreateCanonicalHashFromNetPol(webPolicy)
+	if err != nil {
+		t.Fatalf("hash canonical web policy: %v", err)
+	}
+	apiCanonical, err := CreateCanonicalHashFromNetPol(apiPolicy)
+	if err != nil {
+		t.Fatalf("hash canonical api policy: %v", err)
+	}
+	if webCanonical == apiCanonical {
+		t.Errorf("canonical HPP hash collapsed distinct named-port subject selectors: %q",
+			webCanonical)
+	}
+
+	webOtherNamespace := netPolWithIngressPort("other", web, namedPort)
+	otherNamespaceHash, err := CreateCanonicalHashFromNetPol(webOtherNamespace)
+	if err != nil {
+		t.Fatalf("hash policy in other namespace: %v", err)
+	}
+	if webCanonical == otherNamespaceHash {
+		t.Errorf("named-port policies in different namespaces collapsed: %q",
+			webCanonical)
+	}
+}
+
+func TestNetPolHashesContinueSharingNumericIngressPolicies(t *testing.T) {
+	web := metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}}
+	api := metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}}
+	numericPort := intstr.FromInt(8080)
+
+	webPolicy := netPolWithIngressPort("default", web, numericPort)
+	apiPolicy := netPolWithIngressPort("default", api, numericPort)
+
+	webLegacy, err := CreateHashFromNetPol(webPolicy)
+	if err != nil {
+		t.Fatalf("hash legacy web policy: %v", err)
+	}
+	apiLegacy, err := CreateHashFromNetPol(apiPolicy)
+	if err != nil {
+		t.Fatalf("hash legacy api policy: %v", err)
+	}
+	if webLegacy != apiLegacy {
+		t.Errorf("numeric ingress policies no longer share legacy HPP: %q != %q",
+			webLegacy, apiLegacy)
+	}
+
+	webCanonical, err := CreateCanonicalHashFromNetPol(webPolicy)
+	if err != nil {
+		t.Fatalf("hash canonical web policy: %v", err)
+	}
+	apiCanonical, err := CreateCanonicalHashFromNetPol(apiPolicy)
+	if err != nil {
+		t.Fatalf("hash canonical api policy: %v", err)
+	}
+	if webCanonical != apiCanonical {
+		t.Errorf("numeric ingress policies no longer share canonical HPP: %q != %q",
+			webCanonical, apiCanonical)
+	}
+}
+
+func TestCanonicalPodSelectorHashIsOrderIndependent(t *testing.T) {
+	first := &metav1.LabelSelector{
+		MatchLabels: map[string]string{"app": "api"},
+		MatchExpressions: []metav1.LabelSelectorRequirement{{
+			Key:      "tier",
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"backend", "frontend"},
+		}},
+	}
+	second := &metav1.LabelSelector{
+		MatchLabels: map[string]string{"app": "api"},
+		MatchExpressions: []metav1.LabelSelectorRequirement{{
+			Key:      "tier",
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   []string{"frontend", "backend"},
+		}},
+	}
+
+	firstHash := CreateCanonicalHashFromPodSelector(first, "default")
+	secondHash := CreateCanonicalHashFromPodSelector(second, "default")
+	if firstHash != secondHash {
+		t.Errorf("equivalent pod selectors produced different hashes: %q != %q",
+			firstHash, secondHash)
+	}
+	if firstHash == CreateCanonicalHashFromPodSelector(first, "other") {
+		t.Errorf("same pod selector in different namespaces produced one hash: %q",
+			firstHash)
+	}
+}
+
 // Class 2: an ingress rule and an egress rule with identical peer/port text and
 // identical policyTypes must not collapse onto one HPP.
 func TestCanonicalHashDistinguishesDirection(t *testing.T) {
