@@ -112,6 +112,7 @@ type HostAgent struct {
 	ricToHpp               map[string]map[string]bool
 	hppQueue               workqueue.RateLimitingInterface
 	hppInformerReg         cache.ResourceEventHandlerRegistration
+	netPolInformerReg      cache.ResourceEventHandlerRegistration
 	hppSyncEnabled         atomic.Bool
 	proactiveConfInformer  cache.SharedIndexInformer
 
@@ -602,17 +603,28 @@ func (agent *HostAgent) processQueue(queue workqueue.RateLimitingInterface, stor
 }
 
 // enableHppSyncAfterCheckpoint defers stale netpol-file pruning until the
-// initial HPP render batch has fully drained: it waits for the hpp informer
-// to sync, then enqueues a sentinel on hppQueue and waits for the render
-// worker to reach it. Only then does hppMoIndex reflect the full initial
-// desired state, so syncLocalHppMo can safely delete files with no backing
-// entry without risking a delete-then-readd churn on restart.
+// initial HPP render batch has fully drained. The prune deletes any on-disk
+// netpol file whose HPP is absent from hppMoIndex, so it is only safe once
+// hppMoIndex holds every locally-relevant HPP. Local relevance is decided by
+// isHppLocallyRelevant, which reads netPolPods. Each NetworkPolicy add handler
+// scans the already-synced, node-local pod informer store while registering the
+// policy's subject selector, populates netPolPods, and synchronously queues
+// every newly local HPP through its pod-callback fan-out. So we wait for the HPP
+// and NetworkPolicy handler registrations to finish their initial delivery,
+// then enqueue a sentinel on hppQueue and wait for the render worker to reach
+// it. Only then does hppMoIndex reflect the full initial desired state and can
+// syncLocalHppMo safely delete files with no backing entry.
 func (agent *HostAgent) enableHppSyncAfterCheckpoint(stopCh <-chan struct{}) {
-	if agent.hppInformerReg == nil {
+	if agent.hppInformerReg == nil || agent.netPolInformerReg == nil {
+		agent.log.Error("Cannot enable stale netpol prune without HPP and NetworkPolicy handler sync")
 		return
 	}
-	if !cache.WaitForCacheSync(stopCh, agent.hppInformerReg.HasSynced) {
-		return
+	for _, reg := range []cache.ResourceEventHandlerRegistration{
+		agent.hppInformerReg, agent.netPolInformerReg,
+	} {
+		if !cache.WaitForCacheSync(stopCh, reg.HasSynced) {
+			return
+		}
 	}
 	done := make(chan struct{})
 	agent.hppQueue.Add(done)

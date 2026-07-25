@@ -17,7 +17,9 @@ package hostagent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	hppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	"github.com/noironetworks/aci-containers/pkg/util"
@@ -28,6 +30,47 @@ import (
 	"k8s.io/client-go/tools/cache"
 	framework "k8s.io/client-go/tools/cache/testing"
 )
+
+type controlledHandlerRegistration struct {
+	name string
+	done chan struct{}
+}
+
+func newControlledHandlerRegistration(name string, synced bool) *controlledHandlerRegistration {
+	reg := &controlledHandlerRegistration{
+		name: name,
+		done: make(chan struct{}),
+	}
+	if synced {
+		close(reg.done)
+	}
+	return reg
+}
+
+func (r *controlledHandlerRegistration) HasSynced() bool {
+	select {
+	case <-r.done:
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *controlledHandlerRegistration) HasSyncedChecker() cache.DoneChecker {
+	return r
+}
+
+func (r *controlledHandlerRegistration) Name() string {
+	return r.name
+}
+
+func (r *controlledHandlerRegistration) Done() <-chan struct{} {
+	return r.done
+}
+
+func (r *controlledHandlerRegistration) markSynced() {
+	close(r.done)
+}
 
 // testAgentHppDirect builds a testHostAgent with EnableHppDirect enabled and
 // OpFlexNetPolDir pointed at a per-test temp directory.
@@ -92,6 +135,88 @@ func drainHppQueue(t *testing.T, agent *testHostAgent) {
 		agent.hppQueue.Done(item)
 		agent.hppQueue.Forget(item)
 	}
+}
+
+func TestHppCheckpointWaitsForNetworkPolicyHandler(t *testing.T) {
+	agent := testAgentHppDirect(t)
+
+	np := &v1net.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "np-checkpoint"},
+		Spec: v1net.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+		},
+	}
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "pod-checkpoint"},
+		Spec:       v1.PodSpec{NodeName: nodename},
+	}
+	specName, err := agent.getHPPDirLabelKey(np)
+	assert.NoError(t, err)
+	hpp := &hppv1.HostprotPol{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: agent.config.AciHppObjsNamespace,
+			Name:      strings.ReplaceAll(specName, "_", "-"),
+		},
+		Spec: hppv1.HostprotPolSpec{
+			Name:            specName,
+			NetworkPolicies: []string{"testns/np-checkpoint"},
+			HostprotSubj:    []hppv1.HostprotSubj{{Name: "subj1"}},
+		},
+	}
+
+	assert.NoError(t, agent.podInformer.GetStore().Add(pod))
+	assert.NoError(t, agent.netPolInformer.GetStore().Add(np))
+	assert.NoError(t, agent.hppInformer.GetStore().Add(hpp))
+
+	filePath := filepath.Join(agent.config.OpFlexNetPolDir, specName+".netpol")
+	assert.NoError(t, os.WriteFile(filePath, []byte("existing netpol"), 0o600))
+
+	hppReg := newControlledHandlerRegistration("hpp", true)
+	netPolReg := newControlledHandlerRegistration("networkpolicy", false)
+	agent.hppInformerReg = hppReg
+	agent.netPolInformerReg = netPolReg
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	go agent.processQueue(agent.hppQueue, agent.hppInformer.GetStore(),
+		agent.handleHppQueueItem, stopCh)
+	go agent.processSyncQueue(agent.hppLocalMoSyncQueue, stopCh)
+	go agent.enableHppSyncAfterCheckpoint(stopCh)
+
+	assert.Never(t, agent.hppSyncEnabled.Load, 250*time.Millisecond, 10*time.Millisecond,
+		"stale prune must remain disabled while the NetworkPolicy handler is pending")
+	_, err = os.Stat(filePath)
+	assert.NoError(t, err, "the existing netpol file must not be pruned")
+
+	// Complete the delayed initial NetworkPolicy delivery. The handler scans
+	// the already-populated pod store, reconstructs NP-to-pod locality, and
+	// queues the corresponding HPP before its registration reports synced.
+	agent.networkPolicyAdded(np)
+	netPolReg.markSynced()
+
+	assert.Eventually(t, agent.hppSyncEnabled.Load, 2*time.Second, 10*time.Millisecond,
+		"stale prune should be enabled after the handler and HPP queue drain")
+	assert.Eventually(t, func() bool {
+		agent.hppMutex.Lock()
+		defer agent.hppMutex.Unlock()
+		_, ok := agent.hppMoIndex[specName]
+		return ok
+	}, 2*time.Second, 10*time.Millisecond, "the locally relevant HPP should be rendered")
+	_, err = os.Stat(filePath)
+	assert.NoError(t, err, "the locally relevant netpol file must remain present")
+}
+
+func TestHppCheckpointFailsClosedWithoutNetworkPolicyRegistration(t *testing.T) {
+	agent := testAgentHppDirect(t)
+	agent.hppInformerReg = newControlledHandlerRegistration("hpp", true)
+	agent.netPolInformerReg = nil
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	agent.enableHppSyncAfterCheckpoint(stopCh)
+
+	assert.False(t, agent.hppSyncEnabled.Load())
+	assert.Zero(t, agent.hppQueue.Len())
 }
 
 func TestIsStaticOrNodeHpp(t *testing.T) {
