@@ -607,6 +607,8 @@ func protocolNameToNumber(protocol string) int {
 		return 6
 	case "icmpv6":
 		return 58
+	case "sctp":
+		return 132
 	default:
 		return 0
 	}
