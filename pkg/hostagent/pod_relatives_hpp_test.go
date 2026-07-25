@@ -15,8 +15,10 @@
 package hostagent
 
 import (
+	"strings"
 	"testing"
 
+	hppv1 "github.com/noironetworks/aci-containers/pkg/hpp/apis/aci.hpp/v1"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
@@ -50,6 +52,17 @@ func TestEvictStaleHppForNpViaRealPodCallback(t *testing.T) {
 
 	specName, err := agent.getHPPDirLabelKey(np)
 	assert.NoError(t, err)
+	hpp := &hppv1.HostprotPol{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: agent.config.AciHppObjsNamespace,
+			Name:      strings.ReplaceAll(specName, "_", "-"),
+		},
+		Spec: hppv1.HostprotPolSpec{
+			Name:            specName,
+			NetworkPolicies: []string{"testns/np1"},
+		},
+	}
+	assert.NoError(t, agent.hppInformer.GetStore().Add(hpp))
 
 	// Pre-populate hppMoIndex as if this NP's HPP had already been
 	// rendered locally.
@@ -82,6 +95,77 @@ func TestEvictStaleHppForNpViaRealPodCallback(t *testing.T) {
 	assert.Equal(t, "hpp", item)
 	agent.hppLocalMoSyncQueue.Done(item)
 	agent.hppLocalMoSyncQueue.Forget(item)
+}
+
+// TestEvictStaleHppForNpKeepsCanonicalSharedHpp covers the direct-mode
+// canonicalization case: two otherwise identical policies in different
+// namespaces share one HPP CR.  In particular, an ordinary NetworkPolicy-add
+// selector registration for a namespace with no local pod invokes the object
+// update callback.  It must not remove the shared HPP while another referenced
+// policy is still local.
+func TestEvictStaleHppForNpKeepsCanonicalSharedHpp(t *testing.T) {
+	agent := testAgentHppDirect(t)
+
+	localNP := &v1net.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "local-ns", Name: "allow-system"},
+		Spec:       v1net.NetworkPolicySpec{PodSelector: metav1.LabelSelector{}},
+	}
+	staleNP := &v1net.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "stale-ns", Name: "allow-system"},
+		Spec:       v1net.NetworkPolicySpec{PodSelector: metav1.LabelSelector{}},
+	}
+	localPod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "local-ns", Name: "pod-local"},
+		Spec:       v1.PodSpec{NodeName: nodename},
+	}
+
+	specName, err := agent.getHPPDirLabelKey(localNP)
+	assert.NoError(t, err)
+	staleSpecName, err := agent.getHPPDirLabelKey(staleNP)
+	assert.NoError(t, err)
+	assert.Equal(t, specName, staleSpecName, "identical policies must share the canonical HPP")
+
+	hpp := &hppv1.HostprotPol{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: agent.config.AciHppObjsNamespace,
+			Name:      strings.ReplaceAll(specName, "_", "-"),
+		},
+		Spec: hppv1.HostprotPolSpec{
+			Name: specName,
+			NetworkPolicies: []string{
+				"local-ns/allow-system",
+				"stale-ns/allow-system",
+			},
+		},
+	}
+	assert.NoError(t, agent.hppInformer.GetStore().Add(hpp))
+	assert.NoError(t, agent.netPolInformer.GetStore().Add(localNP))
+	assert.NoError(t, agent.netPolInformer.GetStore().Add(staleNP))
+	assert.NoError(t, agent.podInformer.GetStore().Add(localPod))
+	// Establish the local member first, as happens while a Bosch profile is
+	// applied.  The second policy has no pod selected on this node.
+	agent.netPolPods.UpdateSelectorObjNoCallback(localNP)
+
+	agent.hppMutex.Lock()
+	agent.hppMoIndex[specName] = []*gbpBaseMo{{}}
+	agent.hppMutex.Unlock()
+
+	// This is the production trigger: networkPolicyAdded calls
+	// UpdateSelectorObj, whose changed empty mapping invokes the callback.
+	// stale-ns has no local selected pod, but local-ns still does.
+	agent.networkPolicyAdded(staleNP)
+	agent.hppMutex.Lock()
+	_, present := agent.hppMoIndex[specName]
+	agent.hppMutex.Unlock()
+	assert.True(t, present, "shared HPP must stay rendered while any referenced policy is local")
+
+	// Once the remaining referenced local policy has no pod either, eviction
+	// is both safe and expected.
+	agent.netPolPods.DeletePod(localPod)
+	agent.hppMutex.Lock()
+	_, present = agent.hppMoIndex[specName]
+	agent.hppMutex.Unlock()
+	assert.False(t, present, "shared HPP must be evicted after every referenced policy is non-local")
 }
 
 // TestEvictStaleHppForNpViaRealPodCallbackNoStaleEntry verifies that when

@@ -403,6 +403,31 @@ func (agent *HostAgent) evictStaleHppForNp(npkey string) {
 		agent.log.Errorf("evictStaleHppForNp: failed to compute HPP label key for NP %s: %v", npkey, err)
 		return
 	}
+
+	// Verify that no other NerworkPolicy selects pods on this node that would keep the HPP relevant. If any do, skip eviction.
+	// This is a safety check to avoid evicting an HPP that is still relevant due to other NPs.
+	hppName := strings.ReplaceAll(specName, "_", "-")
+	hppKey := agent.config.AciHppObjsNamespace + "/" + hppName
+	hppObj, hppExists, err := agent.hppInformer.GetIndexer().GetByKey(hppKey)
+	if err != nil {
+		agent.log.Errorf("evictStaleHppForNp: failed to look up HPP %s: %v", hppKey, err)
+		return
+	}
+	if !hppExists || hppObj == nil {
+		// The HPP delete handler owns cleanup after a CR deletion.  Retaining an
+		// existing local render here is safer than pruning it while the informer
+		// is catching up.
+		return
+	}
+	hpp, ok := hppObj.(*hppv1.HostprotPol)
+	if !ok {
+		agent.log.Errorf("evictStaleHppForNp: HPP %s has unexpected type %T", hppKey, hppObj)
+		return
+	}
+	if agent.isHppLocallyRelevant(hpp) {
+		return
+	}
+
 	agent.hppMutex.Lock()
 	_, present := agent.hppMoIndex[specName]
 	if present {
