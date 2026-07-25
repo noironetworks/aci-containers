@@ -4474,7 +4474,7 @@ func TestNetworkPolicyMultipleNPsSharedHPPNamedPortsDirect(t *testing.T) {
 	cont.fakeNetworkPolicySource.Add(np1)
 	cont.fakeNetworkPolicySource.Add(np2)
 
-	hash, _ := util.CreateHashFromNetPol(np1)
+	hash, _ := util.CreateCanonicalHashFromNetPol(np1)
 	labelKey := cont.aciNameForKey("np", hash)
 	hppName := strings.ReplaceAll(labelKey, "_", "-")
 	ns := os.Getenv("SYSTEM_NAMESPACE")
@@ -4790,7 +4790,7 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 		entries: []resolvedPortEntry{{proto: "tcp", fromPort: "8080", ipsV4: []string{"192.168.0.1"}}},
 	}, peers, "test-namespace", make(map[string]bool))
 
-	expectedRicName := util.CreateHashFromNetPolPeers(peers, "test-namespace", "")
+	expectedRicName := util.CreateHashFromNetPolPeers(peers, "test-namespace")
 	assert.Equal(t, 1, len(subj.HostprotRule))
 	assert.Equal(t, expectedRicName+"-ipv4__tcp-8080", subj.HostprotRule[0].Name)
 	assert.Equal(t, "ingress", subj.HostprotRule[0].Direction)
@@ -5539,7 +5539,7 @@ func TestHandleNetPolUpdate(t *testing.T) {
 	}
 
 	cont.handleNetPolUpdate(np)
-	hash, _ := util.CreateHashFromNetPol(np)
+	hash, _ := util.CreateCanonicalHashFromNetPol(np)
 	labelKey := cont.aciNameForKey("np", hash)
 	hppName := strings.ReplaceAll(labelKey, "_", "-")
 
@@ -6906,20 +6906,108 @@ func TestBuildLocalNetPolSubjRulesEgressNamedPort(t *testing.T) {
 	// named port "http" resolved to port 80 (portScoped since IPs are per-pod).
 	resolved := &resolvedPeerPorts{
 		entries: []resolvedPortEntry{
-			{proto: "tcp", fromPort: "80", portScoped: true},
+			{proto: "tcp", portName: "http", fromPort: "80", portScoped: true},
 		},
 	}
 
 	subj := &hppv1.HostprotSubj{}
 	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, nil, "", make(map[string]bool))
 
-	expectedRicName := util.CreateHashFromNetPolPeers(nil, "", "80")
+	expectedRicName := util.CreateHashFromNetPolPeersWithNamedPort(
+		nil, "", "tcp", "http", "80")
 	assert.Equal(t, 1, len(subj.HostprotRule), "Should have 1 rule for resolved named port")
 	assert.Equal(t, expectedRicName+"-ipv4__tcp-80", subj.HostprotRule[0].Name)
 	assert.Equal(t, "egress", subj.HostprotRule[0].Direction)
 	assert.Equal(t, "ipv4", subj.HostprotRule[0].Ethertype)
 	assert.Equal(t, "tcp", subj.HostprotRule[0].Protocol)
 	assert.Equal(t, "80", subj.HostprotRule[0].FromPort)
+}
+
+func TestBuildLocalNetPolSubjRulesDistinguishesNamedPortsAtSameNumber(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	proto := v1.ProtocolTCP
+	http := intstr.FromString("http")
+	metrics := intstr.FromString("metrics")
+	peers := []v1net.NetworkPolicyPeer{{
+		PodSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"app": "backend"},
+		},
+	}}
+	ports := []v1net.NetworkPolicyPort{
+		{Protocol: &proto, Port: &http},
+		{Protocol: &proto, Port: &metrics},
+	}
+	peerPods := []*v1.Pod{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				Name:      "http-pod",
+				Labels:    map[string]string{"app": "backend"},
+			},
+			Spec: v1.PodSpec{Containers: []v1.Container{{
+				Ports: []v1.ContainerPort{{Name: "http", ContainerPort: 8080}},
+			}}},
+			Status: v1.PodStatus{
+				PodIP:  "10.1.1.10",
+				PodIPs: []v1.PodIP{{IP: "10.1.1.10"}},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "testns",
+				Name:      "metrics-pod",
+				Labels:    map[string]string{"app": "backend"},
+			},
+			Spec: v1.PodSpec{Containers: []v1.Container{{
+				Ports: []v1.ContainerPort{{Name: "metrics", ContainerPort: 8080}},
+			}}},
+			Status: v1.PodStatus{
+				PodIP:  "10.1.1.11",
+				PodIPs: []v1.PodIP{{IP: "10.1.1.11"}},
+			},
+		},
+	}
+	peerNs := map[string]*v1.Namespace{
+		"testns": {ObjectMeta: metav1.ObjectMeta{Name: "testns"}},
+	}
+	np := &v1net.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-np", Namespace: "testns"},
+	}
+
+	resolved := cont.resolveNetPolPeersAndPorts("egress", peers, ports,
+		peerPods, peerNs, np, logrus.New().WithField("test", t.Name()))
+	assert.Len(t, resolved.entries, 2)
+
+	entriesByName := make(map[string]resolvedPortEntry)
+	for _, entry := range resolved.entries {
+		entriesByName[entry.portName] = entry
+	}
+	assert.Equal(t, "8080", entriesByName["http"].fromPort)
+	assert.Equal(t, []string{"10.1.1.10"}, entriesByName["http"].ipsV4)
+	assert.Equal(t, "8080", entriesByName["metrics"].fromPort)
+	assert.Equal(t, []string{"10.1.1.11"}, entriesByName["metrics"].ipsV4)
+
+	subj := &hppv1.HostprotSubj{}
+	rics := make(map[string]bool)
+	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, peers, "testns", rics)
+
+	httpRic := util.CreateHashFromNetPolPeersWithNamedPort(
+		peers, "testns", "tcp", "http", "8080") + "-ipv4"
+	metricsRic := util.CreateHashFromNetPolPeersWithNamedPort(
+		peers, "testns", "tcp", "metrics", "8080") + "-ipv4"
+	assert.NotEqual(t, httpRic, metricsRic)
+	assert.Equal(t, []string{"10.1.1.10"}, cont.remoteIpCache[httpRic])
+	assert.Equal(t, []string{"10.1.1.11"}, cont.remoteIpCache[metricsRic])
+	assert.True(t, rics[httpRic])
+	assert.True(t, rics[metricsRic])
+	assert.Len(t, subj.HostprotRule, 2)
+
+	ruleRics := make(map[string]bool)
+	for _, rule := range subj.HostprotRule {
+		ruleRics[rule.RsRemoteIpContainer] = true
+	}
+	assert.True(t, ruleRics[httpRic])
+	assert.True(t, ruleRics[metricsRic])
 }
 
 // TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts tests that
@@ -6935,9 +7023,9 @@ func TestBuildLocalNetPolSubjRulesEgressMultipleNamedPorts(t *testing.T) {
 	// 80 and 8080 (two pods), "https" to port 443. Each entry is portScoped.
 	resolved := &resolvedPeerPorts{
 		entries: []resolvedPortEntry{
-			{proto: "tcp", fromPort: "80", portScoped: true},
-			{proto: "tcp", fromPort: "8080", portScoped: true},
-			{proto: "tcp", fromPort: "443", portScoped: true},
+			{proto: "tcp", portName: "http", fromPort: "80", portScoped: true},
+			{proto: "tcp", portName: "http", fromPort: "8080", portScoped: true},
+			{proto: "tcp", portName: "https", fromPort: "443", portScoped: true},
 		},
 	}
 
@@ -7150,6 +7238,7 @@ func TestBuildLocalNetPolSubjRulesEgressIPBlockNamedPort(t *testing.T) {
 		entries: []resolvedPortEntry{
 			{
 				proto:      "tcp",
+				portName:   "http",
 				fromPort:   "80",
 				ipsV4:      []string{"10.0.0.1", "10.0.0.2"},
 				portScoped: true,

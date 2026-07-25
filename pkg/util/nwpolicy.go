@@ -20,6 +20,7 @@ package util
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	v1net "k8s.io/api/networking/v1"
@@ -208,117 +209,107 @@ func labelSelectorToStr(labelsel *metav1.LabelSelector) string {
 
 // --- Canonical variants (HPP-direct mode only) ---
 //
-// These are added alongside the originals so that existing HPP-optimisation
-// deployments are not affected. Used only in HPP-direct mode; the originals
-// can be removed once HPP-direct is the only supported mode.
+// Added alongside the originals so existing HPP-optimisation deployments are
+// unaffected; used only in HPP-direct mode.
+//
+// The pre-image is a bracket/separator grammar: records "{f1;f2;...}" and lists
+// "[e1,e2,...]". Kubernetes forbids the structural characters { } [ ] , ; in
+// every NetworkPolicy field value, so raw values are embedded verbatim and
+// cannot forge a delimiter; an absent optional field is left empty. Only
+// encoding collisions are handled here; the semantic normalisations in section
+// 4a of docs/hpp-canonical-hash-spec.md are deferred.
 
 func CreateCanonicalHashFromNetPol(np *v1net.NetworkPolicy) (string, error) {
 	_, err := cache.MetaNamespaceKeyFunc(np)
 	if err != nil {
 		return "", err
 	}
-
-	var in, e, pt string
-	if np.Spec.Ingress != nil && len(np.Spec.Ingress) > 0 {
-		in = canonicalIngressStrSorted(np)
-	}
-	if np.Spec.Egress != nil && len(np.Spec.Egress) > 0 {
-		e = canonicalEgressStrSorted(np)
-	}
-	key := in + e
-	if np.Spec.PolicyTypes != nil && len(np.Spec.PolicyTypes) > 0 {
-		for _, policyType := range sortPolicyTypes(np.Spec.PolicyTypes) {
-			pt += policyType
-		}
-	}
-
-	key += pt
-
-	return Hash(key), nil
+	in := canonicalIngressStrSorted(np)
+	e := canonicalEgressStrSorted(np)
+	pt := "[" + strings.Join(sortPolicyTypes(np.Spec.PolicyTypes), ",") + "]"
+	return Hash("{" + in + ";" + e + ";" + pt + "}"), nil
 }
 
-func CreateHashFromNetPolPeers(peers []v1net.NetworkPolicyPeer, namespace string, suffix string) string {
-	return Hash(canonicalSelectorsToStr(peers, namespace) + canonicalPeersToStr(peers) + suffix)
+func CreateHashFromNetPolPeers(peers []v1net.NetworkPolicyPeer, namespace string) string {
+	return createHashFromNetPolPeers(peers, namespace, "")
+}
+
+func createHashFromNetPolPeers(peers []v1net.NetworkPolicyPeer,
+	namespace, portScope string) string {
+	return Hash("{" + canonicalSelectorsToStr(peers, namespace) + ";" +
+		canonicalPeersToStr(peers) + ";" + portScope + "}")
+}
+
+// CreateHashFromNetPolPeersWithNamedPort returns the RIC identity for an
+// egress named-port scope. The original name is part of the identity because
+// two names can resolve to the same number on different sets of peer pods.
+func CreateHashFromNetPolPeersWithNamedPort(peers []v1net.NetworkPolicyPeer,
+	namespace, protocol, portName, portNumber string) string {
+	portScope := "{" + protocol + ";" + portName + ";" + portNumber + "}"
+	return createHashFromNetPolPeers(peers, namespace, portScope)
 }
 
 func canonicalPeersToStr(peers []v1net.NetworkPolicyPeer) string {
 	var blocks []string
 	for _, p := range peers {
 		if p.IPBlock != nil {
-			b := p.IPBlock.CIDR
-			if len(p.IPBlock.Except) != 0 {
-				excepts := make([]string, len(p.IPBlock.Except))
-				copy(excepts, p.IPBlock.Except)
-				sort.Strings(excepts)
-				b += "[except"
-				for _, e := range excepts {
-					b += fmt.Sprintf("-%s", e)
-				}
-				b += "]"
-			}
-			blocks = append(blocks, b)
+			excepts := make([]string, len(p.IPBlock.Except))
+			copy(excepts, p.IPBlock.Except)
+			sort.Strings(excepts)
+			blocks = append(blocks, "{"+p.IPBlock.CIDR+";["+strings.Join(excepts, ",")+"]}")
 		}
 	}
 	sort.Strings(blocks)
-	return "[" + strings.Join(blocks, "+") + "]"
+	return "[" + strings.Join(blocks, ",") + "]"
 }
 
 func canonicalPortsToStr(ports []v1net.NetworkPolicyPort) string {
 	var portStrs []string
 	for _, p := range ports {
-		s := ""
+		proto := ""
 		if p.Protocol != nil {
-			s += string(*p.Protocol)
+			proto = string(*p.Protocol)
 		}
+		port := ""
 		if p.Port != nil {
-			s += ":" + p.Port.String()
+			port = p.Port.String()
 		}
-		portStrs = append(portStrs, s)
+		endPort := ""
+		if p.EndPort != nil {
+			endPort = strconv.Itoa(int(*p.EndPort))
+		}
+		portStrs = append(portStrs, "{"+proto+";"+port+";"+endPort+"}")
 	}
 	sort.Strings(portStrs)
-	return "[" + strings.Join(portStrs, "+") + "]"
+	return "[" + strings.Join(portStrs, ",") + "]"
 }
 
 func canonicalEgressStrSorted(np *v1net.NetworkPolicy) string {
 	var rules []string
 	for _, rule := range np.Spec.Egress {
-		eStr := ""
-		eStr += canonicalSelectorsToStr(rule.To, np.Namespace)
-		eStr += canonicalPeersToStr(rule.To)
-		eStr += canonicalPortsToStr(rule.Ports)
-		rules = append(rules, eStr)
+		rules = append(rules, "{"+
+			canonicalSelectorsToStr(rule.To, np.Namespace)+";"+
+			canonicalPeersToStr(rule.To)+";"+
+			canonicalPortsToStr(rule.Ports)+"}")
 	}
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i] < rules[j]
 	})
-	eStr := ""
-	for _, rule := range rules {
-		eStr += rule
-		eStr += "+"
-	}
-	eStr = strings.TrimSuffix(eStr, "+")
-	return eStr
+	return "[" + strings.Join(rules, ",") + "]"
 }
 
 func canonicalIngressStrSorted(np *v1net.NetworkPolicy) string {
 	var rules []string
 	for _, rule := range np.Spec.Ingress {
-		iStr := ""
-		iStr += canonicalSelectorsToStr(rule.From, np.Namespace)
-		iStr += canonicalPeersToStr(rule.From)
-		iStr += canonicalPortsToStr(rule.Ports)
-		rules = append(rules, iStr)
+		rules = append(rules, "{"+
+			canonicalSelectorsToStr(rule.From, np.Namespace)+";"+
+			canonicalPeersToStr(rule.From)+";"+
+			canonicalPortsToStr(rule.Ports)+"}")
 	}
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i] < rules[j]
 	})
-	iStr := ""
-	for _, rule := range rules {
-		iStr += rule
-		iStr += "+"
-	}
-	iStr = strings.TrimSuffix(iStr, "+")
-	return iStr
+	return "[" + strings.Join(rules, ",") + "]"
 }
 
 func canonicalSelectorsToStr(peers []v1net.NetworkPolicyPeer, ns string) string {
@@ -326,53 +317,52 @@ func canonicalSelectorsToStr(peers []v1net.NetworkPolicyPeer, ns string) string 
 	for _, p := range peers {
 		podSel := canonicalLabelSelectorToStr(p.PodSelector)
 		nsSel := canonicalLabelSelectorToStr(p.NamespaceSelector)
-		if podSel != "" && nsSel == "" {
-			selectors = append(selectors, podSel+ns)
-		} else if podSel != "" || nsSel != "" {
-			selectors = append(selectors, podSel+nsSel)
+		if podSel == "" && nsSel == "" {
+			continue
 		}
+		// A pod-only peer is scoped to the policy namespace (a bare name); a
+		// namespace selector encodes as "{...}", so the two never collide.
+		nsField := nsSel
+		if podSel != "" && nsSel == "" {
+			nsField = ns
+		}
+		selectors = append(selectors, "{"+podSel+";"+nsField+"}")
 	}
 	sort.Strings(selectors)
-	var str string
-	for _, s := range selectors {
-		str += s
-	}
-	return str
+	return "[" + strings.Join(selectors, ",") + "]"
 }
 
 func canonicalLabelSelectorToStr(labelsel *metav1.LabelSelector) string {
-	var str string
-	if labelsel != nil {
-		str = "["
-		matchLKeys := make([]string, 0, len(labelsel.MatchLabels))
-		for k := range labelsel.MatchLabels {
-			matchLKeys = append(matchLKeys, k)
-		}
-		sort.Strings(matchLKeys)
-		for _, key := range matchLKeys {
-			str += key + "=" + labelsel.MatchLabels[key]
-		}
-		exprs := make([]metav1.LabelSelectorRequirement, len(labelsel.MatchExpressions))
-		copy(exprs, labelsel.MatchExpressions)
-		for i := range exprs {
-			vals := make([]string, len(exprs[i].Values))
-			copy(vals, exprs[i].Values)
-			sort.Strings(vals)
-			exprs[i].Values = vals
-		}
-		sort.Slice(exprs, func(i, j int) bool {
-			return lessLabelSelectorRequirement(exprs[i], exprs[j])
-		})
-		for _, expressions := range exprs {
-			str += expressions.Key
-			str += string(expressions.Operator)
-			for _, values := range expressions.Values {
-				str += values
-			}
-		}
-		str += "]"
+	if labelsel == nil {
+		return ""
 	}
-	return str
+	matchLKeys := make([]string, 0, len(labelsel.MatchLabels))
+	for k := range labelsel.MatchLabels {
+		matchLKeys = append(matchLKeys, k)
+	}
+	sort.Strings(matchLKeys)
+	labels := make([]string, 0, len(matchLKeys))
+	for _, key := range matchLKeys {
+		labels = append(labels, "{"+key+";"+labelsel.MatchLabels[key]+"}")
+	}
+	// Copy before sorting so the caller's selector is not mutated.
+	exprs := make([]metav1.LabelSelectorRequirement, len(labelsel.MatchExpressions))
+	copy(exprs, labelsel.MatchExpressions)
+	for i := range exprs {
+		vals := make([]string, len(exprs[i].Values))
+		copy(vals, exprs[i].Values)
+		sort.Strings(vals)
+		exprs[i].Values = vals
+	}
+	sort.Slice(exprs, func(i, j int) bool {
+		return lessLabelSelectorRequirement(exprs[i], exprs[j])
+	})
+	expressions := make([]string, 0, len(exprs))
+	for _, e := range exprs {
+		expressions = append(expressions,
+			"{"+e.Key+";"+string(e.Operator)+";["+strings.Join(e.Values, ",")+"]}")
+	}
+	return "{[" + strings.Join(labels, ",") + "];[" + strings.Join(expressions, ",") + "]}"
 }
 
 func lessLabelSelectorRequirement(a, b metav1.LabelSelectorRequirement) bool {
