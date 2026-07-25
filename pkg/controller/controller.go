@@ -302,20 +302,18 @@ type globalVlanConfig struct {
 // hppOptReference is the HPP-optimization (APIC) mode cache entry.
 // Keyed by aciNameForKey("np", CreateHashFromNetPol(np)).
 type hppOptReference struct {
-	RefCount       uint                       `json:"ref-count,omitempty"`
-	Npkeys         []string                   `json:"npkeys,omitempty"`
-	HppObj         apicapi.ApicSlice          `json:"hpp-obj,omitempty"`
-	NpIngressRules map[string]map[string]bool `json:"-"` // npKey → set of ingress rule names
+	RefCount uint              `json:"ref-count,omitempty"`
+	Npkeys   []string          `json:"npkeys,omitempty"`
+	HppObj   apicapi.ApicSlice `json:"hpp-obj,omitempty"`
 }
 
 // hppDirReference is the HPP-Direct (CR) mode cache entry.
 // Keyed by aciNameForKey("np", CreateCanonicalHashFromNetPol(np)).
 type hppDirReference struct {
-	RefCount       uint                       `json:"ref-count,omitempty"`
-	Npkeys         []string                   `json:"npkeys,omitempty"`
-	HppCr          hppv1.HostprotPol          `json:"hpp-cr,omitempty"`
-	NpIngressRules map[string]map[string]bool `json:"-"` // npKey → set of ingress rule names
-	RicNames       map[string]bool            `json:"-"` // set of RIC names referenced by rules
+	RefCount uint              `json:"ref-count,omitempty"`
+	Npkeys   []string          `json:"npkeys,omitempty"`
+	HppCr    hppv1.HostprotPol `json:"hpp-cr,omitempty"`
+	RicNames map[string]bool   `json:"-"` // set of RIC names referenced by rules
 }
 
 type DelayedEpSlice struct {
