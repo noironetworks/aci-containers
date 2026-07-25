@@ -310,6 +310,7 @@ func (cont *AciController) validateHppCr(hpp *hppv1.HostprotPol) bool {
 	allowedProtocols := map[string]bool{
 		"tcp":         true,
 		"udp":         true,
+		"sctp":        true,
 		"icmp":        true,
 		"icmpv6":      true,
 		"unspecified": true,
