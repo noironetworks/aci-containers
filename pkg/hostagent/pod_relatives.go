@@ -137,7 +137,7 @@ func (agent *HostAgent) initNetworkPolicyInformerBase(listWatch *cache.ListWatch
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 
-	agent.netPolInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	reg, err := agent.netPolInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			agent.networkPolicyAdded(obj)
 		},
@@ -149,6 +149,11 @@ func (agent *HostAgent) initNetworkPolicyInformerBase(listWatch *cache.ListWatch
 		},
 	},
 	)
+	if err != nil {
+		agent.log.Errorf("Failed to register network policy event handler: %v", err)
+		return
+	}
+	agent.netPolInformerReg = reg
 }
 
 func (agent *HostAgent) networkPolicyAdded(obj interface{}) {
