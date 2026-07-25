@@ -7727,3 +7727,147 @@ func TestNetworkPolicyChangedHppOptimization(t *testing.T) {
 		cont.networkPolicyChanged(np, npNew)
 	})
 }
+
+func TestIsNamedPortPresenInNpNilPort(t *testing.T) {
+	udpProto := v1.ProtocolUDP
+	np := &v1net.NetworkPolicy{
+		Spec: v1net.NetworkPolicySpec{
+			Egress: []v1net.NetworkPolicyEgressRule{
+				{
+					Ports: []v1net.NetworkPolicyPort{
+						{Protocol: &udpProto},
+					},
+				},
+			},
+		},
+	}
+
+	assert.NotPanics(t, func() {
+		assert.False(t, isNamedPortPresenInNp(np))
+	})
+
+	named := intstr.FromString("dns")
+	np.Spec.Egress[0].Ports = []v1net.NetworkPolicyPort{{
+		Protocol: &udpProto,
+		Port:     &named,
+	}}
+	assert.True(t, isNamedPortPresenInNp(np))
+}
+
+func TestNetworkPolicyAddDeleteProtocolOnlyNoPanic(t *testing.T) {
+	cont := testController()
+	cont.fakeNamespaceSource.Add(namespaceLabel("testns", map[string]string{}))
+	cont.run()
+	defer cont.stop()
+
+	protos := []v1.Protocol{v1.ProtocolUDP, v1.ProtocolTCP, v1.ProtocolSCTP}
+	for _, proto := range protos {
+		proto := proto
+		t.Run(strings.ToLower(string(proto)), func(t *testing.T) {
+			np := netpol("testns", "np-proto-only-"+strings.ToLower(string(proto)),
+				&metav1.LabelSelector{}, nil,
+				[]v1net.NetworkPolicyEgressRule{
+					egressRule([]v1net.NetworkPolicyPort{{Protocol: &proto}}, nil),
+				},
+				[]v1net.PolicyType{v1net.PolicyTypeEgress})
+
+			assert.NotPanics(t, func() {
+				cont.networkPolicyAdded(np)
+			})
+			assert.NotPanics(t, func() {
+				cont.networkPolicyDeleted(np)
+			})
+		})
+	}
+}
+
+func TestHppDirectProtocolOnlyRulesUnspecifiedPorts(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	subj := &hppv1.HostprotSubj{}
+	peers := []v1net.NetworkPolicyPeer{{
+		PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "peer"}},
+	}}
+	resolved := &resolvedPeerPorts{
+		entries: []resolvedPortEntry{
+			{proto: "udp", ipsV4: []string{"192.168.1.10"}},
+			{proto: "tcp", ipsV4: []string{"192.168.1.10"}},
+			{proto: "sctp", ipsV4: []string{"192.168.1.10"}},
+		},
+	}
+
+	cont.buildLocalNetPolSubjRules(subj, "egress", resolved, peers, "testns", make(map[string]bool))
+
+	assert.Len(t, subj.HostprotRule, 3)
+	seen := map[string]bool{}
+	for _, rule := range subj.HostprotRule {
+		seen[rule.Protocol] = true
+		assert.Equal(t, "egress", rule.Direction)
+		assert.Equal(t, "ipv4", rule.Ethertype)
+		assert.Equal(t, "unspecified", rule.FromPort)
+		assert.Equal(t, "unspecified", rule.ToPort)
+	}
+	assert.True(t, seen["udp"])
+	assert.True(t, seen["tcp"])
+	assert.True(t, seen["sctp"])
+}
+
+func TestResolveNetPolPeersAndPortsMultipleProtocolOnlyRules(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	udpProto := v1.ProtocolUDP
+	tcpProto := v1.ProtocolTCP
+	sctpProto := v1.ProtocolSCTP
+	np := &v1net.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "np-multi-proto-only", Namespace: "testns"},
+		Spec: v1net.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{},
+			Egress: []v1net.NetworkPolicyEgressRule{
+				{
+					Ports: []v1net.NetworkPolicyPort{
+						{Protocol: &udpProto},
+						{Protocol: &tcpProto},
+						{Protocol: &sctpProto},
+					},
+				},
+			},
+		},
+	}
+
+	logger := logrus.New().WithField("test", "resolve-protocol-only")
+	resolved := cont.resolveNetPolPeersAndPorts("egress", nil, np.Spec.Egress[0].Ports, nil, nil, np, logger)
+
+	assert.Len(t, resolved.entries, 3)
+	seen := map[string]bool{}
+	for _, entry := range resolved.entries {
+		seen[entry.proto] = true
+		assert.Empty(t, entry.fromPort)
+		assert.Empty(t, entry.toPort)
+	}
+	assert.True(t, seen["udp"])
+	assert.True(t, seen["tcp"])
+	assert.True(t, seen["sctp"])
+}
+
+func TestPortKeyProtocolOnlyDistinct(t *testing.T) {
+	udpProto := v1.ProtocolUDP
+	tcpProto := v1.ProtocolTCP
+	sctpProto := v1.ProtocolSCTP
+
+	udpKey := portKey(&v1net.NetworkPolicyPort{Protocol: &udpProto})
+	tcpKey := portKey(&v1net.NetworkPolicyPort{Protocol: &tcpProto})
+	sctpKey := portKey(&v1net.NetworkPolicyPort{Protocol: &sctpProto})
+
+	assert.Equal(t, "udp-none-", udpKey)
+	assert.Equal(t, "tcp-none-", tcpKey)
+	assert.Equal(t, "sctp-none-", sctpKey)
+	assert.NotEqual(t, udpKey, tcpKey)
+	assert.NotEqual(t, udpKey, sctpKey)
+	assert.NotEqual(t, tcpKey, sctpKey)
+
+	assert.Equal(t, "", portKey(nil))
+}
