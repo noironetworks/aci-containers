@@ -5108,6 +5108,92 @@ func TestUpdateHostprotPol(t *testing.T) {
 	assert.False(t, ret)
 }
 
+func TestHandleHppUpdateEquatesNilAndEmptyRules(t *testing.T) {
+	const (
+		ns      = "test-namespace"
+		hppName = "test-shared-hpp"
+	)
+	t.Setenv("SYSTEM_NAMESPACE", ns)
+
+	tests := []struct {
+		name            string
+		syncEnabled     bool
+		actualOwners    []string
+		desiredOwners   []string
+		expectedRequeue bool
+	}{
+		{
+			name:            "before checkpoint defers ownership-only update",
+			actualOwners:    []string{"test-ns/np-a", "test-ns/np-b"},
+			desiredOwners:   []string{"test-ns/np-a"},
+			expectedRequeue: true,
+		},
+		{
+			name:            "after checkpoint treats full spec as unchanged",
+			syncEnabled:     true,
+			actualOwners:    []string{"test-ns/np-a", "test-ns/np-b"},
+			desiredOwners:   []string{"test-ns/np-a", "test-ns/np-b"},
+			expectedRequeue: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cont := getContWithEnabledLocalHpp()
+			hppClient := cont.env.(*K8sEnvironment).hppClient.(*fake.Clientset)
+
+			actual := &hppv1.HostprotPol{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      hppName,
+					Namespace: ns,
+				},
+				Spec: hppv1.HostprotPolSpec{
+					Name:            "test_shared_hpp",
+					NetworkPolicies: tt.actualOwners,
+					HostprotSubj: []hppv1.HostprotSubj{
+						{
+							Name:         "networkpolicy-ingress",
+							HostprotRule: nil,
+						},
+						{
+							Name: "networkpolicy-egress",
+							HostprotRule: []hppv1.HostprotRule{
+								{
+									Name:      "allow-dns",
+									Direction: "egress",
+									Protocol:  "udp",
+									FromPort:  "53",
+								},
+							},
+						},
+					},
+				},
+			}
+			created, err := hppClient.AciV1().HostprotPols(ns).Create(
+				context.TODO(), actual, metav1.CreateOptions{})
+			assert.NoError(t, err)
+			assert.NoError(t, cont.hppInformer.GetIndexer().Add(created))
+
+			desired := actual.DeepCopy()
+			desired.Spec.NetworkPolicies = tt.desiredOwners
+			desired.Spec.HostprotSubj[0].HostprotRule = []hppv1.HostprotRule{}
+			cont.hppDirRef[hppName] = hppDirReference{
+				RefCount: uint(len(tt.desiredOwners)),
+				Npkeys:   tt.desiredOwners,
+				HppCr:    *desired,
+			}
+			cont.hppSyncEnabled.Store(tt.syncEnabled)
+
+			hppClient.ClearActions()
+			requeue := cont.handleHppUpdate(hppName)
+
+			assert.Equal(t, tt.expectedRequeue, requeue)
+			assert.Empty(t, hppClient.Actions(),
+				"semantic nil/empty equality must not issue an HPP API update")
+		})
+	}
+}
+
 func TestDeleteHostprotPol(t *testing.T) {
 	cont := getContWithEnabledLocalHpp()
 	cont.run()
