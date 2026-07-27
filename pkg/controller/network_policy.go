@@ -35,6 +35,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	v1net "k8s.io/api/networking/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -2203,8 +2204,8 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 		if !cont.hppSyncEnabled.Load() {
 
 			if actual.Spec.Name == desired.Spec.Name {
-				if reflect.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) {
-					if !reflect.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
+				if apiequality.Semantic.DeepEqual(actual.Spec.HostprotSubj, desired.Spec.HostprotSubj) {
+					if !apiequality.Semantic.DeepEqual(actual.Spec.NetworkPolicies, desired.Spec.NetworkPolicies) {
 						// Until the NP sync and HPP cache build is complete, we don't have the full
 						// desired list of network policies to compare against, so we can't determine
 						// if an update is needed.
@@ -2215,7 +2216,7 @@ func (cont *AciController) handleHppUpdate(hppName string) bool {
 			}
 		} else {
 			// Both exist — compare and update if changed.
-			if reflect.DeepEqual(actual.Spec, desired.Spec) {
+			if apiequality.Semantic.DeepEqual(actual.Spec, desired.Spec) {
 				return false // no-op
 			}
 		}
