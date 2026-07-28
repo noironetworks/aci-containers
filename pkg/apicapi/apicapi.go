@@ -54,6 +54,9 @@ const (
 // as part of runConn()
 var (
 	ApicVersion = "3.1"
+	// Anchored regexes for validating controller prefix and sync tag hash formats
+	prefixRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{1,31}$`)
+	hashRegex   = regexp.MustCompile(`^[a-f0-9]{32}$`)
 )
 
 func complete(resp *http.Response) {
@@ -1788,11 +1791,20 @@ func (conn *ApicConnection) subscribe(value string, sub *subscription, lockHeld 
 	return true
 }
 
-var tagRegexp = regexp.MustCompile(`[a-zA-Z0-9_]{1,31}-[a-f0-9]{32}`)
-
 func (conn *ApicConnection) isSyncTag(tag string) bool {
-	return tagRegexp.MatchString(tag) &&
-		strings.HasPrefix(tag, conn.prefix+"-")
+	// Validate prefix format using anchored regex
+	if !prefixRegex.MatchString(conn.prefix) {
+		return false
+	}
+
+	// Validate tag format: prefix-32hexchars (exact match)
+	hash, ok := strings.CutPrefix(tag, conn.prefix+"-")
+	if !ok || len(hash) != 32 {
+		return false
+	}
+
+	// Validate hash format using anchored regex
+	return hashRegex.MatchString(hash)
 }
 
 // isOwnedByController fetches the object from APIC and checks whether
