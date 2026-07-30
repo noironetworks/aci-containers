@@ -201,125 +201,39 @@ func TestApicCntCmp(t *testing.T) {
 	})
 }
 
-func TestLocalSyncTag(t *testing.T) {
+func TestCheckNonDeletable(t *testing.T) {
 	server := newTestServer()
 	defer server.server.Close()
 	conn, err := server.testConn(nil)
 	assert.Nil(t, err)
 
-	tag := getTagFromKey(conn.prefix, "key-local-tag")
-	objDn := "uni/tn-common/brc-openupi_snat_svcgraph/rtfvProv-[x]"
+	t.Run("Non-Deletable Class", func(t *testing.T) {
+		class := "infraGeneric"
+		expected := false
 
-	t.Run("Has local sync tag annotation", func(t *testing.T) {
-		obj := ApicObject{
-			"vzRtProv": &ApicObjectBody{
-				Attributes: map[string]interface{}{
-					"dn": objDn,
-				},
-				Children: ApicSlice{
-					NewTagAnnotation(objDn, aciContainersAnnotKey).SetAttr("value", tag),
-				},
-			},
-		}
+		result := conn.checkNonDeletable(class)
 
-		actualTag, owned := conn.localSyncTag(obj)
-		assert.Equal(t, tag, actualTag)
-		assert.True(t, owned)
+		assert.Equal(t, expected, result)
 	})
 
-	t.Run("Missing local tag annotation", func(t *testing.T) {
-		obj := ApicObject{
-			"vzRtProv": &ApicObjectBody{
-				Attributes: map[string]interface{}{
-					"dn": objDn,
-				},
-			},
-		}
+	t.Run("Deletable Class", func(t *testing.T) {
+		class := "fvTenant"
+		expected := true
 
-		actualTag, owned := conn.localSyncTag(obj)
-		assert.Equal(t, "", actualTag)
-		assert.False(t, owned)
+		result := conn.checkNonDeletable(class)
+
+		assert.Equal(t, expected, result)
 	})
 
-	t.Run("Tag annotation belongs to parent DN", func(t *testing.T) {
-		parentDn := "uni/tn-common/brc-openupi_snat_svcgraph"
-		obj := ApicObject{
-			"vzRtProv": &ApicObjectBody{
-				Attributes: map[string]interface{}{
-					"dn": objDn,
-				},
-				Children: ApicSlice{
-					NewTagAnnotation(parentDn, aciContainersAnnotKey).SetAttr("value", tag),
-				},
-			},
-		}
+	t.Run("Unknown Class", func(t *testing.T) {
+		class := "unknownClass"
+		expected := true
 
-		actualTag, owned := conn.localSyncTag(obj)
-		assert.Equal(t, tag, actualTag)
-		assert.True(t, owned)
+		result := conn.checkNonDeletable(class)
+
+		assert.Equal(t, expected, result)
 	})
 }
-
-func TestApicObjCmpChildDeleteUsesLocalTag(t *testing.T) {
-	server := newTestServer()
-	defer server.server.Close()
-	conn, err := server.testConn(nil)
-	assert.Nil(t, err)
-
-	tenantDn := "uni/tn-common"
-	childDn := "uni/tn-common/brc-openupi_snat_svcgraph/rtfvProv-[x]"
-	tag := getTagFromKey(conn.prefix, "key-child-delete")
-
-	t.Run("Untagged child is not deleted", func(t *testing.T) {
-		current := ApicObject{
-			"fvTenant": &ApicObjectBody{
-				Attributes: map[string]interface{}{"dn": tenantDn},
-				Children: ApicSlice{
-					{
-						"vzRtProv": &ApicObjectBody{
-							Attributes: map[string]interface{}{"dn": childDn},
-						},
-					},
-				},
-			},
-		}
-		desired := ApicObject{
-			"fvTenant": &ApicObjectBody{
-				Attributes: map[string]interface{}{"dn": tenantDn},
-			},
-		}
-
-		_, deletes := conn.apicObjCmp(current, desired)
-		assert.Empty(t, deletes)
-	})
-
-	t.Run("Tagged child is deleted", func(t *testing.T) {
-		current := ApicObject{
-			"fvTenant": &ApicObjectBody{
-				Attributes: map[string]interface{}{"dn": tenantDn},
-				Children: ApicSlice{
-					{
-						"vzRtProv": &ApicObjectBody{
-							Attributes: map[string]interface{}{"dn": childDn},
-							Children: ApicSlice{
-								NewTagAnnotation(childDn, aciContainersAnnotKey).SetAttr("value", tag),
-							},
-						},
-					},
-				},
-			},
-		}
-		desired := ApicObject{
-			"fvTenant": &ApicObjectBody{
-				Attributes: map[string]interface{}{"dn": tenantDn},
-			},
-		}
-
-		_, deletes := conn.apicObjCmp(current, desired)
-		assert.Equal(t, []string{childDn}, deletes)
-	})
-}
-
 func TestRemoveFromDnIndex(t *testing.T) {
 	server := newTestServer()
 	defer server.server.Close()
