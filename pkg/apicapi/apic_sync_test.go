@@ -201,37 +201,29 @@ func TestApicCntCmp(t *testing.T) {
 	})
 }
 
-func TestCheckNonDeletable(t *testing.T) {
-	server := newTestServer()
-	defer server.server.Close()
-	conn, err := server.testConn(nil)
-	assert.Nil(t, err)
-
-	t.Run("Non-Deletable Class", func(t *testing.T) {
-		class := "infraGeneric"
-		expected := false
-
-		result := conn.checkNonDeletable(class)
-
-		assert.Equal(t, expected, result)
+func TestIsControllerOwned(t *testing.T) {
+	t.Run("Non-Deletable Class in metadata", func(t *testing.T) {
+		// infraGeneric is in metadata with hints{"deletable": false}
+		// isControllerOwned must return false to protect it from deletion
+		assert.False(t, isControllerOwned("infraGeneric"))
 	})
 
-	t.Run("Deletable Class", func(t *testing.T) {
-		class := "fvTenant"
-		expected := true
-
-		result := conn.checkNonDeletable(class)
-
-		assert.Equal(t, expected, result)
+	t.Run("Deletable Class in metadata", func(t *testing.T) {
+		// fvTenant is in metadata with no deletable hint → controller-owned
+		assert.True(t, isControllerOwned("fvTenant"))
 	})
 
-	t.Run("Unknown Class", func(t *testing.T) {
-		class := "unknownClass"
-		expected := true
+	t.Run("Unknown Class not in metadata", func(t *testing.T) {
+		// Classes absent from metadata are APIC-owned; must not be deleted
+		assert.False(t, isControllerOwned("unknownClass"))
+	})
 
-		result := conn.checkNonDeletable(class)
+	t.Run("fvRsBd protected by deletable:false", func(t *testing.T) {
+		assert.False(t, isControllerOwned("fvRsBd"))
+	})
 
-		assert.Equal(t, expected, result)
+	t.Run("fvRsCtx protected by deletable:false", func(t *testing.T) {
+		assert.False(t, isControllerOwned("fvRsCtx"))
 	})
 }
 func TestRemoveFromDnIndex(t *testing.T) {
