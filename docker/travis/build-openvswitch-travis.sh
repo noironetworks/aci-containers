@@ -26,12 +26,53 @@ echo "building base image"
 rm -Rf build/openvswitch
 mkdir -p build/openvswitch
 cp $DOCKER_DIR/Dockerfile-openvswitch-base build/openvswitch
-docker build $BUILDARG -t $DOCKER_HUB_ID/openvswitch-base:$DOCKER_TAG -f ./build/openvswitch/Dockerfile-openvswitch-base build/openvswitch &> /tmp/openvswitch-base.log &
-while [ ! -f  /tmp/openvswitch-base.log ]; do sleep 10; done
-tail -f /tmp/openvswitch-base.log | awk 'NR%100-1==0' &
-while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
+if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+    ovs_build_log="${CI_ARTIFACT_DIR:-/tmp}/openvswitch-base.log"
+    mkdir -p "$(dirname "${ovs_build_log}")"
+    rm -f "${ovs_build_log}"
 
-tail -25 /tmp/openvswitch-base.log
+    docker build $BUILDARG \
+        -t "$DOCKER_HUB_ID/openvswitch-base:$DOCKER_TAG" \
+        -f ./build/openvswitch/Dockerfile-openvswitch-base \
+        build/openvswitch >"${ovs_build_log}" 2>&1 &
+    ovs_build_pid=$!
+
+    cleanup_ovs_build() {
+        if kill -0 "${ovs_build_pid}" 2>/dev/null; then
+            kill "${ovs_build_pid}" 2>/dev/null || true
+            wait "${ovs_build_pid}" 2>/dev/null || true
+        fi
+    }
+    trap cleanup_ovs_build EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+
+    while kill -0 "${ovs_build_pid}" 2>/dev/null; do
+        echo "Open vSwitch base build is still running ($(date -u +%FT%TZ)); full output is saved as an artifact."
+        sleep 60
+    done
+
+    set +e
+    wait "${ovs_build_pid}"
+    ovs_build_status=$?
+    set -e
+    trap - EXIT INT TERM
+
+    if [[ "${ovs_build_status}" -ne 0 ]]; then
+        echo "Open vSwitch base build failed; showing the final 200 log lines." >&2
+        tail -200 "${ovs_build_log}" >&2
+        exit "${ovs_build_status}"
+    fi
+
+    tail -25 "${ovs_build_log}"
+else
+    docker build $BUILDARG -t $DOCKER_HUB_ID/openvswitch-base:$DOCKER_TAG -f ./build/openvswitch/Dockerfile-openvswitch-base build/openvswitch &> /tmp/openvswitch-base.log &
+    while [ ! -f  /tmp/openvswitch-base.log ]; do sleep 10; done
+    tail -f /tmp/openvswitch-base.log | awk 'NR%100-1==0' &
+    while [[ "$(pgrep -x 'docker' 2> /dev/null)" != '' ]]; do sleep 60; done
+
+    tail -25 /tmp/openvswitch-base.log
+fi
 
 echo "copying intermediate binaries and libs"
 rm -Rf build/openvswitch/dist
