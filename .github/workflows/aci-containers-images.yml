@@ -1,0 +1,486 @@
+name: ACI containers feature image build
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aci-containers-feature-tag-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    name: Build and publish feature images
+    if: github.event_name == 'push' && github.event.deleted == false && github.repository == 'noironetworks/aci-containers' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      SOURCE_BRANCH: ${{ vars.SOURCE_BRANCH || 'mmr-6.1.1' }}
+      UPSTREAM_ID: ${{ vars.UPSTREAM_ID }}
+      CICD_BRANCH: ${{ vars.CICD_BRANCH || 'mmr-6.1.1' }}
+      CI_ARTIFACT_DIR: ci-artifacts
+      SKIP_CICD_STATUS: ${{ vars.SKIP_CICD_STATUS || 'true' }}
+      DOCKER_BUILDKIT: "1"
+      GOPROXY: "https://proxy.golang.org|https://goproxy.io|direct"
+
+    steps:
+      - name: Check out tagged feature source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Derive release identifiers from tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          # Trigger tag is the plain release tag (e.g. 6.1.1.7); UPSTREAM_ID comes from the repo variable.
+          tag="${GITHUB_REF_NAME}"
+          [[ "${tag}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::Trigger tag ${tag} is not a release tag of form N.N.N.N (e.g. 6.1.1.7)"
+            exit 1
+          }
+          [[ -n "${UPSTREAM_ID}" ]] || {
+            echo "::error::UPSTREAM_ID is empty; set the UPSTREAM_ID Actions variable on this repository (e.g. 81c2369)"
+            exit 1
+          }
+          [[ "${UPSTREAM_ID}" =~ ^[0-9a-f]+$ ]] || {
+            echo "::error::UPSTREAM_ID must be a lowercase hex id (e.g. 81c2369)"
+            exit 1
+          }
+          {
+            echo "RELEASE_TAG=${tag}"
+            echo "SAFE_TAG=${tag}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Validate safe tag source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          [[ "${GITHUB_REF}" == "refs/tags/${SAFE_TAG}" ]] || {
+            echo "::error::Unexpected trigger ref ${GITHUB_REF}"
+            exit 1
+          }
+          [[ "${GITHUB_REF_NAME}" == "${SAFE_TAG}" ]] || {
+            echo "::error::Unexpected trigger tag ${GITHUB_REF_NAME}"
+            exit 1
+          }
+
+          git fetch --force --no-tags origin \
+            "+refs/tags/${SAFE_TAG}:refs/tags/${SAFE_TAG}"
+          [[ "$(git cat-file -t "refs/tags/${SAFE_TAG}")" == "tag" ]] || {
+            echo "::error::Safe Jenkins tag ${SAFE_TAG} must be annotated"
+            exit 1
+          }
+
+          git fetch --no-tags origin \
+            "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}"
+          tagged_commit="$(git rev-parse "refs/tags/${SAFE_TAG}^{commit}")"
+          checked_out_commit="$(git rev-parse HEAD)"
+          source_commit="$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}")"
+          [[ "${tagged_commit}" == "${checked_out_commit}" ]] || {
+            echo "::error::Tag ${SAFE_TAG} moved after this run was queued; refusing superseded run"
+            exit 1
+          }
+          [[ "${tagged_commit}" == "${source_commit}" ]] || {
+            echo "::error::Tag ${SAFE_TAG} resolves to ${tagged_commit}, not current ${SOURCE_BRANCH} head ${source_commit}"
+            exit 1
+          }
+
+          echo "ACI_COMMIT=${tagged_commit}" >> "${GITHUB_ENV}"
+
+      - name: Validate Quay robot credentials
+        shell: bash
+        env:
+          QUAY_USERNAME: ${{ secrets.QUAY_NOIROLABS_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_NOIROLABS_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          [[ -n "${QUAY_USERNAME}" ]] || {
+            echo "::error::Missing repository secret QUAY_NOIROLABS_USERNAME"
+            exit 1
+          }
+          [[ -n "${QUAY_TOKEN}" ]] || {
+            echo "::error::Missing repository secret QUAY_NOIROLABS_TOKEN"
+            exit 1
+          }
+          [[ "${QUAY_USERNAME}" == noirolabs+?* ]] || {
+            echo "::error::QUAY_NOIROLABS_USERNAME must be the full noirolabs robot username (noirolabs+robotname)"
+            exit 1
+          }
+
+          export DOCKER_CONFIG="${RUNNER_TEMP}/aci-docker-config"
+          install -d -m 700 "${DOCKER_CONFIG}"
+          echo "DOCKER_CONFIG=${DOCKER_CONFIG}" >> "${GITHUB_ENV}"
+          login_log="${RUNNER_TEMP}/quay-login.log"
+          if ! printf '%s' "${QUAY_TOKEN}" |
+            docker login quay.io --username "${QUAY_USERNAME}" --password-stdin \
+              >"${login_log}" 2>&1; then
+            sed -E 's/(username: )[[:graph:]]+/\1*** /g' "${login_log}" >&2
+            exit 1
+          fi
+          chmod 600 "${DOCKER_CONFIG}/config.json"
+          echo "Quay robot authentication succeeded. Credentials are stored only in the runner's temporary directory."
+
+      - name: Validate Docker Hub credentials
+        shell: bash
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_NOIRO_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_NOIRO_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          [[ -n "${DOCKER_USERNAME}" ]] || {
+            echo "::error::Missing repository secret DOCKER_NOIRO_USERNAME"
+            exit 1
+          }
+          [[ -n "${DOCKER_TOKEN}" ]] || {
+            echo "::error::Missing repository secret DOCKER_NOIRO_TOKEN"
+            exit 1
+          }
+          login_log="${RUNNER_TEMP}/docker-login.log"
+          if ! printf '%s' "${DOCKER_TOKEN}" |
+            docker login docker.io --username "${DOCKER_USERNAME}" --password-stdin \
+              >"${login_log}" 2>&1; then
+            echo "::error::Docker Hub authentication failed"
+            exit 1
+          fi
+          chmod 600 "${DOCKER_CONFIG}/config.json"
+          echo "Docker Hub authentication succeeded using the runner's temporary credential directory."
+
+      - name: Validate noiro Quay robot credentials
+        shell: bash
+        env:
+          QUAY_NOIRO_USERNAME: ${{ secrets.QUAY_NOIRO_USERNAME }}
+          QUAY_NOIRO_TOKEN: ${{ secrets.QUAY_NOIRO_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          [[ -n "${QUAY_NOIRO_USERNAME}" ]] || {
+            echo "::error::Missing repository secret QUAY_NOIRO_USERNAME"
+            exit 1
+          }
+          [[ -n "${QUAY_NOIRO_TOKEN}" ]] || {
+            echo "::error::Missing repository secret QUAY_NOIRO_TOKEN"
+            exit 1
+          }
+          [[ "${QUAY_NOIRO_USERNAME}" == noiro+?* ]] || {
+            echo "::error::QUAY_NOIRO_USERNAME must be the full noiro robot username (noiro+robotname)"
+            exit 1
+          }
+
+          noiro_config="${RUNNER_TEMP}/aci-quay-noiro-docker-config"
+          install -d -m 700 "${noiro_config}"
+          echo "QUAY_NOIRO_DOCKER_CONFIG=${noiro_config}" >> "${GITHUB_ENV}"
+          login_log="${RUNNER_TEMP}/quay-noiro-login.log"
+          if ! printf '%s' "${QUAY_NOIRO_TOKEN}" |
+            DOCKER_CONFIG="${noiro_config}" docker login quay.io \
+              --username "${QUAY_NOIRO_USERNAME}" --password-stdin \
+              >"${login_log}" 2>&1; then
+            echo "::error::noiro Quay robot authentication failed"
+            exit 1
+          fi
+          chmod 600 "${noiro_config}/config.json"
+          echo "noiro Quay robot authentication succeeded using a separate temporary credential directory."
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.3
+          cache: true
+
+      - name: Prepare Travis-compatible image tags
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "${SKIP_CICD_STATUS}" == "true" || "${SKIP_CICD_STATUS}" == "false" ]] || {
+            echo "::error::SKIP_CICD_STATUS must be exactly true or false"
+            exit 1
+          }
+          [[ "${GITHUB_RUN_NUMBER}" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::GITHUB_RUN_NUMBER must be a positive integer"
+            exit 1
+          }
+
+          image_tag="${RELEASE_TAG}.${UPSTREAM_ID}"
+          image_z_tag="${image_tag}.z"
+          date_tag="$(date -u +%m%d%y)"
+          dated_image_tag="${image_tag}.${date_tag}.${GITHUB_RUN_NUMBER}"
+          escaped_release_tag="${RELEASE_TAG//./\\.}"
+          [[ "${image_tag}" =~ ^${escaped_release_tag}\.${UPSTREAM_ID}$ ]] || {
+            echo "::error::Unexpected image tag ${image_tag}"
+            exit 1
+          }
+          [[ "${image_z_tag}" == "${RELEASE_TAG}.${UPSTREAM_ID}.z" ]] || {
+            echo "::error::Unexpected z image tag ${image_z_tag}"
+            exit 1
+          }
+          [[ "${dated_image_tag}" =~ ^${escaped_release_tag}\.${UPSTREAM_ID}\.[0-9]{6}\.[0-9]+$ ]] || {
+            echo "::error::Unexpected dated image tag ${dated_image_tag}"
+            exit 1
+          }
+
+          {
+            echo "GHA_DATE_TAG=${date_tag}"
+            echo "IMAGE_TAG=${image_tag}"
+            echo "GHA_DATED_IMAGE_TAG=${dated_image_tag}"
+            echo "UPSTREAM_IMAGE_Z_TAG=${image_z_tag}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Record disabled test CICD status publication
+        if: env.SKIP_CICD_STATUS == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "SKIP_CICD_STATUS=true; CICD status preview publication is disabled and image publication will continue."
+
+      - name: Clone latest CICD feature scripts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cicd_dir="${RUNNER_TEMP}/cicd"
+          git init --quiet "${cicd_dir}"
+          git -C "${cicd_dir}" remote add origin \
+            https://github.com/noironetworks/cicd.git
+          git -C "${cicd_dir}" fetch --quiet --depth=1 origin \
+            "+refs/heads/${CICD_BRANCH}:refs/remotes/origin/${CICD_BRANCH}"
+          git -C "${cicd_dir}" checkout --quiet --detach \
+            "refs/remotes/origin/${CICD_BRANCH}"
+
+          resolved_commit="$(git -C "${cicd_dir}" rev-parse HEAD)"
+          branch_commit="$(git -C "${cicd_dir}" rev-parse "refs/remotes/origin/${CICD_BRANCH}")"
+          [[ "${resolved_commit}" == "${branch_commit}" ]] || {
+            echo "::error::CICD checkout does not match ${CICD_BRANCH} head"
+            exit 1
+          }
+
+          cicd_release="$(sed -nE 's/^RELEASE_TAG="([^"]+)"/\1/p' "${cicd_dir}/travis/globals.sh")"
+          [[ "${cicd_release}" == "${RELEASE_TAG}" ]] || {
+            echo "::error::CICD release ${cicd_release} does not match ${RELEASE_TAG}"
+            exit 1
+          }
+
+          echo "CICD_DIR=${cicd_dir}" >> "${GITHUB_ENV}"
+          echo "CICD_COMMIT=${resolved_commit}" >> "${GITHUB_ENV}"
+
+      - name: Record runner preflight
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "${CI_ARTIFACT_DIR}"
+          {
+            echo "aci_commit=${ACI_COMMIT}"
+            echo "source_branch=${SOURCE_BRANCH}"
+            echo "trigger_tag=${SAFE_TAG}"
+            echo "release_tag=${RELEASE_TAG}"
+            echo "upstream_id=${UPSTREAM_ID}"
+            echo "image_tag=${IMAGE_TAG}"
+            echo "dated_image_tag=${GHA_DATED_IMAGE_TAG}"
+            echo "image_z_tag=${UPSTREAM_IMAGE_Z_TAG}"
+            echo "cicd_branch=${CICD_BRANCH}"
+            echo "cicd_commit=${CICD_COMMIT}"
+            echo "go_version=$(go version)"
+            echo "docker_client=$(docker version --format '{{.Client.Version}}')"
+            echo "docker_server=$(docker version --format '{{.Server.Version}}')"
+            echo "runner=${RUNNER_OS}/${RUNNER_ARCH}"
+          } | tee "${CI_ARTIFACT_DIR}/build-inputs.txt"
+          df -h | tee "${CI_ARTIFACT_DIR}/disk-before.txt"
+          docker system df -v | tee "${CI_ARTIFACT_DIR}/docker-disk-before.txt"
+
+      - name: Build and publish feature images through CICD
+        shell: bash
+        env:
+          TRAVIS_BUILD_NUMBER: ${{ github.run_number }}
+          TRAVIS_REPO_SLUG: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+
+          export TRAVIS_TAG="${RELEASE_TAG}"
+          export TRAVIS_COMMIT="${ACI_COMMIT}"
+          export GHA_TRIGGER_TAG="${SAFE_TAG}"
+          export GHA_DATE_TAG
+          printf 'image_tag=%s\ndated_image_tag=%s\nimage_z_tag=%s\n' \
+            "${IMAGE_TAG}" "${GHA_DATED_IMAGE_TAG}" "${UPSTREAM_IMAGE_Z_TAG}" \
+            | tee -a "${CI_ARTIFACT_DIR}/build-inputs.txt"
+
+          build_log="${CI_ARTIFACT_DIR}/build-and-publish.log"
+          "${CICD_DIR}/travis/build-push-aci-containers-images.sh" \
+            >"${build_log}" 2>&1 &
+          build_pid=$!
+
+          cleanup_build() {
+            if kill -0 "${build_pid}" 2>/dev/null; then
+              kill "${build_pid}" 2>/dev/null || true
+              wait "${build_pid}" 2>/dev/null || true
+            fi
+          }
+          trap cleanup_build EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+
+          while kill -0 "${build_pid}" 2>/dev/null; do
+            echo "ACI image build is still running ($(date -u +%FT%TZ)); full output is saved as an artifact."
+            sleep 60
+          done
+
+          set +e
+          wait "${build_pid}"
+          build_status=$?
+          set -e
+          trap - EXIT INT TERM
+
+          if [[ "${build_status}" -ne 0 ]]; then
+            echo "::error::ACI image build failed; showing the final 200 log lines"
+            tail -200 "${build_log}"
+            exit "${build_status}"
+          fi
+          tail -50 "${build_log}"
+
+          expected_images=(
+            aci-containers-host
+            aci-containers-controller
+            cnideploy
+            aci-containers-operator
+            openvswitch
+            aci-containers-webhook
+            aci-containers-certmanager
+            aci-containers-host-ovscni
+          )
+
+          validate_publication_manifest() {
+            local manifest_file=$1
+            local registry_prefix=$2
+            local expected_tags_csv=$3
+            local expected_tags=()
+            local published_count
+            local expected_count
+            IFS=',' read -r -a expected_tags <<< "${expected_tags_csv}"
+            [[ -s "${manifest_file}" ]] || {
+              echo "::error::CICD did not produce ${manifest_file}"
+              return 1
+            }
+            [[ "$(head -n 1 "${manifest_file}")" == $'image\tdigest' ]] || {
+              echo "::error::Unexpected manifest header in ${manifest_file}"
+              return 1
+            }
+            published_count="$(tail -n +2 "${manifest_file}" | wc -l)"
+            expected_count=$(( ${#expected_images[@]} * ${#expected_tags[@]} ))
+            [[ "${published_count}" -eq "${expected_count}" ]] || {
+              echo "::error::Expected ${expected_count} publications in ${manifest_file}, found ${published_count}"
+              return 1
+            }
+            while IFS=$'\t' read -r published_image published_digest; do
+              [[ "${published_image}" == "${registry_prefix}"/*:* ]] || {
+                echo "::error::Unexpected published image ${published_image}"
+                return 1
+              }
+              [[ "${published_digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+                echo "::error::Unexpected digest for ${published_image}"
+                return 1
+              }
+            done < <(tail -n +2 "${manifest_file}")
+            for image in "${expected_images[@]}"; do
+              for expected_tag in "${expected_tags[@]}"; do
+                expected_ref="${registry_prefix}/${image}:${expected_tag}"
+                occurrence_count="$(awk -F '\t' -v expected="${expected_ref}" '$1 == expected { count++ } END { print count + 0 }' "${manifest_file}")"
+                [[ "${occurrence_count}" -eq 1 ]] || {
+                  echo "::error::Expected one publication of ${expected_ref}, found ${occurrence_count}"
+                  return 1
+                }
+              done
+            done
+          }
+
+          quay_manifest="${CI_ARTIFACT_DIR}/quay-published-images.tsv"
+          quay_noiro_manifest="${CI_ARTIFACT_DIR}/quay-noiro-published-images.tsv"
+          docker_manifest="${CI_ARTIFACT_DIR}/docker-published-images.tsv"
+          validate_publication_manifest "${quay_manifest}" quay.io/noirolabs \
+            "${IMAGE_TAG},${GHA_DATED_IMAGE_TAG},${UPSTREAM_IMAGE_Z_TAG}"
+          validate_publication_manifest "${quay_noiro_manifest}" quay.io/noiro \
+            "${GHA_DATED_IMAGE_TAG},${UPSTREAM_IMAGE_Z_TAG}"
+          validate_publication_manifest "${docker_manifest}" docker.io/noiro \
+            "${GHA_DATED_IMAGE_TAG},${UPSTREAM_IMAGE_Z_TAG}"
+
+          {
+            echo "### Travis-compatible ACI containers publication"
+            echo
+            echo "Built eight images and published the same image tags produced by the Travis release flow. No \`.gha\` image tags were published."
+            echo
+            echo "Quay noirolabs tags: \`${IMAGE_TAG}\`, \`${GHA_DATED_IMAGE_TAG}\`, and \`${UPSTREAM_IMAGE_Z_TAG}\`."
+            echo "Quay noiro and Docker Hub tags: \`${GHA_DATED_IMAGE_TAG}\` and \`${UPSTREAM_IMAGE_Z_TAG}\`."
+            echo
+            echo '| Image | Quay noirolabs `.z` digest | Quay noiro `.z` digest | Docker `.z` digest |'
+            echo '|---|---|---|---|'
+            for image in "${expected_images[@]}"; do
+              quay_ref="quay.io/noirolabs/${image}:${UPSTREAM_IMAGE_Z_TAG}"
+              quay_noiro_ref="quay.io/noiro/${image}:${UPSTREAM_IMAGE_Z_TAG}"
+              docker_ref="docker.io/noiro/${image}:${UPSTREAM_IMAGE_Z_TAG}"
+              quay_digest="$(awk -F '\t' -v expected="${quay_ref}" '$1 == expected { print $2 }' "${quay_manifest}")"
+              quay_noiro_digest="$(awk -F '\t' -v expected="${quay_noiro_ref}" '$1 == expected { print $2 }' "${quay_noiro_manifest}")"
+              docker_digest="$(awk -F '\t' -v expected="${docker_ref}" '$1 == expected { print $2 }' "${docker_manifest}")"
+              printf '| `%s` | `%s` | `%s` | `%s` |\n' \
+                "${image}" "${quay_digest}" "${quay_noiro_digest}" "${docker_digest}"
+            done
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Publish result to CICD status preview
+        if: env.SKIP_CICD_STATUS == 'false'
+        shell: bash
+        env:
+          TEST_CICD_STATUS_TOKEN: ${{ secrets.GITHUBACTIONS_TAGGER }}
+        run: |
+          set -Eeuo pipefail
+          bash "${CICD_DIR}/travis/publish-github-actions-test-status.sh" \
+            --component aci-containers
+          {
+            echo
+            echo "### CICD status preview"
+            echo
+            echo "Published the verified eight-image result to [6.1.1.7.z](https://noironetworks.github.io/cicd-status/release.html?release=6.1.1.7.z)."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Record final diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p "${CI_ARTIFACT_DIR}"
+          df -h | tee "${CI_ARTIFACT_DIR}/disk-after.txt"
+          docker system df -v | tee "${CI_ARTIFACT_DIR}/docker-disk-after.txt"
+
+      - name: Upload build and publication logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: aci-containers-feature-${{ github.run_id }}
+          path: ci-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Remove temporary registry credentials
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          expected_config="${RUNNER_TEMP}/aci-docker-config"
+          expected_noiro_config="${RUNNER_TEMP}/aci-quay-noiro-docker-config"
+          if [[ "${DOCKER_CONFIG:-}" == "${expected_config}" ]]; then
+            docker logout quay.io >/dev/null 2>&1
+            docker logout docker.io >/dev/null 2>&1
+            rm -f -- "${expected_config}/config.json"
+            rmdir "${expected_config}" 2>/dev/null || true
+          fi
+          if [[ "${QUAY_NOIRO_DOCKER_CONFIG:-}" == "${expected_noiro_config}" ]]; then
+            DOCKER_CONFIG="${expected_noiro_config}" docker logout quay.io >/dev/null 2>&1
+            rm -f -- "${expected_noiro_config}/config.json"
+            rmdir "${expected_noiro_config}" 2>/dev/null || true
+          fi
