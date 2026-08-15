@@ -3,7 +3,7 @@ name: ACI containers feature image build
 on:
   push:
     tags:
-      - "6.1.1.7-gha-test"
+      - "[0-9]+.[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: read
@@ -15,15 +15,13 @@ concurrency:
 jobs:
   build-and-publish:
     name: Build and publish feature images
-    if: github.event_name == 'push' && github.event.deleted == false && github.repository == 'noironetworks/aci-containers' && github.ref == 'refs/tags/6.1.1.7-gha-test'
+    if: github.event_name == 'push' && github.event.deleted == false && github.repository == 'noironetworks/aci-containers' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:
-      FEATURE_BRANCH: github-actions-image-build
-      SAFE_TAG: 6.1.1.7-gha-test
-      RELEASE_TAG: 6.1.1.7
-      UPSTREAM_ID: 81c2369
-      CICD_BRANCH: github-actions-image-build
+      SOURCE_BRANCH: ${{ vars.SOURCE_BRANCH || 'mmr-6.1.1' }}
+      UPSTREAM_ID: ${{ vars.UPSTREAM_ID }}
+      CICD_BRANCH: ${{ vars.CICD_BRANCH || 'mmr-6.1.1' }}
       CI_ARTIFACT_DIR: ci-artifacts
       SKIP_CICD_STATUS: ${{ vars.SKIP_CICD_STATUS || 'true' }}
       DOCKER_BUILDKIT: "1"
@@ -36,6 +34,30 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Derive release identifiers from tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          # Trigger tag is the plain release tag (e.g. 6.1.1.7); UPSTREAM_ID comes from the repo variable.
+          tag="${GITHUB_REF_NAME}"
+          [[ "${tag}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::Trigger tag ${tag} is not a release tag of form N.N.N.N (e.g. 6.1.1.7)"
+            exit 1
+          }
+          [[ -n "${UPSTREAM_ID}" ]] || {
+            echo "::error::UPSTREAM_ID is empty; set the UPSTREAM_ID Actions variable on this repository (e.g. 81c2369)"
+            exit 1
+          }
+          [[ "${UPSTREAM_ID}" =~ ^[0-9a-f]+$ ]] || {
+            echo "::error::UPSTREAM_ID must be a lowercase hex id (e.g. 81c2369)"
+            exit 1
+          }
+          {
+            echo "RELEASE_TAG=${tag}"
+            echo "SAFE_TAG=${tag}"
+          } >> "${GITHUB_ENV}"
 
       - name: Validate safe tag source
         shell: bash
@@ -59,16 +81,16 @@ jobs:
           }
 
           git fetch --no-tags origin \
-            "+refs/heads/${FEATURE_BRANCH}:refs/remotes/origin/${FEATURE_BRANCH}"
+            "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}"
           tagged_commit="$(git rev-parse "refs/tags/${SAFE_TAG}^{commit}")"
           checked_out_commit="$(git rev-parse HEAD)"
-          feature_commit="$(git rev-parse "refs/remotes/origin/${FEATURE_BRANCH}")"
+          source_commit="$(git rev-parse "refs/remotes/origin/${SOURCE_BRANCH}")"
           [[ "${tagged_commit}" == "${checked_out_commit}" ]] || {
             echo "::error::Tag ${SAFE_TAG} moved after this run was queued; refusing superseded run"
             exit 1
           }
-          [[ "${tagged_commit}" == "${feature_commit}" ]] || {
-            echo "::error::Tag ${SAFE_TAG} resolves to ${tagged_commit}, not current ${FEATURE_BRANCH} head ${feature_commit}"
+          [[ "${tagged_commit}" == "${source_commit}" ]] || {
+            echo "::error::Tag ${SAFE_TAG} resolves to ${tagged_commit}, not current ${SOURCE_BRANCH} head ${source_commit}"
             exit 1
           }
 
@@ -257,7 +279,7 @@ jobs:
           mkdir -p "${CI_ARTIFACT_DIR}"
           {
             echo "aci_commit=${ACI_COMMIT}"
-            echo "feature_branch=${FEATURE_BRANCH}"
+            echo "source_branch=${SOURCE_BRANCH}"
             echo "trigger_tag=${SAFE_TAG}"
             echo "release_tag=${RELEASE_TAG}"
             echo "upstream_id=${UPSTREAM_ID}"
