@@ -301,6 +301,7 @@ jobs:
         env:
           TRAVIS_BUILD_NUMBER: ${{ github.run_number }}
           TRAVIS_REPO_SLUG: ${{ github.repository }}
+          TRAVIS_TAGGER: ${{ secrets.GITHUBACTIONS_TAGGER }}
         run: |
           set -Eeuo pipefail
 
@@ -430,22 +431,6 @@ jobs:
               printf '| `%s` | `%s` | `%s` | `%s` |\n' \
                 "${image}" "${quay_digest}" "${quay_noiro_digest}" "${docker_digest}"
             done
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Publish result to CICD status preview
-        if: env.SKIP_CICD_STATUS == 'false'
-        shell: bash
-        env:
-          TEST_CICD_STATUS_TOKEN: ${{ secrets.GITHUBACTIONS_TAGGER }}
-        run: |
-          set -Eeuo pipefail
-          bash "${CICD_DIR}/travis/publish-github-actions-test-status.sh" \
-            --component aci-containers
-          {
-            echo
-            echo "### CICD status preview"
-            echo
-            echo "Published the verified eight-image result to [6.1.1.7.z](https://noironetworks.github.io/cicd-status/release.html?release=6.1.1.7.z)."
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Record final diagnostics
