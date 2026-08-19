@@ -61,6 +61,7 @@ const PodNetworkRangeAnnotation = "opflex.cisco.com/pod-network-ranges"
 
 const AciPodAnnotation = "opflex.cisco.com/aci-pod"
 const NodeAciPodAnnotation = "opflex.cisco.com/node-aci-pod"
+const InfraQuerierSubnetAnnotation = "opflex.cisco.com/infra-querier-subnet"
 
 // Annotation for endpoint group designation for pod, deployment, etc.
 const EgAnnotation = "opflex.cisco.com/endpoint-group"
