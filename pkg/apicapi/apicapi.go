@@ -172,7 +172,9 @@ func configureTls(cert []byte) (*tls.Config, error) {
 func New(log *logrus.Logger, apic []string, user string,
 	password string, privKey []byte, cert []byte,
 	prefix string, refresh int, refreshTickerAdjust int,
-	leafRebootCheckInterval int, subscriptionDelay int, vrfTenant string,
+	leafRebootCheckInterval int, subscriptionDelay int,
+	lldpRefresh int, lldpRefreshTickerAdjust int,
+	vrfTenant string,
 	lldpIfHldr func(dn, lldpIf string) bool, cnoEnabled bool) (*ApicConnection, error) {
 	tls, err := configureTls(cert)
 	if err != nil {
@@ -214,6 +216,8 @@ func New(log *logrus.Logger, apic []string, user string,
 		RefreshInterval:         time.Duration(refresh) * time.Second,
 		LeafRebootCheckInterval: time.Duration(leafRebootCheckInterval) * time.Second,
 		RefreshTickerAdjust:     time.Duration(refreshTickerAdjust) * time.Second,
+		LldpRefreshInterval:     time.Duration(lldpRefresh) * time.Second,
+		LldpRefreshTickerAdjust: time.Duration(lldpRefreshTickerAdjust) * time.Second,
 		SubscriptionDelay:       time.Duration(subscriptionDelay) * time.Millisecond,
 
 		SyncDone:         false,
@@ -658,6 +662,25 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.initializeLeafDnCache()
 		defer leafRebootCheckTicker.Stop()
 	}
+
+	// LLDP subscription refresh ticker - uses separate shorter interval
+	// because LLDP subscriptions are created dynamically and have different
+	// refresh timeout requirements. Only needed in CNO/chained mode.
+	lldpRefreshInterval := conn.LldpRefreshInterval
+	if lldpRefreshInterval == 0 {
+		lldpRefreshInterval = 120 * time.Second // default 120 seconds
+	}
+	lldpRefreshTickerInterval := lldpRefreshInterval - conn.LldpRefreshTickerAdjust
+	if lldpRefreshTickerInterval <= 0 {
+		lldpRefreshTickerInterval = 100 * time.Second // fallback to 100 seconds
+	}
+	lldpRefreshTicker := time.NewTicker(lldpRefreshTickerInterval)
+	if conn.cnoEnabled {
+		defer lldpRefreshTicker.Stop()
+	} else {
+		lldpRefreshTicker.Stop()
+	}
+
 	var hasErr bool
 	for value, object := range conn.syncStore {
 		if !(conn.getSyncObject(value, object)) {
@@ -722,7 +745,9 @@ func (conn *ApicConnection) runConn(stopCh <-chan struct{}) {
 		conn.stopped = stop
 		conn.syncEnabled = false
 		conn.subscriptions.ids = make(map[string]string)
-		conn.version = ""
+		if !conn.cnoEnabled {
+			conn.version = ""
+		}
 		conn.indexMutex.Unlock()
 
 		conn.log.Debug("Shutting down web socket")
@@ -746,6 +771,8 @@ loop:
 			conn.fullSync()
 		case <-refreshTicker.C:
 			conn.refresh()
+		case <-lldpRefreshTicker.C:
+			conn.refreshLldp()
 		case <-leafRebootCheckTicker.C:
 			conn.checkLeafReboot()
 		case <-restart:
@@ -923,6 +950,44 @@ func (conn *ApicConnection) refresh() {
 		} else {
 			refreshId(sub.id)
 		}
+	}
+}
+
+// refreshLldp refreshes only LLDP-related subscriptions (lldpAdjEp)
+// These subscriptions are created dynamically and require a shorter
+// refresh interval than the main subscriptions
+func (conn *ApicConnection) refreshLldp() {
+	lldpCount := 0
+	for dn, sub := range conn.subscriptions.subs {
+		// Check if this is an LLDP subscription (contains "lldp" in the DN)
+		if !strings.Contains(strings.ToLower(dn), "lldp") {
+			continue
+		}
+		lldpCount++
+
+		refreshId := func(id string) {
+			uri := fmt.Sprintf("/api/subscriptionRefresh.json?id=%s", id)
+			resp, err := conn.sendHTTPSRequestToAPIC("GET", uri, nil, "", true, nil)
+			if err != nil {
+				conn.log.Errorf("LLDP subscription refresh failed for id=%s dn=%s: %v", id, dn, err)
+				return
+			}
+			complete(resp)
+			conn.log.Debugf("LLDP refresh sub: id=%s dn=%s url=%v", id, dn, resp.Request.URL)
+			time.Sleep(conn.SubscriptionDelay)
+		}
+
+		if len(sub.childSubs) > 0 {
+			for id := range sub.childSubs {
+				refreshId(id)
+			}
+		} else if sub.id != "" {
+			refreshId(sub.id)
+		}
+	}
+
+	if lldpCount > 0 {
+		conn.log.Debugf("LLDP subscription refresh completed for %d subscriptions", lldpCount)
 	}
 }
 
