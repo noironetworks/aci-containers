@@ -692,6 +692,19 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				continue
 			}
 			for _, p := range endpointSlice.Ports {
+				if p.Port == nil {
+					portName := ""
+					if p.Name != nil {
+						portName = *p.Name
+					}
+					agent.log.WithFields(logrus.Fields{
+						"namespace": endpointSlice.Namespace,
+						"slice":     endpointSlice.Name,
+						"service":   as.Name,
+						"portName":  portName,
+					}).Warn("Ignoring EndpointSlice port without a numeric port")
+					continue
+				}
 				if p.Protocol != nil && *p.Protocol != sp.Protocol {
 					continue
 				}

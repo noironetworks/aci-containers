@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -661,4 +662,180 @@ func TestDualStackServiceEptoSerMap(t *testing.T) {
 	var empty []string
 	assert.Equal(t, clusterIp, empty, "deleted", "ClusterIp")
 	agent.stop()
+}
+
+// endpointsliceWithRawPorts is a variant of endpointslice() that lets the
+// caller supply the raw discovery.EndpointPort slice. Needed for the
+// nil-port regression test where at least one port has a nil Port pointer,
+// which cannot be expressed through the []int32 signature of endpointslice().
+func endpointsliceWithRawPorts(namespace, name string, nextHopIps []string,
+	ports []discovery.EndpointPort, nodename string) *discovery.EndpointSlice {
+	e := endpointslice(namespace, name, nextHopIps, nil, nodename)
+	e.Ports = ports
+	return e
+}
+
+// TestServiceEndpointSliceNilPort is a regression test for the nil
+// EndpointSlice port crash in the host agent.
+//
+// discovery/v1 permits EndpointPort.Port to be nil. Before the fix, the host
+// agent unconditionally dereferenced *p.Port in
+// serviceEndpointSlice.SetOpflexService, causing every host agent watching
+// the slice to panic. This test drives the reconciler with three scenarios:
+//
+//  1. Nil-only port  – slice's sole port has Port == nil. The reconciler
+//     must not panic and must not write a .service file (no valid mapping
+//     can be produced, so hasValidMapping stays false).
+//  2. Correction     – the same slice is updated to carry a numeric port.
+//     A normal .service file must appear with the correct next-hop-port
+//     and backend IPs.
+//  3. Mixed ports    – a separate service's slice carries both a nil-port
+//     entry and a valid entry. Exactly one mapping must be produced, using
+//     the valid port; the nil entry must be silently skipped.
+func TestServiceEndpointSliceNilPort(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.NodeName = "test-node"
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
+	agent.config.ServiceVlan = 4003
+	agent.config.AciVrf = "kubernetes-vrf"
+	agent.config.AciVrfTenant = "common"
+	agent.serviceEndPoints = &serviceEndpointSlice{}
+	agent.serviceEndPoints.(*serviceEndpointSlice).agent = agent.HostAgent
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}",
+			},
+		},
+	}
+	agent.fakeNodeSource.Add(node)
+	agent.run()
+	defer agent.stop()
+
+	tcpProto := func() *v1.Protocol { p := v1.ProtocolTCP; return &p }
+	int32Ptr := func(v int32) *int32 { return &v }
+
+	// ---- Scenario 1: nil-only port ----
+	// Use serviceTests[1] (no external IP) so we only have to reason about
+	// the base .service file.
+	st := serviceTests[1]
+	svc := service(st.uuid, st.namespace, st.name,
+		st.clusterIp, st.externalIp, st.ports)
+
+	nilOnlyPorts := []discovery.EndpointPort{
+		{
+			// Port intentionally nil.
+			Protocol: tcpProto(),
+		},
+	}
+	slice := endpointsliceWithRawPorts(st.namespace, st.name, st.nextHopIps,
+		nilOnlyPorts, "test-node")
+
+	agent.fakeServiceSource.Add(svc)
+	agent.fakeEndpointSliceSource.Add(slice)
+
+	asfile := filepath.Join(tempdir, st.uuid+".service")
+	extfile := filepath.Join(tempdir, st.uuid+"-external.service")
+
+	// Give the informer + reconciler a chance to process the event, then
+	// confirm no .service file was ever written for the nil-only slice.
+	// If the old bug were present, the test process would panic before
+	// reaching this point.
+	time.Sleep(200 * time.Millisecond)
+	if _, statErr := os.Stat(asfile); statErr == nil {
+		raw, _ := os.ReadFile(asfile)
+		t.Fatalf("nil-only port slice must not produce a .service file; got %s", string(raw))
+	}
+	if _, statErr := os.Stat(extfile); statErr == nil {
+		t.Fatalf("nil-only port slice must not produce an -external.service file")
+	}
+
+	// ---- Scenario 2: correction path ----
+	// Same slice, now with a real port. A normal mapping must appear.
+	correctedPorts := []discovery.EndpointPort{
+		{
+			Port:     int32Ptr(st.ports[0]),
+			Protocol: tcpProto(),
+		},
+	}
+	corrected := endpointsliceWithRawPorts(st.namespace, st.name, st.nextHopIps,
+		correctedPorts, "test-node")
+	// Preserve the slice's identity so the fake source treats this as an
+	// Update rather than an Add.
+	corrected.ObjectMeta = slice.ObjectMeta
+	agent.fakeEndpointSliceSource.Modify(corrected)
+
+	agent.doTestService(t, tempdir, &serviceTests[1], "corrected-from-nil-port")
+
+	// ---- Scenario 3: mixed nil + valid port on a fresh service ----
+	stMixed := serviceTest{
+		uuid:       "9c7c9c00-0000-0000-0000-000000000001",
+		namespace:  "testns",
+		name:       "service-mixed",
+		clusterIp:  "100.1.1.99",
+		clusterIPs: []string{},
+		externalIp: "",
+		ports:      []int32{8080},
+		nextHopIps: []string{"10.7.1.1"},
+		nodename:   "test-node",
+	}
+	svcMixed := service(stMixed.uuid, stMixed.namespace, stMixed.name,
+		stMixed.clusterIp, stMixed.externalIp, stMixed.ports)
+	mixedPorts := []discovery.EndpointPort{
+		{
+			// Nil port; must be skipped.
+			Protocol: tcpProto(),
+		},
+		{
+			// Valid port; must be the single mapping produced.
+			Port:     int32Ptr(stMixed.ports[0]),
+			Protocol: tcpProto(),
+		},
+	}
+	mixedSlice := endpointsliceWithRawPorts(stMixed.namespace, stMixed.name,
+		stMixed.nextHopIps, mixedPorts, "test-node")
+
+	agent.fakeServiceSource.Add(svcMixed)
+	agent.fakeEndpointSliceSource.Add(mixedSlice)
+
+	agent.doTestService(t, tempdir, &stMixed, "mixed-nil-and-valid-port")
+
+	// Extra invariant across every file written by this test: no mapping may
+	// ever carry next-hop-port = 0, which is what the buggy code would have
+	// produced by dereferencing a nil *int32.
+	files, ferr := os.ReadDir(tempdir)
+	if ferr != nil {
+		t.Fatalf("readdir tempdir: %v", ferr)
+	}
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".service") {
+			continue
+		}
+		raw, rerr := os.ReadFile(filepath.Join(tempdir, f.Name()))
+		if rerr != nil {
+			t.Fatalf("read %s: %v", f.Name(), rerr)
+		}
+		var written opflexService
+		if jerr := json.Unmarshal(raw, &written); jerr != nil {
+			t.Fatalf("unmarshal %s: %v", f.Name(), jerr)
+		}
+		for i, sm := range written.ServiceMappings {
+			if sm.NextHopPort == 0 {
+				t.Errorf("%s mapping[%d] has next-hop-port=0 (nil-port regression)",
+					f.Name(), i)
+			}
+		}
+	}
 }
