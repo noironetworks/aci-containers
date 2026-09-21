@@ -649,6 +649,14 @@ func (seps *serviceEndpointSlice) addEmptyConntrackNatServiceMapping(ofsm *[]opf
 	*ofsm = append(*ofsm, *sm)
 }
 
+// endpointReady returns whether an EndpointSlice endpoint should be treated
+// as ready. Per the discovery/v1 API, a nil Conditions.Ready means the
+// producer left readiness unspecified and the endpoint MUST be treated as
+// ready. Dereferencing *Ready directly would panic on such slices.
+func endpointReady(e discovery.Endpoint) bool {
+	return e.Conditions.Ready == nil || *e.Conditions.Ready
+}
+
 func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.Service,
 	external bool, key string, sp *v1.ServicePort) bool {
 	agent := seps.agent
@@ -692,6 +700,19 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 				continue
 			}
 			for _, p := range endpointSlice.Ports {
+				if p.Port == nil {
+					portName := ""
+					if p.Name != nil {
+						portName = *p.Name
+					}
+					agent.log.WithFields(logrus.Fields{
+						"namespace": endpointSlice.Namespace,
+						"slice":     endpointSlice.Name,
+						"service":   as.Name,
+						"portName":  portName,
+					}).Warn("Ignoring EndpointSlice port without a numeric port")
+					continue
+				}
 				if p.Protocol != nil && *p.Protocol != sp.Protocol {
 					continue
 				}
@@ -758,10 +779,11 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 							}
 							zone, zoneOk := node.ObjectMeta.Labels[v1.LabelTopologyZone]
 							nodeZone = zone
+							ready := endpointReady(e)
 							if !external && zoneOk && hintsEnabled && e.Hints != nil {
 								for _, hintZone := range e.Hints.ForZones {
 									if nodeZone == hintZone.Name {
-										if *e.Conditions.Ready {
+										if ready {
 											nexthops["topologyawarehints"] =
 												append(nexthops["topologyawarehints"], a)
 										} else if as.Spec.Type == v1.ServiceTypeClusterIP && e.Conditions.Terminating != nil && *e.Conditions.Terminating {
@@ -771,7 +793,7 @@ func (seps *serviceEndpointSlice) SetOpflexService(ofas *opflexService, as *v1.S
 									}
 								}
 							} else {
-								if *e.Conditions.Ready {
+								if ready {
 									nexthops["any"] = append(nexthops["any"], a)
 								} else if as.Spec.Type == v1.ServiceTypeClusterIP && e.Conditions.Terminating != nil && *e.Conditions.Terminating {
 									terminatingnexthops["any"] =
