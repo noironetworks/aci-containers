@@ -839,3 +839,205 @@ func TestServiceEndpointSliceNilPort(t *testing.T) {
 		}
 	}
 }
+
+// TestEndpointReadyHelper covers the endpointReady() helper directly so the
+// nil-safe semantics are locked down at the unit level.
+func TestEndpointReadyHelper(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	cases := []struct {
+		name string
+		ep   discovery.Endpoint
+		want bool
+	}{
+		{
+			name: "nil Ready is ready (discovery/v1 default)",
+			ep:   discovery.Endpoint{},
+			want: true,
+		},
+		{
+			name: "explicit true is ready",
+			ep:   discovery.Endpoint{Conditions: discovery.EndpointConditions{Ready: &trueVal}},
+			want: true,
+		},
+		{
+			name: "explicit false is not ready",
+			ep:   discovery.Endpoint{Conditions: discovery.EndpointConditions{Ready: &falseVal}},
+			want: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, endpointReady(c.ep))
+		})
+	}
+}
+
+// endpointsliceWithRawEndpoints is a variant of endpointslice() that lets the
+// caller supply the raw discovery.Endpoint slice. Needed for the nil-Ready
+// regression test where at least one endpoint has Conditions.Ready == nil,
+// which cannot be expressed through the []string signature of endpointslice().
+func endpointsliceWithRawEndpoints(namespace, name string,
+	endpoints []discovery.Endpoint, ports []int32) *discovery.EndpointSlice {
+	e := endpointslice(namespace, name, nil, ports, "test-node")
+	e.Endpoints = endpoints
+	return e
+}
+
+// TestServiceEndpointSliceNilReady is a regression test for the nil
+// EndpointSlice Ready-condition crash in the host agent.
+//
+// discovery/v1 defines Endpoint.Conditions.Ready as *bool with the semantic
+// that nil means "unspecified — must be treated as ready". Before the fix,
+// serviceEndpointSlice.SetOpflexService dereferenced *e.Conditions.Ready
+// unconditionally in both the topology-aware-hints branch and the normal
+// branch, so any valid selectorless slice omitting conditions.ready crashed
+// every host agent watching it.
+//
+// This test drives the reconciler with two shapes on both code branches:
+//
+//  1. Normal branch, mixed nil / explicit-true / explicit-false endpoints:
+//     the .service file must contain both ready IPs (nil-Ready one and
+//     explicit-true one) and must NOT contain the explicit-false IP.
+//  2. Topology-aware-hints branch with a nil-Ready endpoint that has a
+//     matching zone hint: the .service file must contain that endpoint's
+//     IP; the reconciler must not panic.
+func TestServiceEndpointSliceNilReady(t *testing.T) {
+	tempdir, err := os.MkdirTemp("", "hostagent_test_")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	agent := testAgent()
+	agent.config.NodeName = "test-node"
+	agent.config.OpFlexEndpointDir = tempdir
+	agent.config.OpFlexServiceDir = tempdir
+	agent.config.OpFlexSnatDir = tempdir
+	agent.config.UplinkIface = "eth42"
+	agent.config.UplinkMacAdress = "76:47:db:97:ba:4c"
+	agent.config.ServiceVlan = 4003
+	agent.config.AciVrf = "kubernetes-vrf"
+	agent.config.AciVrfTenant = "common"
+	agent.serviceEndPoints = &serviceEndpointSlice{}
+	agent.serviceEndPoints.(*serviceEndpointSlice).agent = agent.HostAgent
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Annotations: map[string]string{
+				metadata.ServiceEpAnnotation: "{\"mac\": \"76:47:db:97:ba:4c\", \"ipv4\": \"10.6.0.1\"}",
+			},
+			Labels: map[string]string{
+				v1.LabelHostname:       "test-node",
+				v1.LabelTopologyZone:   "fabric1-pod-1",
+				v1.LabelTopologyRegion: "fabric1",
+			},
+		},
+	}
+	agent.fakeNodeSource.Add(node)
+	agent.run()
+	defer agent.stop()
+
+	nodeName := "test-node"
+	trueVal := true
+	falseVal := false
+
+	// ---- Scenario 1: normal branch (no topology hints) ----
+	st := serviceTests[1]
+	svc := service(st.uuid, st.namespace, st.name,
+		st.clusterIp, st.externalIp, st.ports)
+
+	// Three endpoints: nil Ready (implicit true), explicit true, explicit
+	// false. The .service file must include the first two and exclude the
+	// third.
+	mixedEndpoints := []discovery.Endpoint{
+		{
+			Addresses:  []string{"10.5.1.1"},
+			NodeName:   &nodeName,
+			Conditions: discovery.EndpointConditions{}, // Ready == nil
+		},
+		{
+			Addresses:  []string{"10.5.1.2"},
+			NodeName:   &nodeName,
+			Conditions: discovery.EndpointConditions{Ready: &trueVal},
+		},
+		{
+			Addresses:  []string{"10.5.1.3"},
+			NodeName:   &nodeName,
+			Conditions: discovery.EndpointConditions{Ready: &falseVal},
+		},
+	}
+	slice := endpointsliceWithRawEndpoints(st.namespace, st.name,
+		mixedEndpoints, st.ports)
+
+	agent.fakeServiceSource.Add(svc)
+	agent.fakeEndpointSliceSource.Add(slice)
+
+	// Wait for the .service file to be rendered and read it back.
+	asfile := filepath.Join(tempdir, st.uuid+".service")
+	var as opflexService
+	tu.WaitFor(t, "nil-ready-normal", 1000*time.Millisecond,
+		func(last bool) (bool, error) {
+			raw, rerr := os.ReadFile(asfile)
+			if !tu.WaitNil(t, last, rerr, "read service") {
+				return false, nil
+			}
+			as = opflexService{}
+			jerr := json.Unmarshal(raw, &as)
+			if !tu.WaitNil(t, last, jerr, "unmarshal service") {
+				return false, nil
+			}
+			if len(as.ServiceMappings) == 0 {
+				return false, nil
+			}
+			return true, nil
+		})
+
+	if assert.Equal(t, 1, len(as.ServiceMappings), "one mapping expected") {
+		got := as.ServiceMappings[0].NextHopIps
+		assert.ElementsMatch(t, []string{"10.5.1.1", "10.5.1.2"}, got,
+			"nil-Ready and explicit-true endpoints must be included; explicit-false must be excluded")
+	}
+
+	// ---- Scenario 2: topology-aware-hints branch, nil Ready ----
+	stHints := serviceTest{
+		uuid:       "8b6d5a00-0000-0000-0000-000000000002",
+		namespace:  "testns",
+		name:       "service-hints",
+		clusterIp:  "100.1.1.77",
+		clusterIPs: []string{},
+		externalIp: "",
+		ports:      []int32{7070},
+		nextHopIps: []string{"10.9.1.1"},
+		nodename:   "test-node",
+	}
+	svcHints := service(stHints.uuid, stHints.namespace, stHints.name,
+		stHints.clusterIp, stHints.externalIp, stHints.ports)
+	// Enable topology-aware routing so the reconciler enters the hinted
+	// branch (the pre-fix dereference site).
+	svcHints.ObjectMeta.Annotations[v1.AnnotationTopologyMode] = "Auto"
+
+	hintZone := discovery.EndpointHints{
+		ForZones: []discovery.ForZone{{Name: "fabric1-pod-1"}},
+	}
+	hintEndpoints := []discovery.Endpoint{
+		{
+			Addresses:  []string{"10.9.1.1"},
+			NodeName:   &nodeName,
+			Conditions: discovery.EndpointConditions{}, // Ready == nil
+			Hints:      &hintZone,
+		},
+	}
+	hintSlice := endpointsliceWithRawEndpoints(stHints.namespace, stHints.name,
+		hintEndpoints, stHints.ports)
+
+	agent.fakeServiceSource.Add(svcHints)
+	agent.fakeEndpointSliceSource.Add(hintSlice)
+
+	// doTestService validates uuid, service-port, next-hop-port, and that
+	// the mapping contains exactly stHints.nextHopIps. That's precisely the
+	// nil-Ready-in-hinted-branch case.
+	agent.doTestService(t, tempdir, &stHints, "nil-ready-topology-hints")
+}
