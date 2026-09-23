@@ -15,6 +15,7 @@
 package apicapi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -201,39 +202,83 @@ func TestApicCntCmp(t *testing.T) {
 	})
 }
 
-func TestCheckNonDeletable(t *testing.T) {
+func TestIsControllerOwned(t *testing.T) {
+	t.Run("Metadata class with default deletable behavior", func(t *testing.T) {
+		assert.True(t, isControllerOwned("fvTenant"))
+	})
+
+	t.Run("Metadata class marked non-deletable", func(t *testing.T) {
+		assert.False(t, isControllerOwned("infraGeneric"))
+	})
+
+	t.Run("Unknown APIC-owned class", func(t *testing.T) {
+		assert.False(t, isControllerOwned("unknownClass"))
+	})
+}
+
+func TestIsObjectDeletable(t *testing.T) {
 	server := newTestServer()
 	defer server.server.Close()
 	conn, err := server.testConn(nil)
 	assert.Nil(t, err)
+	conn.prefix = "kube"
 
-	t.Run("Non-Deletable Class", func(t *testing.T) {
-		class := "infraGeneric"
-		expected := false
+	t.Run("Controller-tagged object is deletable", func(t *testing.T) {
+		tag := "kube-" + strings.Repeat("a", 32)
+		obj := ApicObject{
+			"fvTenant": &ApicObjectBody{
+				Attributes: map[string]interface{}{"dn": "uni/tn-test"},
+				Children: ApicSlice{ApicObject{
+					"tagAnnotation": &ApicObjectBody{Attributes: map[string]interface{}{
+						"key":   aciContainersAnnotKey,
+						"value": tag,
+					}},
+				}},
+			},
+		}
 
-		result := conn.checkNonDeletable(class)
-
-		assert.Equal(t, expected, result)
+		gotTag, deletable := conn.isObjectDeletable(obj)
+		assert.Equal(t, tag, gotTag)
+		assert.True(t, deletable)
 	})
 
-	t.Run("Deletable Class", func(t *testing.T) {
-		class := "fvTenant"
-		expected := true
+	t.Run("Controller-owned metadata class without tag is deletable", func(t *testing.T) {
+		obj := ApicObject{
+			"fvTenant": &ApicObjectBody{
+				Attributes: map[string]interface{}{"dn": "uni/tn-test"},
+			},
+		}
 
-		result := conn.checkNonDeletable(class)
-
-		assert.Equal(t, expected, result)
+		gotTag, deletable := conn.isObjectDeletable(obj)
+		assert.Empty(t, gotTag)
+		assert.True(t, deletable)
 	})
 
-	t.Run("Unknown Class", func(t *testing.T) {
-		class := "unknownClass"
-		expected := true
+	t.Run("Explicitly non-deletable metadata class is not deletable", func(t *testing.T) {
+		obj := ApicObject{
+			"infraGeneric": &ApicObjectBody{
+				Attributes: map[string]interface{}{"dn": "uni/infra/infraGeneric"},
+			},
+		}
 
-		result := conn.checkNonDeletable(class)
+		gotTag, deletable := conn.isObjectDeletable(obj)
+		assert.Empty(t, gotTag)
+		assert.False(t, deletable)
+	})
 
-		assert.Equal(t, expected, result)
+	t.Run("Unknown class is not deletable", func(t *testing.T) {
+		obj := ApicObject{
+			"unknownClass": &ApicObjectBody{
+				Attributes: map[string]interface{}{"dn": "uni/unknown"},
+			},
+		}
+
+		gotTag, deletable := conn.isObjectDeletable(obj)
+		assert.Empty(t, gotTag)
+		assert.False(t, deletable)
 	})
 }
+
 func TestRemoveFromDnIndex(t *testing.T) {
 	server := newTestServer()
 	defer server.server.Close()
