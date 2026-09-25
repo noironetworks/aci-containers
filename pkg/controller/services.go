@@ -577,6 +577,10 @@ func (cont *AciController) setDeleteFlagForOldDevices(node, fabricPathDn string)
 	}
 }
 
+func hasFabricPath(path string) bool {
+	return strings.TrimSpace(path) != ""
+}
+
 // must have index lock
 func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 	sz := len(cont.nodeOpflexDevice[name])
@@ -590,6 +594,9 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 				device.SetAttr("prevState", deviceState)
 			}
 			fabricPathDn := device.GetAttrStr("fabricPathDn")
+			if !hasFabricPath(fabricPathDn) {
+				return "", false
+			}
 			cont.setDeleteFlagForOldDevices(name, fabricPathDn)
 			return fabricPathDn, true
 		} else {
@@ -603,7 +610,11 @@ func (cont *AciController) fabricPathForNode(name string) (string, bool) {
 		// so we return the fabricPathDn of the last opflex-device.
 		cont.fabricPathLogger(cont.nodeOpflexDevice[name][sz-1].GetAttrStr("hostName"),
 			cont.nodeOpflexDevice[name][sz-1]).Info("Processing fabricPathDn for node")
-		return cont.nodeOpflexDevice[name][sz-1].GetAttrStr("fabricPathDn"), true
+		fabricPathDn := cont.nodeOpflexDevice[name][sz-1].GetAttrStr("fabricPathDn")
+		if !hasFabricPath(fabricPathDn) {
+			return "", false
+		}
+		return fabricPathDn, true
 	}
 	return "", false
 }
@@ -1189,7 +1200,7 @@ func apicDeviceCluster(name string, vrfTenant string,
 
 	for _, node := range nodes {
 		path, ok := nodeMap[node]
-		if !ok {
+		if !ok || !hasFabricPath(path) {
 			continue
 		}
 
@@ -1272,7 +1283,7 @@ func (cont *AciController) updateDeviceCluster() {
 	for node := range cont.nodeOpflexDevice {
 		cont.log.Debug("Processing node in nodeOpflexDevice cache : ", node)
 		fabricPath, ok := cont.fabricPathForNode(node)
-		if !ok {
+		if !ok || !hasFabricPath(fabricPath) {
 			continue
 		}
 		nodeMap[node] = fabricPath
@@ -1281,13 +1292,15 @@ func (cont *AciController) updateDeviceCluster() {
 	// For clusters other than OpenShift On OpenStack,
 	// openStackFabricPathDnMap will be empty
 	for host, opflexOdevInfo := range cont.openStackFabricPathDnMap {
-		nodeMap[host] = opflexOdevInfo.fabricPathDn
+		if hasFabricPath(opflexOdevInfo.fabricPathDn) {
+			nodeMap[host] = opflexOdevInfo.fabricPathDn
+		}
 	}
 
 	// For OpenShift On OpenStack clusters,
 	// hostFabricPathDnMap will be empty
 	for _, hostInfo := range cont.hostFabricPathDnMap {
-		if hostInfo.fabricPathDn != "" {
+		if hasFabricPath(hostInfo.fabricPathDn) {
 			nodeMap[hostInfo.host] = hostInfo.fabricPathDn
 		}
 	}
@@ -1370,7 +1383,7 @@ func (cont *AciController) setOpenStackSystemId() string {
 	return systemId
 }
 
-// Returns true when a new OpenStack opflexODev is added
+// Returns true when an OpenStack fabric path is added or changed.
 func (cont *AciController) openStackOpflexOdevUpdate(obj apicapi.ApicObject) bool {
 
 	// If opflexOdev compHvDn contains comp/prov-OpenShift/ctrlr-[<systemid>]-<systemid>,
@@ -1391,22 +1404,34 @@ func (cont *AciController) openStackOpflexOdevUpdate(obj apicapi.ApicObject) boo
 		}
 		prefix := fmt.Sprintf("comp/prov-OpenStack/ctrlr-[%s]-%s", systemId, systemId)
 		if strings.Contains(compHvDn, prefix) {
+			host := obj.GetAttrStr("hostName")
+			dn := obj.GetDn()
+			fabricPathDn := obj.GetAttrStr("fabricPathDn")
+			if strings.TrimSpace(host) == "" || strings.TrimSpace(dn) == "" || !hasFabricPath(fabricPathDn) {
+				cont.log.Warn("Skipping incomplete OpenStack opflexODev: ", dn)
+				return false
+			}
 			cont.log.Info("Received notification for OpenStack opflexODev update, hostName: ",
-				obj.GetAttrStr("hostName"), " dn: ", obj.GetAttrStr("dn"))
+				host, " dn: ", dn)
 			cont.indexMutex.Lock()
-			opflexOdevInfo, ok := cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")]
+			opflexOdevInfo, ok := cont.openStackFabricPathDnMap[host]
 			if ok {
-				opflexOdevInfo.opflexODevDn[obj.GetAttrStr("dn")] = struct{}{}
-				cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")] = opflexOdevInfo
+				if opflexOdevInfo.opflexODevDn == nil {
+					opflexOdevInfo.opflexODevDn = make(map[string]struct{})
+				}
+				opflexOdevInfo.opflexODevDn[dn] = struct{}{}
+				if opflexOdevInfo.fabricPathDn != fabricPathDn {
+					opflexOdevInfo.fabricPathDn = fabricPathDn
+					deviceClusterUpdate = true
+				}
 			} else {
-				var openstackopflexodevinfo openstackOpflexOdevInfo
-				opflexODevDn := make(map[string]struct{})
-				opflexODevDn[obj.GetAttrStr("dn")] = struct{}{}
-				openstackopflexodevinfo.fabricPathDn = obj.GetAttrStr("fabricPathDn")
-				openstackopflexodevinfo.opflexODevDn = opflexODevDn
-				cont.openStackFabricPathDnMap[obj.GetAttrStr("hostName")] = openstackopflexodevinfo
+				opflexOdevInfo = openstackOpflexOdevInfo{
+					opflexODevDn: map[string]struct{}{dn: {}},
+					fabricPathDn: fabricPathDn,
+				}
 				deviceClusterUpdate = true
 			}
+			cont.openStackFabricPathDnMap[host] = opflexOdevInfo
 			cont.indexMutex.Unlock()
 		}
 	}
