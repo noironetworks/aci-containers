@@ -1550,7 +1550,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test21_np)
 	test21_np_name := "kube_np_" + hash
-	test21_rule := createRule(test21_np_name, false, rule_9, "0-ipv4__tcp-80")
+	test21_rule := createRule(test21_np_name, false, rule_9, "0-ipv4__tcp-80-90")
 	test21_rule.AddChild(apicapi.NewHostprotRemoteIp(test21_rule.GetDn(), "1.1.1.1"))
 
 	//egress-allow-http-portrange-augment
@@ -1565,7 +1565,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test22_np)
 	test22_np_name := "kube_np_" + hash
-	test22_rule1 := createRule(test22_np_name, false, rule_9, "0-ipv4__tcp-80")
+	test22_rule1 := createRule(test22_np_name, false, rule_9, "0-ipv4__tcp-80-90")
 	test22_rule1.AddChild(apicapi.NewHostprotRemoteIp(test22_rule1.GetDn(), "1.1.1.1"))
 	test22_rule2 := createRule(test22_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test22_rule2.AddChild(apicapi.NewHostprotRemoteIp(test22_rule2.GetDn(), "9.0.0.42"))
@@ -4803,6 +4803,61 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	assert.Equal(t, "unspecified", subj.HostprotRule[0].Protocol)
 	assert.Equal(t, "unspecified", subj.HostprotRule[0].FromPort)
 	assert.NotEmpty(t, subj.HostprotRule[0].RsRemoteIpContainer)
+}
+
+func TestProtoPortKey(t *testing.T) {
+	assert.Equal(t, "tcp-30000-30010", protoPortKey("tcp", "30000", "30010"))
+	assert.Equal(t, "tcp-30000", protoPortKey("tcp", "30000"))
+	assert.Equal(t, "tcp-30000", protoPortKey("tcp", "30000", ""))
+	assert.Equal(t, "tcp-30000", protoPortKey("tcp", "30000", "30000"))
+}
+
+func TestBuildLocalNetPolSubjRulesDistinctPortRanges(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	peers := []v1net.NetworkPolicyPeer{{
+		PodSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"app": "test-app"},
+		},
+	}}
+	subj := &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules(subj, "egress", &resolvedPeerPorts{
+		entries: []resolvedPortEntry{
+			{proto: "tcp", fromPort: "30000", toPort: "30010", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "30000", toPort: "30020", ipsV4: []string{"192.168.0.2"}},
+		},
+	}, peers, "test-namespace", make(map[string]bool))
+
+	assert.Len(t, subj.HostprotRule, 2)
+	assert.NotEqual(t, subj.HostprotRule[0].Name, subj.HostprotRule[1].Name)
+	assert.Equal(t, "30010", subj.HostprotRule[0].ToPort)
+	assert.Equal(t, "30020", subj.HostprotRule[1].ToPort)
+}
+
+func TestBuildNetPolSubjRulesDistinctPortRanges(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.config.HppOptimization = true
+	cont.configuredPodNetworkIps.V4.AddRanges([]ipam.IpRange{{
+		Start: net.ParseIP("192.168.0.0"),
+		End:   net.ParseIP("192.168.0.255"),
+	}})
+	cont.run()
+	defer cont.stop()
+
+	subj := apicapi.NewHostprotSubj("uni/tn-test/pol-test", "egress")
+	np := &v1net.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: "np-range"}}
+	cont.buildNetPolSubjRules("0", subj, "egress", &resolvedPeerPorts{
+		noPeers: true,
+		entries: []resolvedPortEntry{
+			{proto: "tcp", fromPort: "30000", toPort: "30010", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "30000", toPort: "30020", ipsV4: []string{"192.168.0.2"}},
+		},
+	}, np)
+
+	assert.Len(t, subj["hostprotSubj"].Children, 2)
+	assert.NotEqual(t, subj["hostprotSubj"].Children[0].GetDn(), subj["hostprotSubj"].Children[1].GetDn())
 }
 
 func TestBuildServiceAugment(t *testing.T) {

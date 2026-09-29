@@ -1425,7 +1425,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 		entryName := np.Name
 		if cont.config.HppOptimization {
 			if entry.proto != "" {
-				entryName = protoPortKey(entry.proto, entry.fromPort)
+				entryName = protoPortKey(entry.proto, entry.fromPort, entry.toPort)
 			} else {
 				entryName = "unspecified"
 			}
@@ -1525,7 +1525,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 	for _, entry := range resolved.entries {
 		entryName := "unspecified"
 		if entry.proto != "" {
-			entryName = protoPortKey(entry.proto, entry.fromPort)
+			entryName = protoPortKey(entry.proto, entry.fromPort, entry.toPort)
 		}
 		// A rule with no peer selector at all (ingress: - {} / egress: - {})
 		// has no remote-IP restriction to express: its resolved IP lists are
@@ -1759,8 +1759,15 @@ func updatePortRemoteSubnets(portRemoteSubs map[string]*portRemoteSubnet,
 	}
 }
 
-func protoPortKey(proto, port string) string {
-	return proto + "-" + port
+func protoPortKey(proto, fromPort string, toPorts ...string) string {
+	toPort := ""
+	if len(toPorts) > 0 {
+		toPort = toPorts[0]
+	}
+	if toPort == "" || toPort == fromPort {
+		return proto + "-" + fromPort
+	}
+	return proto + "-" + fromPort + "-" + toPort
 }
 
 type portServiceAugment struct {
