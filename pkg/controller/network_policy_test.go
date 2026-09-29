@@ -1550,7 +1550,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test21_np)
 	test21_np_name := "kube_np_" + hash
-	test21_rule := createRule(test21_np_name, false, rule_9, "0-ipv4__tcp-80")
+	test21_rule := createRule(test21_np_name, false, rule_9, "0-ipv4__tcp-80-90")
 	test21_rule.AddChild(apicapi.NewHostprotRemoteIp(test21_rule.GetDn(), "1.1.1.1"))
 
 	//egress-allow-http-portrange-augment
@@ -1565,7 +1565,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test22_np)
 	test22_np_name := "kube_np_" + hash
-	test22_rule1 := createRule(test22_np_name, false, rule_9, "0-ipv4__tcp-80")
+	test22_rule1 := createRule(test22_np_name, false, rule_9, "0-ipv4__tcp-80-90")
 	test22_rule1.AddChild(apicapi.NewHostprotRemoteIp(test22_rule1.GetDn(), "1.1.1.1"))
 	test22_rule2 := createRule(test22_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test22_rule2.AddChild(apicapi.NewHostprotRemoteIp(test22_rule2.GetDn(), "9.0.0.42"))
@@ -4805,6 +4805,70 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	assert.NotEmpty(t, subj.HostprotRule[0].RsRemoteIpContainer)
 }
 
+func TestProtoPortKey(t *testing.T) {
+	assert.Equal(t, "tcp-30000-30010", protoPortKey("tcp", "30000", "30010"))
+	assert.Equal(t, "tcp-30000", protoPortKey("tcp", "30000", ""))
+	assert.Equal(t, "tcp-30000-30000", protoPortKey("tcp", "30000", "30000"))
+	assert.NotEqual(t, protoPortKey("tcp", "80", ""), protoPortKey("tcp", "80", "80"))
+}
+
+func TestBuildLocalNetPolSubjRulesDistinctPortRanges(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	peers := []v1net.NetworkPolicyPeer{{
+		PodSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"app": "test-app"},
+		},
+	}}
+	subj := &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules(subj, "egress", &resolvedPeerPorts{
+		entries: []resolvedPortEntry{
+			{proto: "tcp", fromPort: "30000", toPort: "30010", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "30000", toPort: "30020", ipsV4: []string{"192.168.0.2"}},
+			{proto: "tcp", fromPort: "80", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "80", toPort: "80", ipsV4: []string{"192.168.0.1"}},
+		},
+	}, peers, "test-namespace", make(map[string]bool))
+
+	assert.Len(t, subj.HostprotRule, 4)
+	assert.NotEqual(t, subj.HostprotRule[0].Name, subj.HostprotRule[1].Name)
+	assert.Equal(t, "30010", subj.HostprotRule[0].ToPort)
+	assert.Equal(t, "30020", subj.HostprotRule[1].ToPort)
+	assert.NotEqual(t, subj.HostprotRule[2].Name, subj.HostprotRule[3].Name)
+	assert.Equal(t, "unspecified", subj.HostprotRule[2].ToPort)
+	assert.Equal(t, "80", subj.HostprotRule[3].ToPort)
+	assert.Len(t, canonicalizeHppRules(subj.HostprotRule, cont.log.WithField("test", "distinct-port-ranges")), 4)
+}
+
+func TestBuildNetPolSubjRulesDistinctPortRanges(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.config.HppOptimization = true
+	cont.configuredPodNetworkIps.V4.AddRanges([]ipam.IpRange{{
+		Start: net.ParseIP("192.168.0.0"),
+		End:   net.ParseIP("192.168.0.255"),
+	}})
+	cont.run()
+	defer cont.stop()
+
+	subj := apicapi.NewHostprotSubj("uni/tn-test/pol-test", "egress")
+	np := &v1net.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: "np-range"}}
+	cont.buildNetPolSubjRules("0", subj, "egress", &resolvedPeerPorts{
+		noPeers: true,
+		entries: []resolvedPortEntry{
+			{proto: "tcp", fromPort: "30000", toPort: "30010", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "30000", toPort: "30020", ipsV4: []string{"192.168.0.2"}},
+			{proto: "tcp", fromPort: "80", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "80", toPort: "80", ipsV4: []string{"192.168.0.1"}},
+		},
+	}, np)
+
+	assert.Len(t, subj["hostprotSubj"].Children, 4)
+	assert.NotEqual(t, subj["hostprotSubj"].Children[0].GetDn(), subj["hostprotSubj"].Children[1].GetDn())
+	assert.NotEqual(t, subj["hostprotSubj"].Children[2].GetDn(), subj["hostprotSubj"].Children[3].GetDn())
+}
+
 func TestBuildServiceAugment(t *testing.T) {
 	cont := getContWithEnabledLocalHpp()
 	cont.run()
@@ -4918,10 +4982,10 @@ func TestBuildServiceAugment(t *testing.T) {
 
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, has9090 := portAugments[protoPortKey("tcp", "9090")]
+		_, has9090 := portAugments[protoPortKey("tcp", "9090", "")]
 		assert.True(t, has9090, "service port 9090 (http) should be augmented")
 
-		_, has8080 := portAugments[protoPortKey("tcp", "8080")]
+		_, has8080 := portAugments[protoPortKey("tcp", "8080", "")]
 		assert.False(t, has8080, "service port 8080 (http-alt) must NOT be augmented for NP named port 'http'")
 
 		// Clean up
@@ -7592,7 +7656,7 @@ func TestGetServiceAugmentByPortRange(t *testing.T) {
 		portAugments := make(map[string]*portServiceAugment)
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, has8080 := portAugments[protoPortKey("tcp", "8080")]
+		_, has8080 := portAugments[protoPortKey("tcp", "8080", "")]
 		assert.True(t, has8080, "port 8080 in range [8080,8082] should be augmented via iterate-by-range path")
 
 		cont.indexMutex.Lock()
@@ -7641,7 +7705,7 @@ func TestGetServiceAugmentByPortRange(t *testing.T) {
 		portAugments := make(map[string]*portServiceAugment)
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, has8080 := portAugments[protoPortKey("tcp", "8080")]
+		_, has8080 := portAugments[protoPortKey("tcp", "8080", "")]
 		assert.True(t, has8080, "port 8080 should be augmented via iterate-index range path")
 
 		cont.indexMutex.Lock()
@@ -7692,7 +7756,7 @@ func TestGetServiceAugmentByPortRange(t *testing.T) {
 		portAugments := make(map[string]*portServiceAugment)
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, hasMulti := portAugments[protoPortKey("tcp", "8100")]
+		_, hasMulti := portAugments[protoPortKey("tcp", "8100", "")]
 		assert.True(t, hasMulti, "multi-resolution named port all-in-range should produce a service augment entry")
 
 		cont.indexMutex.Lock()
@@ -7739,7 +7803,7 @@ func TestGetServiceAugmentByPortNumeric(t *testing.T) {
 	portAugments := make(map[string]*portServiceAugment)
 	cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-	_, has7070 := portAugments[protoPortKey("tcp", "7070")]
+	_, has7070 := portAugments[protoPortKey("tcp", "7070", "")]
 	assert.True(t, has7070, "numeric port 7070 should be augmented via single-port path")
 
 	cont.indexMutex.Lock()
