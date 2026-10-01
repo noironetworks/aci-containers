@@ -2693,6 +2693,7 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 		if noHppRef && labelKey != "" {
 			cont.apicConn.ClearApicObjects(labelKey)
 		}
+		queue = true
 	}
 
 	cont.indexMutex.Lock()
