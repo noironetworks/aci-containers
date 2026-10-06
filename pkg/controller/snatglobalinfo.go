@@ -171,7 +171,7 @@ func (cont *AciController) snatCfgUpdate(oldObj, newObj interface{}) {
 	end, err2 := strconv.Atoi(newData["end"])
 	portsPerNode, err3 := strconv.Atoi(newData["ports-per-node"])
 	if err1 != nil || err2 != nil || err3 != nil ||
-		start < 5000 || end > 65000 || start > end || portsPerNode > end-start+1 {
+		!util.IsValidSnatPortRange(start, end, portsPerNode) {
 		cont.log.Error("Invalid values provided for ConfigMap: ", newSnatcfg.Name)
 		return
 	}
