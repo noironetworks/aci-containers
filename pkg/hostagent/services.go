@@ -126,6 +126,7 @@ var Version = map[string]bool{
 	"openshift-4.19-baremetal":             true,
 	"openshift-4.20-baremetal":             true,
 	"openshift-4.21-baremetal":             true,
+	"openshift-4.22-baremetal":             true,
 	"openshift-4.14-agent-based-baremetal": true,
 	"openshift-4.15-agent-based-baremetal": true,
 	"openshift-4.16-agent-based-baremetal": true,
@@ -134,6 +135,7 @@ var Version = map[string]bool{
 	"openshift-4.19-agent-based-baremetal": true,
 	"openshift-4.20-agent-based-baremetal": true,
 	"openshift-4.21-agent-based-baremetal": true,
+	"openshift-4.22-agent-based-baremetal": true,
 	"openshift-4.4-esx":                    true,
 	"openshift-4.5-esx":                    true,
 	"openshift-4.6-esx":                    true,
@@ -152,6 +154,7 @@ var Version = map[string]bool{
 	"openshift-4.19-esx":                   true,
 	"openshift-4.20-esx":                   true,
 	"openshift-4.21-esx":                   true,
+	"openshift-4.22-esx":                   true,
 	"openshift-4.14-agent-based-esx":       true,
 	"openshift-4.15-agent-based-esx":       true,
 	"openshift-4.16-agent-based-esx":       true,
@@ -160,6 +163,7 @@ var Version = map[string]bool{
 	"openshift-4.19-agent-based-esx":       true,
 	"openshift-4.20-agent-based-esx":       true,
 	"openshift-4.21-agent-based-esx":       true,
+	"openshift-4.22-agent-based-esx":       true,
 }
 
 func (agent *HostAgent) initEndpointSliceInformerFromClient(
