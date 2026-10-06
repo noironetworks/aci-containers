@@ -41,17 +41,21 @@ const PORTPERNODES = 3000
 const MIN_PORT = 5000
 const MAX_PORT = 65000
 
+func IsValidSnatPortRange(start, end, portsPerNode int) bool {
+	return start >= MIN_PORT && end <= MAX_PORT && start < end &&
+		portsPerNode > 0 && portsPerNode <= end-start
+}
+
 // Given generic list of start and end of each port range,
 // return sorted array(based on start of the range) of portranges based on number of per node
 func ExpandPortRanges(currPortRange []snatglobal.PortRange, step int) []snatglobal.PortRange {
 	expandedPortRange := []snatglobal.PortRange{}
+	if step <= 0 {
+		return expandedPortRange
+	}
 	for _, item := range currPortRange {
-		temp := item.Start
-		for temp < item.End-1 {
-			if temp+step-1 <= item.End-1 {
-				expandedPortRange = append(expandedPortRange, snatglobal.PortRange{Start: temp, End: temp + step - 1})
-			}
-			temp += step
+		for temp := item.Start; temp+step <= item.End; temp += step {
+			expandedPortRange = append(expandedPortRange, snatglobal.PortRange{Start: temp, End: temp + step - 1})
 		}
 	}
 
@@ -130,7 +134,7 @@ func GetPortRangeFromConfigMap(c *kubernetes.Clientset) (snatglobal.PortRange, i
 	end, err2 := strconv.Atoi(data["end"])
 	portsPerNode, err3 := strconv.Atoi(data["ports-per-node"])
 	if err1 != nil || err2 != nil || err3 != nil ||
-		start < 5000 || end > 65000 || start > end || portsPerNode > end-start+1 {
+		!IsValidSnatPortRange(start, end, portsPerNode) {
 		return resultPortRange, PORTPERNODES
 	}
 	resultPortRange.Start = start
