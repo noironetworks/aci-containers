@@ -637,6 +637,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 		conf.UplinkIface = "bond0"
 		conf.VxlanAnycastIp = "10.0.0.32"
 		conf.OpflexPeerIp = "10.0.0.30"
+		agent.applyFabricIpOverrides(conf)
 		if agent.config.InterfaceMtu == 0 {
 			agent.config.InterfaceMtu = 1500 - agent.config.InterfaceMtuHeadroom
 		}
@@ -743,6 +744,7 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 			conf.UplinkIface = parent.Attrs().Name
 			conf.VxlanAnycastIp = anycast.String()
 			conf.OpflexPeerIp = peerIp.String()
+			agent.applyFabricIpOverrides(conf)
 		}
 	}
 
@@ -763,6 +765,15 @@ func (agent *HostAgent) discoverHostConfig() (conf *HostAgentNodeConfig) {
 	description := "Could_not_find_suitable_host_uplink_interface_for_vlan"
 	agent.createFaultOnAgent(description, 9)
 	return
+}
+
+func (agent *HostAgent) applyFabricIpOverrides(conf *HostAgentNodeConfig) {
+	if agent.config.VxlanAnycastIpOverride != "" {
+		conf.VxlanAnycastIp = agent.config.VxlanAnycastIpOverride
+	}
+	if agent.config.OpflexPeerIpOverride != "" {
+		conf.OpflexPeerIp = agent.config.OpflexPeerIpOverride
+	}
 }
 
 var opflexConfigBase = initTempl("opflex-config-base", `{

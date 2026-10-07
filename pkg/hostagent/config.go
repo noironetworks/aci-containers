@@ -88,6 +88,11 @@ type HostAgentConfig struct {
 	HostAgentNodeConfig
 	GroupDefaults
 
+	// Optional fabric addresses supplied by the user. These are kept
+	// separate from HostAgentNodeConfig, which is updated by discovery.
+	VxlanAnycastIpOverride string `json:"vxlan-anycast-ip-override,omitempty"`
+	OpflexPeerIpOverride   string `json:"opflex-peer-ip-override,omitempty"`
+
 	// Run as child mode for executing network namespace commands in a
 	// separate process.
 	ChildMode bool `json:"child-mode,omitempty"`
@@ -362,6 +367,8 @@ func (config *HostAgentConfig) InitFlags() {
 	flag.StringVar(&config.VxlanIface, "vxlan-iface", "eth1.4093", "Subinterface of uplink interface on AciInfraVlan")
 	flag.StringVar(&config.VxlanAnycastIp, "vxlan-anycast-ip", "10.0.0.32", "Anycast IP used for unicast VXLAN packets")
 	flag.StringVar(&config.OpflexPeerIp, "opflex-peer-ip", "10.0.0.30", "Anycast IP used for OpFlex communication")
+	flag.StringVar(&config.VxlanAnycastIpOverride, "vxlan-anycast-ip-override", "", "Override the discovered VXLAN anycast IP")
+	flag.StringVar(&config.OpflexPeerIpOverride, "opflex-peer-ip-override", "", "Override the discovered OpFlex peer IP")
 
 	flag.StringVar(&config.AciVmmDomainType, "aci-vmm-type", "Kubernetes", "ACI VMM domain type")
 	flag.StringVar(&config.AciVmmDomain, "aci-vmm-domain", "kubernetes", "ACI VMM domain")
