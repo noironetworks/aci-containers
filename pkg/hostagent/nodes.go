@@ -233,6 +233,42 @@ func (agent *HostAgent) nodeDeleted(obj interface{}) {
 	defer agent.indexMutex.Unlock()
 }
 
+// writeUplinkMacAnnotation writes the host uplink MAC address as a node
+// annotation so the controller can discover it without APIC or SNAT
+// dependencies.  Must be called without indexMutex held.
+func (agent *HostAgent) writeUplinkMacAnnotation() {
+	env, ok := agent.env.(*K8sEnvironment)
+	if !ok {
+		return
+	}
+	agent.indexMutex.Lock()
+	mac := strings.ToUpper(agent.config.UplinkMacAdress)
+	agent.indexMutex.Unlock()
+	if mac == "" {
+		return
+	}
+	node, err := env.kubeClient.CoreV1().Nodes().Get(
+		context.TODO(), agent.config.NodeName, metav1.GetOptions{})
+	if err != nil {
+		agent.log.Error("Failed to get node for uplink-mac annotation: ", err)
+		return
+	}
+	if node.Annotations == nil {
+		node.Annotations = make(map[string]string)
+	}
+	if node.Annotations[metadata.UplinkMacAnnotation] == mac {
+		return
+	}
+	node.Annotations[metadata.UplinkMacAnnotation] = mac
+	_, err = env.kubeClient.CoreV1().Nodes().Update(
+		context.TODO(), node, metav1.UpdateOptions{})
+	if err != nil {
+		agent.log.Error("Failed to write uplink-mac annotation: ", err)
+		return
+	}
+	agent.log.Info("Wrote uplink-mac annotation: ", mac)
+}
+
 func (agent *HostAgent) routeInit() {
 	for _, nc := range agent.config.NetConfig {
 		err := addPodRoute(nc.Subnet, hostVethName, agent.vtepIP)
