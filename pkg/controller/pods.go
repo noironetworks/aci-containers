@@ -228,10 +228,14 @@ func (cont *AciController) podAdded(obj interface{}) {
 	cont.writeApicPod(pod)
 	cont.depPods.UpdatePodNoCallback(pod)
 	if !cont.isCNOEnabled() {
+		var ingressState ingressNamedPortState
+		var npKeys []string
 		cont.erspanPolPods.UpdatePodNoCallback(pod)
-		cont.netPolPods.UpdatePodNoCallback(pod)
+		ingressState = getIngressNamedPortState(pod)
+		_, npKeys = cont.netPolPods.UpdatePodNoCallbackWithHash(pod, ingressState.fingerprint)
 		cont.netPolIngressPods.UpdatePodNoCallback(pod)
 		cont.netPolEgressPods.UpdatePodNoCallback(pod)
+		cont.queueIngressNamedPortUpdates(npKeys, ingressState)
 	}
 	cont.queuePodUpdate(pod)
 	cont.checkIfEpgExistPod(pod)
@@ -244,20 +248,29 @@ func (cont *AciController) podUpdated(oldobj, newobj interface{}) {
 	cont.writeApicPod(newpod)
 
 	shouldqueue := false
-	if oldpod.Status.PodIP != newpod.Status.PodIP ||
-		!reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels) {
+	podIPChanged := oldpod.Status.PodIP != newpod.Status.PodIP
+	labelsChanged := !reflect.DeepEqual(oldpod.ObjectMeta.Labels, newpod.ObjectMeta.Labels)
+	if podIPChanged || labelsChanged {
 		shouldqueue =
 			cont.depPods.UpdatePodNoCallback(newpod) || shouldqueue
-		if !cont.isCNOEnabled() {
+	}
+	if !cont.isCNOEnabled() {
+		oldIngressState := getIngressNamedPortState(oldpod)
+		newIngressState := getIngressNamedPortState(newpod)
+		var npKeys []string
+		if labelsChanged || oldIngressState.fingerprint != newIngressState.fingerprint {
+			_, npKeys = cont.netPolPods.UpdatePodNoCallbackWithHash(newpod, newIngressState.fingerprint)
+		}
+		if podIPChanged || labelsChanged {
 			shouldqueue =
 				cont.erspanPolPods.UpdatePodNoCallback(newpod) || shouldqueue
-			shouldqueue =
-				cont.netPolPods.UpdatePodNoCallback(newpod) || shouldqueue
 			shouldqueue =
 				cont.netPolIngressPods.UpdatePodNoCallback(newpod) || shouldqueue
 			shouldqueue =
 				cont.netPolEgressPods.UpdatePodNoCallback(newpod) || shouldqueue
 		}
+		// Queue Netpol updates only after the local indexes have been updated.
+		cont.queueIngressNamedPortUpdates(npKeys, oldIngressState, newIngressState)
 	}
 	if !reflect.DeepEqual(oldpod.ObjectMeta.Annotations,
 		newpod.ObjectMeta.Annotations) {
@@ -297,10 +310,16 @@ func (cont *AciController) podDeleted(obj interface{}) {
 	cont.apicConn.ClearApicObjects(cont.aciNameForKey("podfs", podkey))
 	cont.depPods.DeletePod(pod)
 	if !cont.isCNOEnabled() {
+		var npKeys []string
+		var ingressState ingressNamedPortState
 		cont.erspanPolPods.DeletePod(pod)
+		// Read affected policies before DeletePod removes their mappings.
+		npKeys = cont.netPolPods.GetObjForPod(podkey)
+		ingressState = getIngressNamedPortState(pod)
 		cont.netPolPods.DeletePod(pod)
 		cont.netPolIngressPods.DeletePod(pod)
 		cont.netPolEgressPods.DeletePod(pod)
+		cont.queueIngressNamedPortUpdates(npKeys, ingressState)
 	}
 
 	cont.indexMutex.Lock()

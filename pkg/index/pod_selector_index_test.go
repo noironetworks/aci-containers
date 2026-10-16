@@ -15,6 +15,7 @@
 package index
 
 import (
+	"reflect"
 	"sort"
 	"sync"
 	"testing"
@@ -571,4 +572,182 @@ func TestPodIndexNSMatch(t *testing.T) {
 	}
 
 	testIndex.stop()
+}
+
+func newPodHashTestIndex(t *testing.T) (*PodSelectorIndex, *v1.Pod) {
+	t.Helper()
+	podStore := cache.NewIndexer(cache.MetaNamespaceKeyFunc,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	namespaceStore := cache.NewIndexer(cache.MetaNamespaceKeyFunc, nil)
+	objectStore := cache.NewIndexer(cache.MetaNamespaceKeyFunc, nil)
+	si := NewPodSelectorIndex(logrus.New(), podStore, namespaceStore, objectStore,
+		cache.MetaNamespaceKeyFunc, func(obj interface{}) []PodSelector {
+			return obj.(*TestKubeObj).selector
+		})
+	ns := "testns"
+	for name, selector := range map[string]labels.Selector{
+		"all": labels.Everything(),
+		"a":   labels.SelectorFromSet(labels.Set{"app": "a"}),
+		"b":   labels.SelectorFromSet(labels.Set{"app": "b"}),
+	} {
+		obj := testObj(ns, name, []PodSelector{{Namespace: &ns, PodSelector: selector}})
+		if err := objectStore.Add(obj); err != nil {
+			t.Fatal(err)
+		}
+		si.UpdateSelectorObjNoCallback(obj)
+	}
+	return si, pod(ns, "testpod", map[string]string{"app": "a"})
+}
+
+func requirePodHashKeys(t *testing.T, got, want []string) {
+	t.Helper()
+	actual := append([]string(nil), got...)
+	expected := append([]string(nil), want...)
+	sort.Strings(actual)
+	sort.Strings(expected)
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("object keys: got %v, want %v", actual, expected)
+	}
+}
+
+func TestPodIndexUpdatePodNoCallbackWithHash(t *testing.T) {
+	si, p := newPodHashTestIndex(t)
+	si.SetPodHashFunc(func(*v1.Pod) string {
+		t.Fatal("precomputed hash must not call the configured hash function")
+		return ""
+	})
+	si.SetPodUpdateCallback(func(string) {
+		t.Fatal("NoCallback must not invoke the Pod callback")
+	})
+	callbacks := make(map[string]int)
+	si.SetObjUpdateCallback(func(key string) {
+		// Reenter the index to detect callbacks invoked while its lock is held.
+		si.GetPodForObj(key)
+		callbacks[key]++
+	})
+
+	updated, keys := si.UpdatePodNoCallbackWithHash(p, "ports-v1")
+	if !updated {
+		t.Fatal("first membership must request a Pod update")
+	}
+	requirePodHashKeys(t, keys, []string{"testns/a", "testns/all"})
+	if !reflect.DeepEqual(callbacks, map[string]int{"testns/a": 1, "testns/all": 1}) {
+		t.Fatalf("unexpected callbacks: %v", callbacks)
+	}
+
+	updated, keys = si.UpdatePodNoCallbackWithHash(p, "ports-v1")
+	if updated || len(keys) != 0 {
+		t.Fatalf("unchanged Pod: updated=%v keys=%v", updated, keys)
+	}
+	if !reflect.DeepEqual(callbacks, map[string]int{"testns/a": 1, "testns/all": 1}) {
+		t.Fatalf("unchanged Pod triggered callbacks: %v", callbacks)
+	}
+
+	updated, keys = si.UpdatePodNoCallbackWithHash(p, "ports-v2")
+	if updated {
+		t.Fatal("hash-only change must preserve the false membership-change boolean")
+	}
+	requirePodHashKeys(t, keys, []string{"testns/a", "testns/all"})
+	if !reflect.DeepEqual(callbacks, map[string]int{"testns/a": 2, "testns/all": 2}) {
+		t.Fatalf("hash-only callbacks: %v", callbacks)
+	}
+
+	// Returned keys must not alias index state or later results.
+	keys[0] = "not-an-object"
+	requirePodHashKeys(t, si.GetObjForPod("testns/testpod"), []string{"testns/a", "testns/all"})
+	returned := append([]string(nil), keys...)
+	p = p.DeepCopy()
+	p.Labels = map[string]string{"app": "b"}
+	updated, newKeys := si.UpdatePodNoCallbackWithHash(p, "ports-v2")
+	if !updated {
+		t.Fatal("label transition must report changed membership")
+	}
+	requirePodHashKeys(t, newKeys, []string{"testns/a", "testns/b"})
+	if !reflect.DeepEqual(returned, keys) {
+		t.Fatalf("later update changed previously returned keys: %v -> %v", returned, keys)
+	}
+	requirePodHashKeys(t, si.GetObjForPod("testns/testpod"), []string{"testns/b", "testns/all"})
+	if !reflect.DeepEqual(callbacks, map[string]int{"testns/a": 3, "testns/b": 1, "testns/all": 2}) {
+		t.Fatalf("label transition callbacks: %v", callbacks)
+	}
+}
+
+func TestPodIndexHashDeletionNotifications(t *testing.T) {
+	for _, path := range []string{"explicit-empty", "configured-empty", "delete"} {
+		t.Run(path, func(t *testing.T) {
+			si, p := newPodHashTestIndex(t)
+			si.UpdatePodNoCallbackWithHash(p, "ports-v1")
+			callbacks := make(map[string]int)
+			si.SetObjUpdateCallback(func(key string) {
+				if pods := si.GetPodForObj(key); len(pods) != 0 {
+					t.Fatalf("deletion callback saw stale membership: %v", pods)
+				}
+				callbacks[key]++
+			})
+			si.SetPodUpdateCallback(func(string) {
+				t.Fatal("deletion must not invoke the Pod callback")
+			})
+			switch path {
+			case "explicit-empty":
+				updated, keys := si.UpdatePodNoCallbackWithHash(p, "")
+				if updated {
+					t.Fatal("empty hash must retain deletion's false boolean")
+				}
+				requirePodHashKeys(t, keys, []string{"testns/a", "testns/all"})
+				updated, keys = si.UpdatePodNoCallbackWithHash(p, "")
+				if updated || len(keys) != 0 {
+					t.Fatalf("repeated deletion: updated=%v keys=%v", updated, keys)
+				}
+			case "configured-empty":
+				si.SetPodHashFunc(func(*v1.Pod) string { return "" })
+				if si.UpdatePodNoCallback(p) {
+					t.Fatal("configured empty hash must retain the false boolean")
+				}
+			case "delete":
+				si.DeletePod(p)
+			}
+			if len(si.GetObjForPod("testns/testpod")) != 0 {
+				t.Fatal("deleted Pod retained object membership")
+			}
+			if !reflect.DeepEqual(callbacks, map[string]int{"testns/a": 1, "testns/all": 1}) {
+				t.Fatalf("deletion must notify each object exactly once: %v", callbacks)
+			}
+		})
+	}
+}
+
+func TestPodIndexLegacyHashCallbackCompatibility(t *testing.T) {
+	si, p := newPodHashTestIndex(t)
+	callbacks := make(map[string]int)
+	podCallbacks := 0
+	si.SetObjUpdateCallback(func(key string) {
+		si.GetPodForObj(key)
+		callbacks[key]++
+	})
+	si.SetPodUpdateCallback(func(string) { podCallbacks++ })
+	// No configured hash is not the same thing as an explicitly empty hash.
+	if !si.UpdatePodNoCallback(p) {
+		t.Fatal("unhashed Pod must still acquire membership")
+	}
+	requirePodHashKeys(t, si.GetObjForPod("testns/testpod"), []string{"testns/a", "testns/all"})
+	hashCalls := 0
+	si.SetPodHashFunc(func(*v1.Pod) string {
+		hashCalls++
+		return "configured-hash"
+	})
+	if si.UpdatePodNoCallback(p) {
+		t.Fatal("legacy hash-only change must not change the boolean")
+	}
+	if hashCalls != 1 || podCallbacks != 0 {
+		t.Fatalf("hash calls=%d Pod callbacks=%d", hashCalls, podCallbacks)
+	}
+	if !reflect.DeepEqual(callbacks, map[string]int{"testns/a": 2, "testns/all": 2}) {
+		t.Fatalf("legacy object callbacks: %v", callbacks)
+	}
+	p = p.DeepCopy()
+	p.Labels = map[string]string{"app": "b"}
+	si.UpdatePod(p)
+	if hashCalls != 2 || podCallbacks != 1 {
+		t.Fatalf("UpdatePod compatibility: hash calls=%d Pod callbacks=%d", hashCalls, podCallbacks)
+	}
 }
