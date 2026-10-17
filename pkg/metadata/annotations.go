@@ -50,6 +50,9 @@ const ServiceGraphNameAnnotation = "opflex.cisco.com/service-graph-name"
 // Service endpoint annotation
 const ServiceEpAnnotation = "opflex.cisco.com/service-endpoint"
 
+// Uplink MAC annotation written by hostagent at startup
+const UplinkMacAnnotation = "opflex.cisco.com/uplink-mac"
+
 // Static lb ip annotations
 const LbIpAnnotation = "opflex.cisco.com/lb-ipam-ips"
 
