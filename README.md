@@ -11,3 +11,16 @@ on-prem or in the cloud. It is fully open source and relies on the
 Open vSwitch instances running on the Kubernetes nodes. It provides IP
 address management, L2/L3 networking, load balancing, and security
 functions for container workloads.
+
+## Running unit tests
+
+With the Go version configured in `.github/workflows/aci-containers-images.yml`
+installed, run these commands from the repository root:
+
+```sh
+make goinstall
+make check TEST_ARGS='-count=1'
+```
+
+The host-agent checks automatically set up local Kubernetes envtest binaries.
+Coverage profiles are written to `covprof-*` files in the repository root.
