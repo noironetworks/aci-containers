@@ -1,7 +1,10 @@
-name: ACI containers feature image build
+name: ACI containers CI
 
 on:
+  pull_request:
   push:
+    branches:
+      - "**"
     tags:
       - "[0-9]+.[0-9]+.[0-9]+.[0-9]+"
 
@@ -13,6 +16,88 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  unit-tests:
+    name: ACI unit tests
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' &&
+       github.event.deleted == false &&
+       startsWith(github.ref, 'refs/heads/'))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      GOPROXY: "https://proxy.golang.org|https://goproxy.io|direct"
+      GOTOOLCHAIN: local
+      UT_ARTIFACT_DIR: ut-artifacts
+
+    steps:
+      - name: Check out test source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.3
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            pkg/ipam/go.sum
+
+      - name: Build commands and run unit tests
+        id: tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "${UT_ARTIFACT_DIR}"
+          make goinstall 2>&1 | tee "${UT_ARTIFACT_DIR}/goinstall.log"
+          make check TEST_ARGS='-count=1' 2>&1 | tee "${UT_ARTIFACT_DIR}/check.log"
+
+      - name: Summarize unit tests and coverage
+        if: always()
+        shell: bash
+        env:
+          UNIT_TEST_RESULT: ${{ steps.tests.outcome }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "${UT_ARTIFACT_DIR}"
+          shopt -s nullglob
+          profiles=(covprof-*)
+          {
+            echo "### ACI unit tests"
+            echo
+            printf 'Tested commit: `%s`\n\n' "${GITHUB_SHA}"
+            printf 'Test result: `%s`\n\n' "${UNIT_TEST_RESULT}"
+            if ((${#profiles[@]} > 0)); then
+              echo '| Coverage profile | Statement coverage |'
+              echo '|---|---|'
+              for profile in "${profiles[@]}"; do
+                report="${UT_ARTIFACT_DIR}/${profile}-summary.txt"
+                if go tool cover -func="${profile}" >"${report}" 2>&1; then
+                  coverage="$(awk '$1 == "total:" { print $NF }' "${report}")"
+                  printf '| `%s` | %s |\n' "${profile}" "${coverage}"
+                else
+                  printf '| `%s` | Unavailable; see artifact |\n' "${profile}"
+                fi
+              done
+            else
+              echo 'No coverage profiles were generated; see the job logs.'
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload unit test logs and coverage
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: aci-containers-unit-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ut-artifacts/
+            covprof-*
+          if-no-files-found: warn
+          retention-days: 14
+
   build-and-publish:
     name: Build and publish feature images
     if: github.event_name == 'push' && github.event.deleted == false && github.repository == 'noironetworks/aci-containers' && startsWith(github.ref, 'refs/tags/')
