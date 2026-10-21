@@ -229,8 +229,8 @@ func addServices(cont *testAciController, augment *npTestAugment) {
 }
 
 // waitForPodIndexed polls the podIndexer until all specified pod keys are present.
-// This mirrors real K8s behavior: an EndpointSlice referencing a pod cannot arrive
-// before the pod exists in the API server (and thus in our informer cache).
+// Pod and EndpointSlice informers process events independently. Service augmentation
+// fixtures must wait for referenced Pods before publishing their EndpointSlices.
 func waitForPodIndexed(t *testing.T, cont *testAciController, podKeys ...string) {
 	t.Helper()
 	tu.WaitFor(t, "pod-indexed", 2000*time.Millisecond, func(last bool) (bool, error) {
@@ -1060,6 +1060,7 @@ func TestNetworkPolicy(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
@@ -1955,6 +1956,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
@@ -3557,6 +3559,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
@@ -3978,6 +3981,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
