@@ -1,3 +1,4 @@
+if: repo = __travis_disabled__
 os: linux
 services: docker
 dist: jammy
