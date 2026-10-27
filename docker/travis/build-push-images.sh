@@ -57,7 +57,7 @@ done
 git config --local user.name "travis-tagger"
 git config --local user.email "sumitnaiksatam+travis-tagger@gmail.com"
 git remote add travis-tagger https://travis-tagger:$TRAVIS_TAGGER@github.com/noironetworks/aci-containers.git
-TAG_MESSAGE="ACI Release ${RELEASE_TAG} Created by Travis Job ${TRAVIS_JOB_NUMBER} ${TRAVIS_JOB_WEB_URL}" 
+TAG_MESSAGE="aci-containers Release ${RELEASE_TAG} Created by Travis Job ${TRAVIS_JOB_NUMBER} ${TRAVIS_JOB_WEB_URL}"
 
 git tag -d ${TRAVIS_TAG}; git push travis-tagger :refs/tags/${TRAVIS_TAG}
 git tag -f -a ${RELEASE_TAG} -m "${TAG_MESSAGE}"; git push travis-tagger -f --tags

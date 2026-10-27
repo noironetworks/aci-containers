@@ -1,4 +1,4 @@
-name: ACI containers CI
+name: aci-containers CI
 
 on:
   pull_request:
@@ -20,12 +20,14 @@ concurrency:
 
 jobs:
   unit-tests:
-    name: ACI unit tests
+    name: aci-containers unit tests
+    needs: select-ci-provider
     if: >-
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'push' &&
-       github.event.deleted == false &&
-       startsWith(github.ref, 'refs/heads/'))
+      needs.select-ci-provider.outputs.run-gha == 'true' &&
+      (github.event_name == 'pull_request' ||
+       (github.event_name == 'push' &&
+        github.event.deleted == false &&
+        startsWith(github.ref, 'refs/heads/')))
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     env:
@@ -69,7 +71,7 @@ jobs:
           shopt -s nullglob
           profiles=(covprof-*)
           {
-            echo "### ACI unit tests"
+            echo "### aci-containers unit tests"
             echo
             printf 'Tested commit: `%s`\n\n' "${GITHUB_SHA}"
             printf 'Test result: `%s`\n\n' "${UNIT_TEST_RESULT}"
@@ -101,9 +103,46 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  select-ci-provider:
+    name: Select CI provider
+    runs-on: ubuntu-22.04
+    outputs:
+      run-gha: ${{ steps.selector.outputs.run_gha }}
+    steps:
+      - name: Check out source configuration
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Read CI provider from Travis configuration
+        id: selector
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t providers < <(
+            awk -F: '$1 ~ /^[[:space:]]*-[[:space:]]*CI_PROVIDER[[:space:]]*$/ {
+              value = $2
+              gsub(/[[:space:]]/, "", value)
+              sub(/#.*/, "", value)
+              print value
+            }' .travis.yml
+          )
+          if ((${#providers[@]} != 1)); then
+            echo "::error:: .travis.yml must define CI_PROVIDER exactly once"
+            exit 1
+          fi
+          provider="${providers[0]}"
+          case "${provider}" in
+            gha) run_gha=true ;;
+            travis) run_gha=false ;;
+            *) echo "::error:: CI_PROVIDER must be 'gha' or 'travis'"; exit 1 ;;
+          esac
+          echo "run_gha=${run_gha}" >> "${GITHUB_OUTPUT}"
+
   build-and-publish:
     name: Build and publish images
-    if: github.event_name == 'push' && github.event.deleted == false && github.repository == 'noironetworks/aci-containers' && startsWith(github.ref, 'refs/tags/')
+    needs: select-ci-provider
+    if: needs.select-ci-provider.outputs.run-gha == 'true' && github.event_name == 'push' && github.event.deleted == false && github.repository == 'noironetworks/aci-containers' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:

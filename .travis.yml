@@ -6,11 +6,12 @@ env:
   global:
     - DEFAULT_BRANCH: master
     - GOPROXY: https://proxy.golang.org|https://goproxy.io|direct
+    - CI_PROVIDER: gha
 
 jobs:
   include:
     - stage: check
-      if: tag IS NOT present
+      if: tag IS NOT present AND env(CI_PROVIDER) = travis
       sudo: false
       go: 1.26.3
       before_install:
@@ -27,8 +28,7 @@ jobs:
         - tail -200 /tmp/check.log
         - $GOPATH/bin/goveralls -coverprofile=covprof-ipam,covprof-index,covprof-apicapi,covprof-hostagent,covprof-controller,covprof-gbpserver -service=travis-pro
     - stage: build-images
-      # Image builds now run via GitHub Actions (aci-containers-images.yml); keep the check stage for PR tests.
-      if: false
+      if: tag IS present AND env(CI_PROVIDER) = travis
       before_install:
         - mkdir -vp ~/.docker/cli-plugins/
         - curl --silent -L "https://github.com/docker/buildx/releases/download/v0.3.0/buildx-v0.3.0.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
