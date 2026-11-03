@@ -1,8 +1,33 @@
 ARG basetag=latest
 ARG baserepo=quay.io/noirolabs
+ARG GO_VERSION=1.26.10
+FROM registry.access.redhat.com/ubi9/ubi:latest AS cni-builder
+ARG GO_VERSION
+ARG GO_SHA256=ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5
+ARG CNI_PLUGINS_REPO=github.com/containernetworking/plugins
+ARG CNI_PLUGINS_COMMIT=5ed4cbb08c95f1797fc948993c1235ff8921b580
+RUN yum install --disablerepo=* --enablerepo=ubi-9-appstream-rpms --enablerepo=ubi-9-baseos-rpms -y \
+        ca-certificates curl-minimal git gzip tar \
+    && yum clean all \
+    && curl --fail --show-error --silent --location --retry 3 \
+        --connect-timeout 10 --max-time 180 \
+        "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz" -o /go-toolchain.tar.gz \
+    && echo "${GO_SHA256}  /go-toolchain.tar.gz" | sha256sum --check - \
+    && tar -C /usr/local -xzf /go-toolchain.tar.gz \
+    && rm /go-toolchain.tar.gz
+ENV PATH=/usr/local/go/bin:${PATH}
+ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+RUN git clone --no-checkout "https://${CNI_PLUGINS_REPO}.git" /src/plugins
+WORKDIR /src/plugins
+# Keep release ancestry so Go derives the correct main-module pseudo-version.
+RUN git checkout --detach "${CNI_PLUGINS_COMMIT}" \
+    && test "$(git rev-parse HEAD)" = "${CNI_PLUGINS_COMMIT}" \
+    && test "$(go env GOVERSION)" = "go${GO_VERSION}" \
+    && PLUGINS=plugins/main/loopback ./build_linux.sh -trimpath \
+        -ldflags "-X github.com/containernetworking/plugins/pkg/utils/buildversion.BuildVersion=${CNI_PLUGINS_REPO}@${CNI_PLUGINS_COMMIT}" \
+    && go version -m bin/loopback
+
 FROM ${baserepo}/aci-containers-base:${basetag}
-ARG CNI_PLUGINS_VERSION=v1.9.1
-RUN yum install -y wget ca-certificates tar gzip \
-  && yum clean all \
-  && mkdir -p /opt/cni/bin && wget -O- https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGINS_VERSION}.tgz | tar xz -C /opt/cni/bin
+COPY --from=cni-builder /src/plugins/bin/loopback /opt/cni/bin/loopback
+COPY --from=cni-builder /src/plugins/LICENSE /src/plugins/README.md /opt/cni/bin/
 CMD ["/usr/bin/sh"]
