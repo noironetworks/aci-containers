@@ -245,19 +245,44 @@ jobs:
           printf '%s' "${QUAY_NOIRO_TOKEN}" | DOCKER_CONFIG="${QUAY_NOIRO_DOCKER_CONFIG}" \
             docker login quay.io --username "${QUAY_NOIRO_USERNAME}" --password-stdin
 
-      - name: Build and publish through shared CICD scripts
+      - name: Build images through shared CICD scripts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "${CI_ARTIFACT_DIR}"
+          "${CICD_DIR}/travis/check-git-tag.sh"
+          "${CICD_DIR}/travis/build-push-aci-containers-images.sh" \
+            2>&1 | tee "${CI_ARTIFACT_DIR}/build-and-publish.log"
+
+      - name: Publish image status to CICD
+        if: vars.SKIP_CICD_STATUS == 'false'
+        continue-on-error: true
         shell: bash
         env:
           TRAVIS_TAGGER: ${{ secrets.GITHUBACTIONS_TAGGER }}
         run: |
           set -Eeuo pipefail
-          if [[ "${SKIP_CICD_STATUS}" == "false" ]]; then
-            : "${TRAVIS_TAGGER:?GITHUBACTIONS_TAGGER is required for status publication}"
-          fi
-          mkdir -p "${CI_ARTIFACT_DIR}"
-          "${CICD_DIR}/travis/check-git-tag.sh"
-          "${CICD_DIR}/travis/build-push-aci-containers-images.sh" \
-            2>&1 | tee "${CI_ARTIFACT_DIR}/build-and-publish.log"
+          : "${TRAVIS_TAGGER:?GITHUBACTIONS_TAGGER is required for status publication}"
+
+          SCRIPTS_DIR="${CICD_DIR}/travis"
+          METADATA_FILE="${CI_ARTIFACT_DIR}/aci-images-metadata.jsonl"
+          [[ -f "$METADATA_FILE" ]] || { echo "No metadata file found"; exit 0; }
+
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            registry=$(echo "$line" | jq -r '.registry')
+            image=$(echo "$line" | jq -r '.image')
+            tag=$(echo "$line" | jq -r '.tag')
+            other_tags=$(echo "$line" | jq -r '.other_tags')
+            sha=$(echo "$line" | jq -r '.sha')
+            base_image=$(echo "$line" | jq -r '.base_image')
+
+            echo "Publishing status for ${image}..."
+            "$SCRIPTS_DIR/push-to-cicd-status.sh" "$registry" "$image" "$tag" "$other_tags" "$sha" "$base_image" || {
+              echo "WARNING: Failed to publish status for ${image}"
+            }
+          done < "$METADATA_FILE" \
+            2>&1 | tee -a "${CI_ARTIFACT_DIR}/build-and-publish.log"
 
       - name: Upload build logs
         if: always()
