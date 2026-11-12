@@ -140,4 +140,14 @@ class CallerContract(unittest.TestCase):
             self.assertIn('Version: 6.1.1.8.dev55',pkginfo)
             self.assertIn('6.1.1.8.81c2369.z',pins)
 
+    def test_image_builds_select_prepared_evidence_with_fatal_scan_policy(self):
+        if self.acc:
+            return
+        builders = [job for job in self.workflow['jobs'].values()
+                    if any('${CICD_DIR}/travis/build-push-' in step.get('run', '') for step in job['steps'])]
+        self.assertTrue(builders)
+        for job in builders:
+            self.assertEqual(job['env']['CI_EVIDENCE_MODE'], 'prepared-v1')
+            self.assertEqual(job['env']['CI_SCAN_POLICY'], 'fatal')
+
 if __name__=='__main__':unittest.main()
