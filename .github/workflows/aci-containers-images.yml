@@ -182,8 +182,6 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 -m pip install pyyaml pytz
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sudo sh -s -- -b /usr/local/bin
           cicd_dir="${RUNNER_TEMP}/cicd"
           [[ "${CICD_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::CICD_COMMIT must pin a reviewed full commit SHA"; exit 1;

@@ -176,4 +176,9 @@ class CallerContract(unittest.TestCase):
             self.assertEqual(len(images), 1 if 'opflex' in self.path.name else 8)
             self.assertNotIn('$', ','.join(images))
 
+    def test_prepared_scanner_does_not_execute_the_unverified_trivy_installer(self):
+        if self.acc:
+            return
+        self.assertNotIn('https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh', self.path.read_text())
+
 if __name__=='__main__':unittest.main()
