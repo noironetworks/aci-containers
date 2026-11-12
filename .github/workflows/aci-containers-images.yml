@@ -71,7 +71,11 @@ jobs:
           {
             echo "### aci-containers unit tests"
             echo
+            # Markdown backticks are literal in this printf format.
+            # shellcheck disable=SC2016
             printf 'Tested commit: `%s`\n\n' "${GITHUB_SHA}"
+            # Markdown backticks are literal in this printf format.
+            # shellcheck disable=SC2016
             printf 'Test result: `%s`\n\n' "${UNIT_TEST_RESULT}"
             if ((${#profiles[@]} > 0)); then
               echo '| Coverage profile | Statement coverage |'
@@ -80,8 +84,12 @@ jobs:
                 report="${UT_ARTIFACT_DIR}/${profile}-summary.txt"
                 if go tool cover -func="${profile}" >"${report}" 2>&1; then
                   coverage="$(awk '$1 == "total:" { print $NF }' "${report}")"
+                  # Markdown backticks are literal in this printf format.
+                  # shellcheck disable=SC2016
                   printf '| `%s` | %s |\n' "${profile}" "${coverage}"
                 else
+                  # Markdown backticks are literal in this printf format.
+                  # shellcheck disable=SC2016
                   printf '| `%s` | Unavailable; see artifact |\n' "${profile}"
                 fi
               done
