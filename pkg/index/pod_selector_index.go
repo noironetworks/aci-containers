@@ -193,11 +193,37 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 			return false
 		}
 	}
+	podUpdated, updatedObjs := i.updatePodIndex(pod, podHash)
+	i.updateObjs(updatedObjs)
+	return podUpdated
+}
 
+// UpdatePodNoCallbackWithHash uses the supplied fingerprint and returns affected
+// object keys. An empty fingerprint removes the Pod. The boolean reports only
+// membership changes, so it can be false even when keys are returned.
+// Object callbacks run after unlocking; the Pod callback is not called.
+func (i *PodSelectorIndex) UpdatePodNoCallbackWithHash(pod *v1.Pod, fingerprint string) (bool, []string) {
+	var podUpdated bool
+	var updatedObjs set
+	if fingerprint == "" {
+		updatedObjs = i.deletePodIndex(pod)
+	} else {
+		podUpdated, updatedObjs = i.updatePodIndex(pod, fingerprint)
+	}
+	keys := make([]string, 0, len(updatedObjs))
+	for key := range updatedObjs {
+		keys = append(keys, key)
+	}
+	i.updateObjs(updatedObjs)
+	return podUpdated, keys
+}
+
+// An empty hash is valid for indexes with no hash function.
+func (i *PodSelectorIndex) updatePodIndex(pod *v1.Pod, podHash string) (bool, set) {
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		i.log.Error("Could not create pod key: ", err)
-		return false
+		return false, nil
 	}
 
 	podUpdated := false
@@ -259,19 +285,21 @@ func (i *PodSelectorIndex) UpdatePodNoCallback(pod *v1.Pod) bool {
 	state.podHash = podHash
 	i.indexMutex.Unlock()
 
-	i.updateObjs(updatedObjs)
-
-	return podUpdated
+	return podUpdated, updatedObjs
 }
 
 // Call to update the index when a pod is deleted
 func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
+	i.updateObjs(i.deletePodIndex(pod))
+}
+
+func (i *PodSelectorIndex) deletePodIndex(pod *v1.Pod) set {
 	updatedObjs := make(set)
 
 	podkey, err := cache.MetaNamespaceKeyFunc(pod)
 	if err != nil {
 		i.log.Error("Could not create pod key: ", err)
-		return
+		return nil
 	}
 	i.indexMutex.Lock()
 	if state, ok := i.podIndex[podkey]; ok {
@@ -288,7 +316,7 @@ func (i *PodSelectorIndex) DeletePod(pod *v1.Pod) {
 	}
 	i.indexMutex.Unlock()
 
-	i.updateObjs(updatedObjs)
+	return updatedObjs
 }
 
 // Call to update the index when a namespace's labels change

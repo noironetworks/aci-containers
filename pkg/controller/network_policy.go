@@ -158,6 +158,9 @@ func (cont *AciController) initNetPolPodIndex() {
 			cont.queuePodUpdate(podobj.(*v1.Pod))
 		}
 	})
+	cont.netPolPods.SetPodHashFunc(func(pod *v1.Pod) string {
+		return getIngressNamedPortState(pod).fingerprint
+	})
 
 	cont.netPolIngressPods = index.NewPodSelectorIndex(
 		cont.log,
@@ -1018,11 +1021,23 @@ func (cont *AciController) updateTargetPortIndex(service bool, key string,
 }
 
 func (cont *AciController) getPortNumsFromPortName(podKeys []string, portName string) map[int]bool {
+	return cont.getPodPortNumsFromPortName(podKeys, portName, false)
+}
+
+func (cont *AciController) getIngressNamedPortNums(podKeys []string, portName string) map[int]bool {
+	return cont.getPodPortNumsFromPortName(podKeys, portName, true)
+}
+
+func (cont *AciController) getPodPortNumsFromPortName(podKeys []string, portName string, ingress bool) map[int]bool {
 	ports := make(map[int]bool)
 	for _, podkey := range podKeys {
 		podobj, exists, err := cont.podIndexer.GetByKey(podkey)
 		if exists && err == nil {
 			pod := podobj.(*v1.Pod)
+			// Exclude HostNetwork pods and pods without an IP address.
+			if ingress && (pod.Spec.HostNetwork || pod.Status.PodIP == "") {
+				continue
+			}
 			port, err := k8util.LookupContainerPortNumberByName(*pod, portName)
 			if err != nil {
 				continue
@@ -1228,16 +1243,9 @@ func (cont *AciController) resolveNetPolPeersAndPorts(
 		portName := ports[j].Port.String()
 
 		if direction == "ingress" {
-			var portMap map[int]bool
-			if reflect.DeepEqual(np.Spec.PodSelector, metav1.LabelSelector{}) {
-				// Empty PodSelector = all pods in namespace. Use ctrPortNameCache
-				// filtered to the NP namespace to find port numbers efficiently.
-				portMap = cont.getNamedPortNumsForNs(portName, namespace)
-			} else {
-				npKey := np.Namespace + "/" + np.Name
-				podKeys := cont.netPolPods.GetPodForObj(npKey)
-				portMap = cont.getPortNumsFromPortName(podKeys, portName)
-			}
+			npKey := np.Namespace + "/" + np.Name
+			podKeys := cont.netPolPods.GetPodForObj(npKey)
+			portMap := cont.getIngressNamedPortNums(podKeys, portName)
 			if len(portMap) > 1 {
 				resolved := make([]int, 0, len(portMap))
 				for p := range portMap {
@@ -1425,7 +1433,7 @@ func (cont *AciController) buildNetPolSubjRules(ruleName string,
 		entryName := np.Name
 		if cont.config.HppOptimization {
 			if entry.proto != "" {
-				entryName = protoPortKey(entry.proto, entry.fromPort)
+				entryName = protoPortKey(entry.proto, entry.fromPort, entry.toPort)
 			} else {
 				entryName = "unspecified"
 			}
@@ -1525,7 +1533,7 @@ func (cont *AciController) buildLocalNetPolSubjRules(
 	for _, entry := range resolved.entries {
 		entryName := "unspecified"
 		if entry.proto != "" {
-			entryName = protoPortKey(entry.proto, entry.fromPort)
+			entryName = protoPortKey(entry.proto, entry.fromPort, entry.toPort)
 		}
 		// A rule with no peer selector at all (ingress: - {} / egress: - {})
 		// has no remote-IP restriction to express: its resolved IP lists are
@@ -1659,38 +1667,6 @@ func (cont *AciController) getNamedPortIPMap(portName string) map[int][]string {
 	return result
 }
 
-// getNamedPortNumsForNs returns the set of numeric port numbers that a named
-// port resolves to on pods within a specific namespace. It uses ctrPortNameCache
-// rather than iterating all pods in the namespace.
-func (cont *AciController) getNamedPortNumsForNs(portName, namespace string) map[int]bool {
-	result := make(map[int]bool)
-	nsPrefix := namespace + "/"
-	cont.indexMutex.Lock()
-	ctrNmpEntry, ok := cont.ctrPortNameCache[portName]
-	if !ok {
-		cont.indexMutex.Unlock()
-		return result
-	}
-	for key, podkeys := range ctrNmpEntry.ctrNmpToPods {
-		val := strings.Split(key, "-")
-		if len(val) != 2 {
-			continue
-		}
-		portNum, err := strconv.Atoi(val[1])
-		if err != nil {
-			continue
-		}
-		for podkey := range podkeys {
-			if strings.HasPrefix(podkey, nsPrefix) {
-				result[portNum] = true
-				break
-			}
-		}
-	}
-	cont.indexMutex.Unlock()
-	return result
-}
-
 func portProto(protocol *v1.Protocol) string {
 	proto := "tcp"
 	if protocol != nil && *protocol == v1.ProtocolUDP {
@@ -1759,8 +1735,11 @@ func updatePortRemoteSubnets(portRemoteSubs map[string]*portRemoteSubnet,
 	}
 }
 
-func protoPortKey(proto, port string) string {
-	return proto + "-" + port
+func protoPortKey(proto, fromPort, toPort string) string {
+	if toPort == "" {
+		return proto + "-" + fromPort
+	}
+	return proto + "-" + fromPort + "-" + toPort
 }
 
 type portServiceAugment struct {
@@ -1770,7 +1749,7 @@ type portServiceAugment struct {
 }
 
 func updateServiceAugment(portAugments map[string]*portServiceAugment, proto, port, ip string) {
-	key := protoPortKey(proto, port)
+	key := protoPortKey(proto, port, "")
 	if psa, ok := portAugments[key]; ok {
 		psa.ipMap[ip] = true
 	} else {
@@ -2693,6 +2672,7 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 		if noHppRef && labelKey != "" {
 			cont.apicConn.ClearApicObjects(labelKey)
 		}
+		queue = true
 	}
 
 	cont.indexMutex.Lock()
@@ -2707,6 +2687,10 @@ func (cont *AciController) networkPolicyChanged(oldobj interface{},
 
 	if !reflect.DeepEqual(oldnp.Spec.PodSelector, newnp.Spec.PodSelector) {
 		cont.netPolPods.UpdateSelectorObjNoCallback(newobj)
+		// Changing the selected Pods can change a named port's numeric value.
+		if isNamedPortPresentInNpIngress(newnp) {
+			queue = true
+		}
 	}
 	if !reflect.DeepEqual(oldnp.Spec.PolicyTypes, newnp.Spec.PolicyTypes) {
 		peerPodKeys := cont.netPolPods.GetPodForObj(npkey)
@@ -2893,6 +2877,17 @@ func isNamedPortPresenInNp(np *v1net.NetworkPolicy) bool {
 	return false
 }
 
+func isNamedPortPresentInNpIngress(np *v1net.NetworkPolicy) bool {
+	for _, ingress := range np.Spec.Ingress {
+		for _, port := range ingress.Ports {
+			if port.Port != nil && port.Port.Type == intstr.String {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (cont *AciController) checkPodNmpMatchesNp(npkey, podkey string) bool {
 	podobj, exists, err := cont.podIndexer.GetByKey(podkey)
 	if err != nil {
@@ -2912,6 +2907,21 @@ func (cont *AciController) checkPodNmpMatchesNp(npkey, podkey string) bool {
 					if err == nil {
 						return true
 					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (cont *AciController) checkNamedPortPresentInNpIngress(npkey string, namedPorts map[string]bool) bool {
+	obj, exists, err := cont.networkPolicyIndexer.GetByKey(npkey)
+	if exists && err == nil {
+		np := obj.(*v1net.NetworkPolicy)
+		for _, ingress := range np.Spec.Ingress {
+			for _, p := range ingress.Ports {
+				if p.Port != nil && p.Port.Type == intstr.String && namedPorts[p.Port.String()] {
+					return true
 				}
 			}
 		}

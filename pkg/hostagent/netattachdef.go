@@ -1066,7 +1066,7 @@ func (agent *HostAgent) getPodResource(metadata *md.ContainerMetadata, resourceN
 	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
 	defer cancelFunc()
 
-	podResourcesClient, podResourcesConn, err := podresources.GetV1alpha1Client(podResourceSock, timeout, podResourcesMaxSizeDefault)
+	podResourcesClient, podResourcesConn, err := podresources.GetV1alpha1Client(context.TODO(), podResourceSock, timeout, podResourcesMaxSizeDefault)
 	if err != nil {
 		return fmt.Errorf("Could not retreive the pod resource client %w", err)
 	}

@@ -229,8 +229,8 @@ func addServices(cont *testAciController, augment *npTestAugment) {
 }
 
 // waitForPodIndexed polls the podIndexer until all specified pod keys are present.
-// This mirrors real K8s behavior: an EndpointSlice referencing a pod cannot arrive
-// before the pod exists in the API server (and thus in our informer cache).
+// Pod and EndpointSlice informers process events independently. Service augmentation
+// fixtures must wait for referenced Pods before publishing their EndpointSlices.
 func waitForPodIndexed(t *testing.T, cont *testAciController, podKeys ...string) {
 	t.Helper()
 	tu.WaitFor(t, "pod-indexed", 2000*time.Millisecond, func(last bool) (bool, error) {
@@ -1060,6 +1060,7 @@ func TestNetworkPolicy(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
@@ -1550,7 +1551,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test21_np)
 	test21_np_name := "kube_np_" + hash
-	test21_rule := createRule(test21_np_name, false, rule_9, "0-ipv4__tcp-80")
+	test21_rule := createRule(test21_np_name, false, rule_9, "0-ipv4__tcp-80-90")
 	test21_rule.AddChild(apicapi.NewHostprotRemoteIp(test21_rule.GetDn(), "1.1.1.1"))
 
 	//egress-allow-http-portrange-augment
@@ -1565,7 +1566,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		}, allPolicyTypes)
 	hash, _ = util.CreateHashFromNetPol(test22_np)
 	test22_np_name := "kube_np_" + hash
-	test22_rule1 := createRule(test22_np_name, false, rule_9, "0-ipv4__tcp-80")
+	test22_rule1 := createRule(test22_np_name, false, rule_9, "0-ipv4__tcp-80-90")
 	test22_rule1.AddChild(apicapi.NewHostprotRemoteIp(test22_rule1.GetDn(), "1.1.1.1"))
 	test22_rule2 := createRule(test22_np_name, false, rule_7, "service_tcp_8080-ipv4")
 	test22_rule2.AddChild(apicapi.NewHostprotRemoteIp(test22_rule2.GetDn(), "9.0.0.42"))
@@ -1955,6 +1956,7 @@ func TestNetworkPolicyHppOptimize(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
@@ -3557,6 +3559,7 @@ func TestNetworkPolicyWithEndPointSlice(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
@@ -3978,6 +3981,7 @@ func TestNetworkPolicyWithEndPointSliceHppOptimize(t *testing.T) {
 		cont.run()
 		addPods(cont, false, ips, true)
 		addPods(cont, true, ips, true)
+		waitForPodIndexed(t, cont, "testns/pod1", "testns/pod2")
 		addServices(cont, npTests[ix].augment)
 		checkNp(t, &npTests[ix], "npfirst", cont)
 		cont.stop()
@@ -4805,6 +4809,70 @@ func TestBuildLocalNetPolSubjRules(t *testing.T) {
 	assert.NotEmpty(t, subj.HostprotRule[0].RsRemoteIpContainer)
 }
 
+func TestProtoPortKey(t *testing.T) {
+	assert.Equal(t, "tcp-30000-30010", protoPortKey("tcp", "30000", "30010"))
+	assert.Equal(t, "tcp-30000", protoPortKey("tcp", "30000", ""))
+	assert.Equal(t, "tcp-30000-30000", protoPortKey("tcp", "30000", "30000"))
+	assert.NotEqual(t, protoPortKey("tcp", "80", ""), protoPortKey("tcp", "80", "80"))
+}
+
+func TestBuildLocalNetPolSubjRulesDistinctPortRanges(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.run()
+	defer cont.stop()
+
+	peers := []v1net.NetworkPolicyPeer{{
+		PodSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"app": "test-app"},
+		},
+	}}
+	subj := &hppv1.HostprotSubj{}
+	cont.buildLocalNetPolSubjRules(subj, "egress", &resolvedPeerPorts{
+		entries: []resolvedPortEntry{
+			{proto: "tcp", fromPort: "30000", toPort: "30010", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "30000", toPort: "30020", ipsV4: []string{"192.168.0.2"}},
+			{proto: "tcp", fromPort: "80", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "80", toPort: "80", ipsV4: []string{"192.168.0.1"}},
+		},
+	}, peers, "test-namespace", make(map[string]bool))
+
+	assert.Len(t, subj.HostprotRule, 4)
+	assert.NotEqual(t, subj.HostprotRule[0].Name, subj.HostprotRule[1].Name)
+	assert.Equal(t, "30010", subj.HostprotRule[0].ToPort)
+	assert.Equal(t, "30020", subj.HostprotRule[1].ToPort)
+	assert.NotEqual(t, subj.HostprotRule[2].Name, subj.HostprotRule[3].Name)
+	assert.Equal(t, "unspecified", subj.HostprotRule[2].ToPort)
+	assert.Equal(t, "80", subj.HostprotRule[3].ToPort)
+	assert.Len(t, canonicalizeHppRules(subj.HostprotRule, cont.log.WithField("test", "distinct-port-ranges")), 4)
+}
+
+func TestBuildNetPolSubjRulesDistinctPortRanges(t *testing.T) {
+	cont := getContWithEnabledLocalHpp()
+	cont.config.HppOptimization = true
+	cont.configuredPodNetworkIps.V4.AddRanges([]ipam.IpRange{{
+		Start: net.ParseIP("192.168.0.0"),
+		End:   net.ParseIP("192.168.0.255"),
+	}})
+	cont.run()
+	defer cont.stop()
+
+	subj := apicapi.NewHostprotSubj("uni/tn-test/pol-test", "egress")
+	np := &v1net.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: "np-range"}}
+	cont.buildNetPolSubjRules("0", subj, "egress", &resolvedPeerPorts{
+		noPeers: true,
+		entries: []resolvedPortEntry{
+			{proto: "tcp", fromPort: "30000", toPort: "30010", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "30000", toPort: "30020", ipsV4: []string{"192.168.0.2"}},
+			{proto: "tcp", fromPort: "80", ipsV4: []string{"192.168.0.1"}},
+			{proto: "tcp", fromPort: "80", toPort: "80", ipsV4: []string{"192.168.0.1"}},
+		},
+	}, np)
+
+	assert.Len(t, subj["hostprotSubj"].Children, 4)
+	assert.NotEqual(t, subj["hostprotSubj"].Children[0].GetDn(), subj["hostprotSubj"].Children[1].GetDn())
+	assert.NotEqual(t, subj["hostprotSubj"].Children[2].GetDn(), subj["hostprotSubj"].Children[3].GetDn())
+}
+
 func TestBuildServiceAugment(t *testing.T) {
 	cont := getContWithEnabledLocalHpp()
 	cont.run()
@@ -4918,10 +4986,10 @@ func TestBuildServiceAugment(t *testing.T) {
 
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, has9090 := portAugments[protoPortKey("tcp", "9090")]
+		_, has9090 := portAugments[protoPortKey("tcp", "9090", "")]
 		assert.True(t, has9090, "service port 9090 (http) should be augmented")
 
-		_, has8080 := portAugments[protoPortKey("tcp", "8080")]
+		_, has8080 := portAugments[protoPortKey("tcp", "8080", "")]
 		assert.False(t, has8080, "service port 8080 (http-alt) must NOT be augmented for NP named port 'http'")
 
 		// Clean up
@@ -7179,24 +7247,20 @@ func TestBuildLocalNetPolSubjRulesIngressNamedPort(t *testing.T) {
 			Name:      "target-pod",
 			Labels:    map[string]string{"app": "target"},
 		},
+		Status: v1.PodStatus{PodIP: "1.1.1.2"},
 	}
 	cont.fakePodSource.Add(pod)
 	cont.fakeNetworkPolicySource.Add(np)
 
-	// Wait for pod/np to be processed and port cache to be populated
-	tu.WaitFor(t, "port-cache", 500*time.Millisecond,
+	// Wait for subject indexing, not asynchronous cache publication.
+	npKey := "testns/np1"
+	tu.WaitFor(t, "selected-subject-pod", 500*time.Millisecond,
 		func(last bool) (bool, error) {
-			cont.indexMutex.Lock()
-			defer cont.indexMutex.Unlock()
-			if len(cont.ctrPortNameCache) == 0 {
-				return false, nil
-			}
-			return true, nil
+			return len(cont.netPolPods.GetPodForObj(npKey)) == 1, nil
 		})
 
-	npKey := "testns/np1"
 	podKeys := cont.netPolPods.GetPodForObj(npKey)
-	portMap := cont.getPortNumsFromPortName(podKeys, "http")
+	portMap := cont.getIngressNamedPortNums(podKeys, "http")
 
 	// Named port "http" should resolve to 8080 from pod's container port.
 	assert.True(t, portMap[8080], "Port 8080 should be in portMap from pod")
@@ -7350,13 +7414,7 @@ func TestBuildLocalNetPolSubjRulesEgressIPBlockNamedPort(t *testing.T) {
 // TestNetworkPolicyIngressNamedPortEmptySelector verifies that when a
 // NetworkPolicy has an empty PodSelector (applying to all pods in the
 // namespace) and an ingress rule with a named port, the named port is
-// resolved via getNamedPortNumsForNs (which uses ctrPortNameCache) rather
-// than the per-pod netPolPods lookup path used when a PodSelector is set.
-//
-// This covers the branch at network_policy.go:1242:
-//
-//	if reflect.DeepEqual(np.Spec.PodSelector, metav1.LabelSelector{}) {
-//	    portMap = cont.getNamedPortNumsForNs(portName, namespace)
+// resolved directly from the selected Pods.
 func TestNetworkPolicyIngressNamedPortEmptySelector(t *testing.T) {
 	// NP applies to ALL pods in "testns" (empty PodSelector).
 	// Ingress allows traffic on the named port "http" from any source.
@@ -7376,7 +7434,6 @@ func TestNetworkPolicyIngressNamedPortEmptySelector(t *testing.T) {
 	baseDn := makeNp(nil, nil, name).GetDn()
 	np1SDnI := fmt.Sprintf("%s/subj-networkpolicy-ingress", baseDn)
 
-	// Expected rule: named port "http" resolves to 8080 via ctrPortNameCache.
 	rule_http_8080 := apicapi.NewHostprotRule(np1SDnI, "0_0-ipv4__np1")
 	rule_http_8080.SetAttr("direction", "ingress")
 	rule_http_8080.SetAttr("ethertype", "ipv4")
@@ -7418,9 +7475,6 @@ func TestNetworkPolicyIngressNamedPortEmptySelector(t *testing.T) {
 		Status: v1.PodStatus{PodIP: "1.1.1.2"},
 	}
 
-	// Verify that the NP rule with fromPort="8080" eventually appears.
-	// updateCtrNmPortForPod runs as a goroutine so we rely on the re-queue
-	// it triggers (nmPortNp re-queues the NP once the cache is populated).
 	cont := initCont()
 	cont.fakePodSource.Add(pod)
 	cont.run()
@@ -7473,71 +7527,148 @@ func TestNetworkPolicyIngressNamedPortEmptySelector(t *testing.T) {
 	cont.stop()
 }
 
-// TestGetNamedPortNumsForNs exercises getNamedPortNumsForNs directly,
-// covering namespace-scoped lookups into ctrPortNameCache, including
-// the case where the port does not exist in the cache, a pod in a
-// different namespace is skipped, and multiple pods contribute distinct
-// port numbers for the same named port.
-func TestGetNamedPortNumsForNs(t *testing.T) {
-	cont := testController()
-	cont.config.AciPolicyTenant = "test-tenant"
-
-	// Helper to add a pod to ctrPortNameCache as updateCtrNmPortForPod would.
-	addPodToCache := func(namespace, name string, portName string, portNum int) {
-		pod := &v1.Pod{
-			Spec: v1.PodSpec{
-				NodeName: "test-node",
-				Containers: []v1.Container{
-					{
-						Ports: []v1.ContainerPort{
-							{Name: portName, ContainerPort: int32(portNum), Protocol: v1.ProtocolTCP},
-						},
+func TestIngressNamedPortSubjectSelectors(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		selector metav1.LabelSelector
+		want     map[int]bool
+	}{
+		{"exact-empty", metav1.LabelSelector{}, map[int]bool{8080: true, 8081: true, 9090: true}},
+		{"equivalent-empty", metav1.LabelSelector{MatchLabels: map[string]string{}}, map[int]bool{8080: true, 8081: true, 9090: true}},
+		{"non-empty", metav1.LabelSelector{MatchLabels: map[string]string{"app": "target"}}, map[int]bool{8080: true, 8081: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cont := testController()
+			assert.NoError(t, cont.namespaceIndexer.Add(namespaceLabel("testns", nil)))
+			assert.NoError(t, cont.namespaceIndexer.Add(namespaceLabel("otherns", nil)))
+			for _, subject := range []struct {
+				namespace, name, app string
+				port                 int32
+				ip                   string
+			}{
+				{"testns", "target-a", "target", 8080, "1.1.1.2"},
+				{"testns", "target-b", "target", 8081, "1.1.1.3"},
+				{"testns", "not-selected", "other", 9090, "1.1.1.4"},
+				{"testns", "pending", "target", 9988, ""},
+				{"otherns", "other-namespace", "target", 9999, "1.2.1.2"},
+			} {
+				pod := &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: subject.namespace, Name: subject.name,
+						Labels: map[string]string{"app": subject.app},
 					},
-				},
-			},
-			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-			Status:     v1.PodStatus{PodIP: "1.1.1.1"},
-		}
-		podkey := namespace + "/" + name
-		cont.podIndexer.Add(pod)
-		// Populate ctrPortNameCache synchronously (bypasses the goroutine).
-		cont.updateCtrNmPortForPod(pod, podkey)
+					Spec: v1.PodSpec{Containers: []v1.Container{{
+						Name: "app", Ports: []v1.ContainerPort{{Name: "http", ContainerPort: subject.port}},
+					}}},
+					Status: v1.PodStatus{PodIP: subject.ip},
+				}
+				assert.NoError(t, cont.podIndexer.Add(pod))
+			}
+			np := netpol("testns", "named-ingress", &tc.selector,
+				[]v1net.NetworkPolicyIngressRule{{Ports: []v1net.NetworkPolicyPort{{
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "http"},
+				}}}}, nil, allPolicyTypes)
+			assert.NoError(t, cont.networkPolicyIndexer.Add(np))
+			cont.netPolPods.UpdateSelectorObjNoCallback(np)
+			podKeys := cont.netPolPods.GetPodForObj("testns/named-ingress")
+			// Selector scans can include unaddressed Pods; rendering must still exclude them.
+			assert.Contains(t, podKeys, "testns/pending")
+
+			assert.Empty(t, cont.ctrPortNameCache)
+			assert.Equal(t, tc.want, cont.getIngressNamedPortNums(podKeys, "http"))
+			resolved := cont.resolveNetPolPeersAndPorts("ingress", nil,
+				np.Spec.Ingress[0].Ports, nil, nil, np, cont.log.WithField("test", t.Name()))
+			var gotPorts, wantPorts []string
+			for _, entry := range resolved.entries {
+				gotPorts = append(gotPorts, entry.fromPort)
+			}
+			for port := range tc.want {
+				wantPorts = append(wantPorts, fmt.Sprint(port))
+			}
+			assert.ElementsMatch(t, wantPorts, gotPorts)
+			assert.Empty(t, cont.ctrPortNameCache)
+
+			// Recheck eligibility when a selector change reintroduces the pending Pod.
+			unmatched := np.DeepCopy()
+			unmatched.Spec.PodSelector = metav1.LabelSelector{MatchLabels: map[string]string{"app": "absent"}}
+			assert.NoError(t, cont.networkPolicyIndexer.Update(unmatched))
+			cont.netPolPods.UpdateSelectorObjNoCallback(unmatched)
+			assert.Empty(t, cont.netPolPods.GetPodForObj("testns/named-ingress"))
+			assert.NoError(t, cont.networkPolicyIndexer.Update(np))
+			cont.netPolPods.UpdateSelectorObjNoCallback(np)
+			assert.Contains(t, cont.netPolPods.GetPodForObj("testns/named-ingress"), "testns/pending")
+			resolved = cont.resolveNetPolPeersAndPorts("ingress", nil,
+				np.Spec.Ingress[0].Ports, nil, nil, np, cont.log.WithField("test", t.Name()))
+			gotPorts = nil
+			for _, entry := range resolved.entries {
+				gotPorts = append(gotPorts, entry.fromPort)
+			}
+			assert.ElementsMatch(t, wantPorts, gotPorts)
+		})
+	}
+}
+
+func TestGetIngressNamedPortNums(t *testing.T) {
+	port := func(number int32) []v1.ContainerPort {
+		return []v1.ContainerPort{{Name: "http", ContainerPort: number, Protocol: v1.ProtocolTCP}}
+	}
+	regular := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "regular"},
+		Spec:   v1.PodSpec{Containers: []v1.Container{{Name: "app", Ports: port(8080)}}},
+		Status: v1.PodStatus{PodIP: "1.1.1.2"}}
+	init := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "init"},
+		Spec:   v1.PodSpec{InitContainers: []v1.Container{{Name: "init", Ports: port(8081)}}},
+		Status: v1.PodStatus{PodIP: "1.1.1.3"}}
+	restartAlways := v1.ContainerRestartPolicyAlways
+	sidecar := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "sidecar"},
+		Spec:   v1.PodSpec{InitContainers: []v1.Container{{Name: "sidecar", RestartPolicy: &restartAlways, Ports: port(8082)}}},
+		Status: v1.PodStatus{PodIP: "1.1.1.4"}}
+	hostNetwork := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "host-network"},
+		Spec:   v1.PodSpec{HostNetwork: true, Containers: []v1.Container{{Name: "app", Ports: port(9999)}}},
+		Status: v1.PodStatus{PodIP: "192.168.1.2"}}
+	noIP := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "no-ip"},
+		Spec: v1.PodSpec{Containers: []v1.Container{{Name: "app", Ports: port(9988)}}}}
+	// Duplicate names are a defensive fixture, not a supported Pod configuration.
+	// Preserve ordinary-container precedence over init containers.
+	firstMatch := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "testns", Name: "first-match"},
+		Spec: v1.PodSpec{Containers: []v1.Container{{Name: "app", Ports: port(8083)}},
+			InitContainers: []v1.Container{{Name: "init", Ports: port(9093)}}},
+		Status: v1.PodStatus{PodIP: "1.1.1.5"}}
+	for _, tc := range []struct {
+		name     string
+		pods     []*v1.Pod
+		portName string
+		want     map[int]bool
+	}{
+		{"no-subjects", nil, "http", map[int]bool{}},
+		{"regular-container", []*v1.Pod{regular}, "http", map[int]bool{8080: true}},
+		{"ordinary-init-container", []*v1.Pod{init}, "http", map[int]bool{8081: true}},
+		{"restartable-init-container", []*v1.Pod{sidecar}, "http", map[int]bool{8082: true}},
+		{"host-network-excluded", []*v1.Pod{hostNetwork}, "http", map[int]bool{}},
+		{"pod-without-ip-excluded", []*v1.Pod{noIP}, "http", map[int]bool{}},
+		{"mixed-subjects", []*v1.Pod{regular, init, sidecar, hostNetwork, noIP}, "http", map[int]bool{8080: true, 8081: true, 8082: true}},
+		{"missing-port-name", []*v1.Pod{regular, init}, "absent", map[int]bool{}},
+		{"first-match-precedence", []*v1.Pod{firstMatch}, "http", map[int]bool{8083: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cont := testController()
+			podKeys := []string{"testns/missing-from-informer"}
+			for _, pod := range tc.pods {
+				assert.NoError(t, cont.podIndexer.Add(pod))
+				podKeys = append(podKeys, pod.Namespace+"/"+pod.Name)
+			}
+			assert.Empty(t, cont.ctrPortNameCache)
+			assert.Equal(t, tc.want, cont.getIngressNamedPortNums(podKeys, tc.portName))
+			assert.Empty(t, cont.ctrPortNameCache)
+		})
 	}
 
-	// Case 1: cache is empty — should return empty map.
-	result := cont.getNamedPortNumsForNs("http", "testns")
-	if len(result) != 0 {
-		t.Errorf("expected empty map for unknown port name, got %v", result)
-	}
-
-	// Case 2: one pod in "testns" with "http"=8080.
-	addPodToCache("testns", "pod1", "http", 8080)
-	result = cont.getNamedPortNumsForNs("http", "testns")
-	if !result[8080] {
-		t.Errorf("expected port 8080 in result, got %v", result)
-	}
-
-	// Case 3: a pod in a different namespace should NOT contribute.
-	addPodToCache("otherNS", "pod2", "http", 9090)
-	result = cont.getNamedPortNumsForNs("http", "testns")
-	if result[9090] {
-		t.Errorf("pod in otherNS should not affect testns lookup, got %v", result)
-	}
-	if !result[8080] {
-		t.Errorf("pod in testns should still be present, got %v", result)
-	}
-
-	// Case 4: a second pod in "testns" with the same named port but a
-	// different number — both should appear (over-permissive warning path).
-	addPodToCache("testns", "pod3", "http", 80)
-	result = cont.getNamedPortNumsForNs("http", "testns")
-	if !result[8080] || !result[80] {
-		t.Errorf("expected both port 80 and 8080 in testns result, got %v", result)
-	}
-	// otherNS port should still be absent.
-	if result[9090] {
-		t.Errorf("otherNS port should not appear in testns result, got %v", result)
-	}
+	t.Run("egress-still-includes-no-ip-and-host-network", func(t *testing.T) {
+		cont := testController()
+		assert.NoError(t, cont.podIndexer.Add(noIP))
+		assert.NoError(t, cont.podIndexer.Add(hostNetwork))
+		assert.Equal(t, map[int]bool{9988: true, 9999: true},
+			cont.getPortNumsFromPortName([]string{"testns/no-ip", "testns/host-network"}, "http"))
+	})
 }
 
 // TestGetServiceAugmentByPortRange exercises the port-range paths of
@@ -7592,7 +7723,7 @@ func TestGetServiceAugmentByPortRange(t *testing.T) {
 		portAugments := make(map[string]*portServiceAugment)
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, has8080 := portAugments[protoPortKey("tcp", "8080")]
+		_, has8080 := portAugments[protoPortKey("tcp", "8080", "")]
 		assert.True(t, has8080, "port 8080 in range [8080,8082] should be augmented via iterate-by-range path")
 
 		cont.indexMutex.Lock()
@@ -7641,7 +7772,7 @@ func TestGetServiceAugmentByPortRange(t *testing.T) {
 		portAugments := make(map[string]*portServiceAugment)
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, has8080 := portAugments[protoPortKey("tcp", "8080")]
+		_, has8080 := portAugments[protoPortKey("tcp", "8080", "")]
 		assert.True(t, has8080, "port 8080 should be augmented via iterate-index range path")
 
 		cont.indexMutex.Lock()
@@ -7692,7 +7823,7 @@ func TestGetServiceAugmentByPortRange(t *testing.T) {
 		portAugments := make(map[string]*portServiceAugment)
 		cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-		_, hasMulti := portAugments[protoPortKey("tcp", "8100")]
+		_, hasMulti := portAugments[protoPortKey("tcp", "8100", "")]
 		assert.True(t, hasMulti, "multi-resolution named port all-in-range should produce a service augment entry")
 
 		cont.indexMutex.Lock()
@@ -7739,7 +7870,7 @@ func TestGetServiceAugmentByPortNumeric(t *testing.T) {
 	portAugments := make(map[string]*portServiceAugment)
 	cont.getServiceAugmentByPort(prs, portAugments, logger)
 
-	_, has7070 := portAugments[protoPortKey("tcp", "7070")]
+	_, has7070 := portAugments[protoPortKey("tcp", "7070", "")]
 	assert.True(t, has7070, "numeric port 7070 should be augmented via single-port path")
 
 	cont.indexMutex.Lock()
@@ -7812,6 +7943,41 @@ func TestNetworkPolicyChangedHppOptimization(t *testing.T) {
 		// Exercises the PolicyTypes diff path (enqueues subject pods).
 		cont.networkPolicyChanged(np, npNew)
 	})
+}
+
+func TestIsNamedPortPresentInNpIngress(t *testing.T) {
+	tcpProto := v1.ProtocolTCP
+	numeric := intstr.FromInt(8080)
+	named := intstr.FromString("http")
+	for _, tc := range []struct {
+		name    string
+		ingress []v1net.NetworkPolicyIngressRule
+		egress  []v1net.NetworkPolicyEgressRule
+		want    bool
+	}{
+		{name: "empty"},
+		{name: "omitted-port", ingress: []v1net.NetworkPolicyIngressRule{{
+			Ports: []v1net.NetworkPolicyPort{{Protocol: &tcpProto}},
+		}}},
+		{name: "numeric", ingress: []v1net.NetworkPolicyIngressRule{{
+			Ports: []v1net.NetworkPolicyPort{{Port: &numeric}},
+		}}},
+		{name: "named-ingress", ingress: []v1net.NetworkPolicyIngressRule{
+			{Ports: []v1net.NetworkPolicyPort{{Port: &numeric}}},
+			{Ports: []v1net.NetworkPolicyPort{{}, {Port: &named}}},
+		}, want: true},
+		{name: "named-egress-only", egress: []v1net.NetworkPolicyEgressRule{{
+			Ports: []v1net.NetworkPolicyPort{{Port: &named}},
+		}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			np := &v1net.NetworkPolicy{Spec: v1net.NetworkPolicySpec{
+				Ingress: tc.ingress,
+				Egress:  tc.egress,
+			}}
+			assert.Equal(t, tc.want, isNamedPortPresentInNpIngress(np))
+		})
+	}
 }
 
 func TestIsNamedPortPresenInNpNilPort(t *testing.T) {
