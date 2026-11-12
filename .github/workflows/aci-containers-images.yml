@@ -238,7 +238,8 @@ jobs:
             --metadata "${CI_ARTIFACT_DIR}/image-metadata.jsonl" \
             --bundle "${CI_ARTIFACT_DIR}/status-bundle" \
             --release-tag "${TRAVIS_TAG}" --source-repository "${GITHUB_REPOSITORY}" \
-            --source-sha "${TRAVIS_COMMIT}" --run-id "${GITHUB_RUN_NUMBER}" \
+            --source-sha "${TRAVIS_COMMIT}" --run-id "${GITHUB_RUN_ID}" \
+            --run-number "${GITHUB_RUN_NUMBER}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
             --run-url "${TRAVIS_JOB_WEB_URL}" --trigger-tag "${GITHUB_REF_NAME}" \
             --upstream-id "${UPSTREAM_ID}"
           echo "prepared=true" >> "${GITHUB_OUTPUT}"
