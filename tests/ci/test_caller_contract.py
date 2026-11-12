@@ -150,4 +150,30 @@ class CallerContract(unittest.TestCase):
             self.assertEqual(job['env']['CI_EVIDENCE_MODE'], 'prepared-v1')
             self.assertEqual(job['env']['CI_SCAN_POLICY'], 'fatal')
 
+    def test_status_publisher_scope_comes_from_trusted_caller_identity(self):
+        job, publisher = next((job, step) for job in self.workflow['jobs'].values() for step in job['steps']
+                              if 'TRAVIS_TAGGER' in step.get('env', {}))
+        run = publisher['run']
+        for option in ('release-tag', 'kind', 'stream', 'source-repository', 'source-sha', 'cicd-sha', 'run-id', 'run-attempt', 'images'):
+            self.assertIn('--expected-' + option, run)
+        self.assertIn('--expected-source-repository "${GITHUB_REPOSITORY}"', run)
+        self.assertIn('--expected-source-sha "${TRAVIS_COMMIT}"', run)
+        self.assertIn('--expected-cicd-sha "${CICD_COMMIT}"', run)
+        self.assertIn('--expected-run-id "${GITHUB_RUN_ID}"', run)
+        if self.acc:
+            builder = self.workflow['jobs']['build-and-publish']
+            self.assertEqual(builder['outputs']['source-sha'], '${{ steps.source.outputs.source_sha }}')
+            source = next(step for step in builder['steps'] if step.get('id') == 'source')
+            self.assertIn('source_sha=${tagged_commit}', source['run'])
+            self.assertEqual(job['env']['TRAVIS_COMMIT'], '${{ needs.build-and-publish.outputs.source-sha }}')
+            self.assertIn('--expected-kind package', run)
+            self.assertIn("outputs.package-index == 'pypi'", job['env']['EXPECTED_STATUS_STREAM'])
+            self.assertIn("|| ''", job['env']['EXPECTED_STATUS_IMAGES'])
+        else:
+            self.assertIn('--expected-kind images', run)
+            self.assertIn('--expected-stream "${TRAVIS_TAG}.z"', run)
+            images = re.search(r'--expected-images "([^"]+)"', run)[1].split(',')
+            self.assertEqual(len(images), 1 if 'opflex' in self.path.name else 8)
+            self.assertNotIn('$', ','.join(images))
+
 if __name__=='__main__':unittest.main()

@@ -263,6 +263,11 @@ jobs:
           set -Eeuo pipefail
           python3 "${CICD_DIR}/travis/ci_evidence.py" publish \
             --bundle "${CI_ARTIFACT_DIR}/status-bundle" \
+            --expected-release-tag "${TRAVIS_TAG}" --expected-kind images \
+            --expected-stream "${TRAVIS_TAG}.z" \
+            --expected-source-repository "${GITHUB_REPOSITORY}" --expected-source-sha "${TRAVIS_COMMIT}" \
+            --expected-cicd-sha "${CICD_COMMIT}" --expected-run-id "${GITHUB_RUN_ID}" \
+            --expected-run-attempt "${GITHUB_RUN_ATTEMPT}" --expected-images "aci-containers-host,aci-containers-host-ovscni,aci-containers-controller,aci-containers-operator,aci-containers-webhook,aci-containers-certmanager,cnideploy,openvswitch" \
             --repository https://github.com/noironetworks/cicd-status.git --branch main
 
       - name: Upload build logs
