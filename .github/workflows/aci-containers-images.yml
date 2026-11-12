@@ -117,7 +117,7 @@ jobs:
     env:
       SOURCE_BRANCH: ${{ vars.SOURCE_BRANCH || 'mmr-6.1.1' }}
       UPSTREAM_ID: ${{ vars.UPSTREAM_ID }}
-      CICD_COMMIT: REVIEWED_CICD_COMMIT_REQUIRED
+      CICD_COMMIT: 34fb4932b027fb1776575c0918b1f9ca530b4929
       SKIP_CICD_STATUS: ${{ vars.SKIP_CICD_STATUS || 'true' }}
       CI_ARTIFACT_DIR: ci-artifacts
       CI_EVIDENCE_MODE: prepared-v1
