@@ -71,7 +71,11 @@ jobs:
           {
             echo "### aci-containers unit tests"
             echo
+            # Markdown backticks are literal in this printf format.
+            # shellcheck disable=SC2016
             printf 'Tested commit: `%s`\n\n' "${GITHUB_SHA}"
+            # Markdown backticks are literal in this printf format.
+            # shellcheck disable=SC2016
             printf 'Test result: `%s`\n\n' "${UNIT_TEST_RESULT}"
             if ((${#profiles[@]} > 0)); then
               echo '| Coverage profile | Statement coverage |'
@@ -80,8 +84,12 @@ jobs:
                 report="${UT_ARTIFACT_DIR}/${profile}-summary.txt"
                 if go tool cover -func="${profile}" >"${report}" 2>&1; then
                   coverage="$(awk '$1 == "total:" { print $NF }' "${report}")"
+                  # Markdown backticks are literal in this printf format.
+                  # shellcheck disable=SC2016
                   printf '| `%s` | %s |\n' "${profile}" "${coverage}"
                 else
+                  # Markdown backticks are literal in this printf format.
+                  # shellcheck disable=SC2016
                   printf '| `%s` | Unavailable; see artifact |\n' "${profile}"
                 fi
               done
@@ -109,9 +117,11 @@ jobs:
     env:
       SOURCE_BRANCH: ${{ vars.SOURCE_BRANCH || 'mmr-6.1.1' }}
       UPSTREAM_ID: ${{ vars.UPSTREAM_ID }}
-      CICD_BRANCH: ${{ vars.CICD_BRANCH || 'mmr-6.1.1' }}
+      CICD_COMMIT: ed91df64e63184ab5a5171d0705062ae57c664a7
       SKIP_CICD_STATUS: ${{ vars.SKIP_CICD_STATUS || 'true' }}
       CI_ARTIFACT_DIR: ci-artifacts
+      CI_EVIDENCE_MODE: prepared-v1
+      CI_SCAN_POLICY: fatal
       DOCKER_BUILDKIT: "1"
       GOPROXY: "https://proxy.golang.org|https://goproxy.io|direct"
 
@@ -172,13 +182,17 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 -m pip install pyyaml pytz
-          if [[ "${SKIP_CICD_STATUS}" == "false" ]]; then
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-              | sudo sh -s -- -b /usr/local/bin
-          fi
           cicd_dir="${RUNNER_TEMP}/cicd"
-          git clone --depth=1 --single-branch --branch "${CICD_BRANCH}" \
-            https://github.com/noironetworks/cicd.git "${cicd_dir}"
+          [[ "${CICD_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::CICD_COMMIT must pin a reviewed full commit SHA"; exit 1;
+          }
+          git init --quiet "${cicd_dir}"
+          git -C "${cicd_dir}" remote add origin https://github.com/noironetworks/cicd.git
+          git -C "${cicd_dir}" fetch --depth=1 origin "${CICD_COMMIT}"
+          git -C "${cicd_dir}" checkout --quiet --detach FETCH_HEAD
+          [[ "$(git -C "${cicd_dir}" rev-parse HEAD)" == "${CICD_COMMIT}" ]] || {
+            echo "::error::CICD checkout does not match reviewed pin"; exit 1;
+          }
           cicd_release="$(sed -nE 's/^RELEASE_TAG="([^"]+)"/\1/p' "${cicd_dir}/travis/globals.sh")"
           [[ "${cicd_release}" == "${TRAVIS_TAG}" ]] || {
             echo "::error::CICD release ${cicd_release} does not match ${TRAVIS_TAG}"; exit 1;
@@ -208,17 +222,51 @@ jobs:
 
       - name: Build and publish through shared CICD scripts
         shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "${CI_ARTIFACT_DIR}"
+          "${CICD_DIR}/travis/check-git-tag.sh"
+          SKIP_CICD_STATUS=true "${CICD_DIR}/travis/build-push-aci-containers-images.sh" \
+            2>&1 | tee "${CI_ARTIFACT_DIR}/build-and-publish.log"
+
+      - name: Remove registry credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f -- "${RUNNER_TEMP}/aci-docker-config/config.json" \
+            "${RUNNER_TEMP}/aci-quay-noiro-docker-config/config.json"
+
+      - name: Prepare immutable image evidence
+        id: evidence
+        if: ${{ always() && hashFiles('ci-artifacts/image-metadata.jsonl') != '' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 "${CICD_DIR}/travis/ci_evidence.py" prepare-images \
+            --metadata "${CI_ARTIFACT_DIR}/image-metadata.jsonl" \
+            --bundle "${CI_ARTIFACT_DIR}/status-bundle" \
+            --release-tag "${TRAVIS_TAG}" --source-repository "${GITHUB_REPOSITORY}" \
+            --source-sha "${TRAVIS_COMMIT}" --run-id "${GITHUB_RUN_ID}" \
+            --run-number "${GITHUB_RUN_NUMBER}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --run-url "${TRAVIS_JOB_WEB_URL}" --trigger-tag "${GITHUB_REF_NAME}" \
+            --upstream-id "${UPSTREAM_ID}"
+          echo "prepared=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish prepared image status
+        if: ${{ always() && env.SKIP_CICD_STATUS == 'false' && steps.evidence.outputs.prepared == 'true' }}
+        shell: bash
         env:
           TRAVIS_TAGGER: ${{ secrets.GITHUBACTIONS_TAGGER }}
         run: |
           set -Eeuo pipefail
-          if [[ "${SKIP_CICD_STATUS}" == "false" ]]; then
-            : "${TRAVIS_TAGGER:?GITHUBACTIONS_TAGGER is required for status publication}"
-          fi
-          mkdir -p "${CI_ARTIFACT_DIR}"
-          "${CICD_DIR}/travis/check-git-tag.sh"
-          "${CICD_DIR}/travis/build-push-aci-containers-images.sh" \
-            2>&1 | tee "${CI_ARTIFACT_DIR}/build-and-publish.log"
+          python3 "${CICD_DIR}/travis/ci_evidence.py" publish \
+            --bundle "${CI_ARTIFACT_DIR}/status-bundle" \
+            --expected-release-tag "${TRAVIS_TAG}" --expected-kind images \
+            --expected-stream "${TRAVIS_TAG}.z" \
+            --expected-source-repository "${GITHUB_REPOSITORY}" --expected-source-sha "${TRAVIS_COMMIT}" \
+            --expected-cicd-sha "${CICD_COMMIT}" --expected-run-id "${GITHUB_RUN_ID}" \
+            --expected-run-attempt "${GITHUB_RUN_ATTEMPT}" --expected-images "aci-containers-host,aci-containers-host-ovscni,aci-containers-controller,aci-containers-operator,aci-containers-webhook,aci-containers-certmanager,cnideploy,openvswitch" \
+            --repository https://github.com/noironetworks/cicd-status.git --branch main
 
       - name: Upload build logs
         if: always()
@@ -229,9 +277,3 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Remove registry credentials
-        if: always()
-        shell: bash
-        run: |
-          rm -f -- "${RUNNER_TEMP}/aci-docker-config/config.json" \
-            "${RUNNER_TEMP}/aci-quay-noiro-docker-config/config.json"
