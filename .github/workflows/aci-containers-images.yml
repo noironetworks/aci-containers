@@ -121,6 +121,8 @@ jobs:
       SKIP_CICD_STATUS: ${{ vars.SKIP_CICD_STATUS || 'true' }}
       CI_ARTIFACT_DIR: ci-artifacts
       CI_EVIDENCE_MODE: prepared-v1
+      # Owner records the verified OpFlex base digest for this release line.
+      EXPECTED_OPFLEX_BASE_DIGEST: ${{ vars.MMR611_OPFLEX_BASE_DIGEST }}
       CI_SCAN_POLICY: advisory
       DOCKER_BUILDKIT: "1"
       GOPROXY: "https://proxy.golang.org|https://goproxy.io|direct"
@@ -146,6 +148,11 @@ jobs:
           [[ "${SKIP_CICD_STATUS}" == "true" || "${SKIP_CICD_STATUS}" == "false" ]] || {
             echo "::error::SKIP_CICD_STATUS must be true or false"; exit 1;
           }
+          if [[ "${CI_EVIDENCE_MODE:-}" == prepared-v1 ]]; then
+            [[ "${EXPECTED_OPFLEX_BASE_DIGEST:-}" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+              echo "::error::Prepared ACI builds require the approved EXPECTED_OPFLEX_BASE_DIGEST"; exit 1;
+            }
+          fi
           git fetch --force --no-tags origin \
             "+refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}" \
             "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}"
