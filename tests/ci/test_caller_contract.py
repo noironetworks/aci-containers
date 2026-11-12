@@ -39,6 +39,12 @@ class CallerContract(unittest.TestCase):
                 if 'secrets.' in str(step.get('env',{})):
                     self.assertTrue(reviewed,step['name'])
 
+    def test_evidence_retains_api_run_id_number_and_attempt_separately(self):
+        text=self.path.read_text()
+        self.assertIn('--run-id "${GITHUB_RUN_ID}"',text)
+        self.assertNotIn('--run-id "${GITHUB_RUN_NUMBER}"',text)
+        self.assertIn('--run-number "${GITHUB_RUN_NUMBER}" --run-attempt "${GITHUB_RUN_ATTEMPT}"',text)
+
     def test_status_writer_has_only_status_credential_and_no_build_scanner(self):
         found=0
         for job in self.workflow['jobs'].values():
