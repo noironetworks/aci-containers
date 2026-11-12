@@ -109,7 +109,7 @@ jobs:
     env:
       SOURCE_BRANCH: ${{ vars.SOURCE_BRANCH || 'master' }}
       UPSTREAM_ID: ${{ vars.UPSTREAM_ID }}
-      CICD_BRANCH: ${{ vars.CICD_BRANCH || 'main' }}
+      CICD_COMMIT: REVIEWED_CICD_COMMIT_REQUIRED
       SKIP_CICD_STATUS: ${{ vars.SKIP_CICD_STATUS || 'true' }}
       CI_ARTIFACT_DIR: ci-artifacts
       DOCKER_BUILDKIT: "1"
@@ -172,13 +172,19 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 -m pip install pyyaml pytz
-          if [[ "${SKIP_CICD_STATUS}" == "false" ]]; then
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-              | sudo sh -s -- -b /usr/local/bin
-          fi
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
           cicd_dir="${RUNNER_TEMP}/cicd"
-          git clone --depth=1 --single-branch --branch "${CICD_BRANCH}" \
-            https://github.com/noironetworks/cicd.git "${cicd_dir}"
+          [[ "${CICD_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::CICD_COMMIT must pin a reviewed full commit SHA"; exit 1;
+          }
+          git init --quiet "${cicd_dir}"
+          git -C "${cicd_dir}" remote add origin https://github.com/noironetworks/cicd.git
+          git -C "${cicd_dir}" fetch --depth=1 origin "${CICD_COMMIT}"
+          git -C "${cicd_dir}" checkout --quiet --detach FETCH_HEAD
+          [[ "$(git -C "${cicd_dir}" rev-parse HEAD)" == "${CICD_COMMIT}" ]] || {
+            echo "::error::CICD checkout does not match reviewed pin"; exit 1;
+          }
           cicd_release="$(sed -nE 's/^RELEASE_TAG="([^"]+)"/\1/p' "${cicd_dir}/travis/globals.sh")"
           [[ "${cicd_release}" == "${TRAVIS_TAG}" ]] || {
             echo "::error::CICD release ${cicd_release} does not match ${TRAVIS_TAG}"; exit 1;
@@ -212,38 +218,41 @@ jobs:
           set -Eeuo pipefail
           mkdir -p "${CI_ARTIFACT_DIR}"
           "${CICD_DIR}/travis/check-git-tag.sh"
-          "${CICD_DIR}/travis/build-push-aci-containers-images.sh" \
+          SKIP_CICD_STATUS=true "${CICD_DIR}/travis/build-push-aci-containers-images.sh" \
             2>&1 | tee "${CI_ARTIFACT_DIR}/build-and-publish.log"
 
-      - name: Publish image status to CICD
-        if: vars.SKIP_CICD_STATUS == 'false'
-        continue-on-error: true
+      - name: Remove registry credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f -- "${RUNNER_TEMP}/aci-docker-config/config.json" \
+            "${RUNNER_TEMP}/aci-quay-noiro-docker-config/config.json"
+
+      - name: Prepare immutable image evidence
+        id: evidence
+        if: ${{ always() && hashFiles('ci-artifacts/image-metadata.jsonl') != '' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 "${CICD_DIR}/travis/ci_evidence.py" prepare-images \
+            --metadata "${CI_ARTIFACT_DIR}/image-metadata.jsonl" \
+            --bundle "${CI_ARTIFACT_DIR}/status-bundle" \
+            --release-tag "${TRAVIS_TAG}" --source-repository "${GITHUB_REPOSITORY}" \
+            --source-sha "${TRAVIS_COMMIT}" --run-id "${GITHUB_RUN_NUMBER}" \
+            --run-url "${TRAVIS_JOB_WEB_URL}" --trigger-tag "${GITHUB_REF_NAME}" \
+            --upstream-id "${UPSTREAM_ID}"
+          echo "prepared=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish prepared image status
+        if: ${{ always() && env.SKIP_CICD_STATUS == 'false' && steps.evidence.outputs.prepared == 'true' }}
         shell: bash
         env:
           TRAVIS_TAGGER: ${{ secrets.GITHUBACTIONS_TAGGER }}
         run: |
           set -Eeuo pipefail
-          : "${TRAVIS_TAGGER:?GITHUBACTIONS_TAGGER is required for status publication}"
-
-          SCRIPTS_DIR="${CICD_DIR}/travis"
-          METADATA_FILE="${CI_ARTIFACT_DIR}/aci-images-metadata.jsonl"
-          [[ -f "$METADATA_FILE" ]] || { echo "No metadata file found"; exit 0; }
-
-          while IFS= read -r line; do
-            [[ -z "$line" ]] && continue
-            registry=$(echo "$line" | jq -r '.registry')
-            image=$(echo "$line" | jq -r '.image')
-            tag=$(echo "$line" | jq -r '.tag')
-            other_tags=$(echo "$line" | jq -r '.other_tags')
-            sha=$(echo "$line" | jq -r '.sha')
-            base_image=$(echo "$line" | jq -r '.base_image')
-
-            echo "Publishing status for ${image}..."
-            "$SCRIPTS_DIR/push-to-cicd-status.sh" "$registry" "$image" "$tag" "$other_tags" "$sha" "$base_image" || {
-              echo "WARNING: Failed to publish status for ${image}"
-            }
-          done < "$METADATA_FILE" \
-            2>&1 | tee -a "${CI_ARTIFACT_DIR}/build-and-publish.log"
+          python3 "${CICD_DIR}/travis/ci_evidence.py" publish \
+            --bundle "${CI_ARTIFACT_DIR}/status-bundle" \
+            --repository https://github.com/noironetworks/cicd-status.git --branch main
 
       - name: Upload build logs
         if: always()
@@ -254,9 +263,3 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Remove registry credentials
-        if: always()
-        shell: bash
-        run: |
-          rm -f -- "${RUNNER_TEMP}/aci-docker-config/config.json" \
-            "${RUNNER_TEMP}/aci-quay-noiro-docker-config/config.json"
