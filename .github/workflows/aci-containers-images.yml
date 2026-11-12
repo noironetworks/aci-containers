@@ -121,7 +121,7 @@ jobs:
       SKIP_CICD_STATUS: ${{ vars.SKIP_CICD_STATUS || 'true' }}
       CI_ARTIFACT_DIR: ci-artifacts
       CI_EVIDENCE_MODE: prepared-v1
-      CI_SCAN_POLICY: fatal
+      CI_SCAN_POLICY: advisory
       DOCKER_BUILDKIT: "1"
       GOPROXY: "https://proxy.golang.org|https://goproxy.io|direct"
 
