@@ -56,7 +56,7 @@ class WorkflowPolicy(unittest.TestCase):
             'opflex-images.yml', 'aci-containers-images.yml', 'acc-provision-tag-publish.yml'}]
         cls.workflow = yaml.safe_load(files[0].read_text()) if files else None
         cls.workflow_text = files[0].read_text() if files else ''
-        cls.repo = ('opflex' if 'OpFlex' in cls.workflow_text else 'aci-containers' if 'aci-containers CI' in cls.workflow_text else 'acc-provision')
+        cls.repo = {'OpFlex CI': 'opflex', 'aci-containers CI': 'aci-containers', 'acc-provision CI': 'acc-provision'}[cls.workflow['name']] if cls.workflow else 'acc-provision-operator'
 
     def context(self, event='push', ref='refs/heads/topic', canonical=True, deleted=False):
         return {'github': {'event_name': event, 'ref': ref,
@@ -177,6 +177,7 @@ esac
             ]:
                 env = {**os.environ, 'PATH': directory + os.pathsep + os.environ['PATH'], 'GITHUB_REF_NAME': tag,
                        'UPSTREAM_ID': '81c2369', 'SKIP_CICD_STATUS': 'false', 'SOURCE_BRANCH': 'fixture-branch',
+                       'CI_EVIDENCE_MODE': 'prepared-v1', 'EXPECTED_OPFLEX_BASE_DIGEST': 'sha256:' + 'e' * 64,
                        'SAFE_TAG': tag, 'GITHUB_ENV': directory + '/env', 'GITHUB_OUTPUT': directory + '/out',
                        'GITHUB_RUN_NUMBER': '123', 'GITHUB_REPOSITORY': f'noironetworks/{self.repo}',
                        'GITHUB_SERVER_URL': 'https://github.com', 'GITHUB_RUN_ID': '123', 'RUNNER_TEMP': directory,
