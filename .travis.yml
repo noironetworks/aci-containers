@@ -1,3 +1,5 @@
+# Retired CI entrypoint: GHA owns builds. This gate is independent of provider variables.
+if: "false"
 os: linux
 services: docker
 dist: jammy
