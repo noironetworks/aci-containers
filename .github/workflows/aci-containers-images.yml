@@ -255,8 +255,7 @@ jobs:
             2>&1 | tee "${CI_ARTIFACT_DIR}/build-and-publish.log"
 
       - name: Publish image status to CICD
-        if: vars.SKIP_CICD_STATUS == 'false'
-        continue-on-error: true
+        if: vars.SKIP_CICD_STATUS == 'false' && !cancelled()
         shell: bash
         env:
           TRAVIS_TAGGER: ${{ secrets.GITHUBACTIONS_TAGGER }}
@@ -268,6 +267,7 @@ jobs:
           METADATA_FILE="${CI_ARTIFACT_DIR}/aci-images-metadata.jsonl"
           [[ -f "$METADATA_FILE" ]] || { echo "No metadata file found"; exit 0; }
 
+          status_exit_code=0
           while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             registry=$(echo "$line" | jq -r '.registry')
@@ -276,13 +276,27 @@ jobs:
             other_tags=$(echo "$line" | jq -r '.other_tags')
             sha=$(echo "$line" | jq -r '.sha')
             base_image=$(echo "$line" | jq -r '.base_image')
+            evidence_dir=$(echo "$line" | jq -r '.evidence_dir // empty')
 
             echo "Publishing status for ${image}..."
-            "$SCRIPTS_DIR/push-to-cicd-status.sh" "$registry" "$image" "$tag" "$other_tags" "$sha" "$base_image" || {
-              echo "WARNING: Failed to publish status for ${image}"
-            }
+            if [[ -n "$evidence_dir" ]]; then
+              "$SCRIPTS_DIR/push-to-cicd-status.sh" "$registry" "$image" "$tag" "$other_tags" "$sha" "$base_image" "$evidence_dir" || {
+                echo "ERROR: Failed to publish status for ${image}" >&2
+                status_exit_code=1
+              }
+            else
+              "$SCRIPTS_DIR/push-to-cicd-status.sh" "$registry" "$image" "$tag" "$other_tags" "$sha" "$base_image" || {
+                echo "ERROR: Failed to publish status for ${image}" >&2
+                status_exit_code=1
+              }
+            fi
           done < "$METADATA_FILE" \
             2>&1 | tee -a "${CI_ARTIFACT_DIR}/build-and-publish.log"
+          
+          if [[ $status_exit_code -ne 0 ]]; then
+            echo "::error::One or more status publications failed; see log above"
+            exit 1
+          fi
 
       - name: Upload build logs
         if: always()
