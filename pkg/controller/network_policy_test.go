@@ -4873,6 +4873,139 @@ func TestBuildNetPolSubjRulesDistinctPortRanges(t *testing.T) {
 	assert.NotEqual(t, subj["hostprotSubj"].Children[2].GetDn(), subj["hostprotSubj"].Children[3].GetDn())
 }
 
+func TestUpdateServiceAugmentForServiceClusterIPs(t *testing.T) {
+	tests := []struct {
+		name       string
+		clusterIP  string
+		clusterIPs []string
+		ingress    []v1.LoadBalancerIngress
+		want       map[string]bool
+	}{
+		{"ipv4 primary", "10.96.0.10", []string{"10.96.0.10", "fd00::10"}, nil, map[string]bool{"10.96.0.10": true, "fd00::10": true}},
+		{"ipv6 primary", "fd00::10", []string{"fd00::10", "10.96.0.10"}, nil, map[string]bool{"10.96.0.10": true, "fd00::10": true}},
+		{"single stack", "10.96.0.10", []string{"10.96.0.10"}, nil, map[string]bool{"10.96.0.10": true}},
+		{"legacy and load balancer", "10.96.0.10", nil, []v1.LoadBalancerIngress{{IP: "fd00::11"}}, map[string]bool{"10.96.0.10": true, "fd00::11": true}},
+		{"headless", v1.ClusterIPNone, []string{v1.ClusterIPNone}, nil, nil},
+		{"unassigned", "", nil, nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &v1.Service{
+				Spec: v1.ServiceSpec{ClusterIP: tt.clusterIP, ClusterIPs: tt.clusterIPs},
+				Status: v1.ServiceStatus{
+					LoadBalancer: v1.LoadBalancerStatus{Ingress: tt.ingress},
+				},
+			}
+			augments := make(map[string]*portServiceAugment)
+			updateServiceAugmentForService(augments, "tcp", "8080", service)
+			if tt.want == nil {
+				assert.Empty(t, augments)
+			} else if assert.Contains(t, augments, "tcp-8080") {
+				assert.Equal(t, tt.want, augments["tcp-8080"].ipMap)
+			}
+		})
+	}
+}
+
+func TestBuildDualStackServiceAugment(t *testing.T) {
+	for _, mode := range []struct {
+		name   string
+		direct bool
+		opt    bool
+	}{
+		{"apic", false, false},
+		{"apic optimized", false, true},
+		{"hpp direct", true, false},
+	} {
+		for _, tt := range []struct {
+			name       string
+			clusterIP  string
+			clusterIPs []string
+			want       map[string]string
+		}{
+			{"ipv4 primary", "10.96.0.10", []string{"10.96.0.10", "fd00::10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}},
+			{"ipv6 primary", "fd00::10", []string{"fd00::10", "10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}},
+			{"single stack", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10"}},
+			{"legacy fallback", "10.96.0.10", []string{}, map[string]string{"ipv4": "10.96.0.10"}},
+			{"headless", v1.ClusterIPNone, []string{v1.ClusterIPNone}, map[string]string{}},
+		} {
+			t.Run(fmt.Sprintf("%s/%s", mode.name, tt.name), func(t *testing.T) {
+				config := NewConfig()
+				config.EnableHppDirect = mode.direct
+				config.HppOptimization = mode.opt
+				cont := testControllerWithConfig(config)
+				service := npservice("testns", "dual", tt.clusterIP, []v1.ServicePort{
+					servicePort("http", v1.ProtocolTCP, 8080, 8080),
+				})
+				service.Spec.ClusterIPs = tt.clusterIPs
+				assert.NoError(t, cont.serviceIndexer.Add(service))
+				cont.targetPortIndex["tcp-num-8080"] = &portIndexEntry{
+					portMapping: targetPort{
+						proto:          v1.ProtocolTCP,
+						portServiceMap: map[int]map[string]bool{8080: {"testns/dual": true}},
+					},
+				}
+				proto := v1.ProtocolTCP
+				portNum := intstr.FromInt(8080)
+				ports := map[string]*portRemoteSubnet{
+					"tcp-num-8080": {
+						port:      &v1net.NetworkPolicyPort{Protocol: &proto, Port: &portNum},
+						subnetMap: map[string]bool{"0.0.0.0/0": true},
+					},
+				}
+				logger := cont.log.WithField("test", t.Name())
+				for _, endpointIP := range []string{"10.1.1.2", "fd01::2"} {
+					slice := &discovery.EndpointSlice{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "dual-" + strings.ReplaceAll(endpointIP, ":", "-"), Namespace: "testns",
+							Labels: map[string]string{discovery.LabelServiceName: "dual"},
+						},
+						Ports:     []discovery.EndpointPort{endpointSlicePort(v1.ProtocolTCP, 8080, "http")},
+						Endpoints: []discovery.Endpoint{{Addresses: []string{endpointIP}}},
+					}
+					assert.NoError(t, cont.endpointSliceIndexer.Add(slice))
+					cont.updateIpIndex(cont.endpointsIpIndex, nil, map[string]bool{endpointIP: true}, "testns/dual")
+				}
+				for _, bySubnet := range []bool{false, true} {
+					t.Run(fmt.Sprintf("by-subnet-%t", bySubnet), func(t *testing.T) {
+						if bySubnet {
+							ports["tcp-num-8080"].subnetMap = map[string]bool{"10.1.1.2/32": true, "fd01::2/128": true}
+						}
+						if mode.direct {
+							subj := &hppv1.HostprotSubj{}
+							cont.buildServiceAugment(nil, subj, ports, logger)
+							rules := subj.HostprotRule
+							if assert.Len(t, rules, len(tt.want)) {
+								got := make(map[string]string)
+								for _, rule := range rules {
+									if assert.Len(t, rule.HostprotServiceRemoteIps, 1) {
+										got[rule.Ethertype] = rule.HostprotServiceRemoteIps[0]
+									}
+								}
+								assert.Equal(t, tt.want, got)
+							}
+						} else {
+							subj := apicapi.NewHostprotSubj("uni/tn-test/pol-test", "egress")
+							cont.buildServiceAugment(subj, nil, ports, logger)
+							rules := subj["hostprotSubj"].Children
+							if assert.Len(t, rules, len(tt.want)) {
+								got := make(map[string]string)
+								for _, rule := range rules {
+									children := rule["hostprotRule"].Children
+									if assert.Len(t, children, 1) {
+										got[rule.GetAttrStr("ethertype")] = children[0].GetAttrStr("addr")
+									}
+								}
+								assert.Equal(t, tt.want, got)
+							}
+						}
+					})
+				}
+			})
+		}
+	}
+}
+
 func TestBuildServiceAugment(t *testing.T) {
 	cont := getContWithEnabledLocalHpp()
 	cont.run()
