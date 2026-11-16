@@ -31,6 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
+	v1net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -2268,6 +2269,17 @@ func (cont *AciController) serviceUpdated(oldSvc, newSvc interface{}) {
 		cont.updateTargetPortIndex(true, servicekey, oldPorts, newPorts)
 		cont.queuePortNetPolUpdates(newPorts)
 		cont.indexMutex.Unlock()
+	}
+	if oldservice.Spec.ClusterIP != newservice.Spec.ClusterIP ||
+		!reflect.DeepEqual(oldservice.Spec.ClusterIPs, newservice.Spec.ClusterIPs) {
+		// Service addresses can be included by selectors, IP blocks, or
+		// wildcard port ranges, including across namespaces.
+		for _, obj := range cont.networkPolicyIndexer.List() {
+			np := obj.(*v1net.NetworkPolicy)
+			if len(np.Spec.Egress) > 0 {
+				cont.queueNetPolUpdate(np)
+			}
+		}
 	}
 	cont.queueServiceUpdateByKey(servicekey)
 }
