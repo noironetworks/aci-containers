@@ -4922,12 +4922,16 @@ func TestBuildDualStackServiceAugment(t *testing.T) {
 			clusterIP  string
 			clusterIPs []string
 			want       map[string]string
+			ingress    []v1.LoadBalancerIngress
 		}{
-			{"ipv4 primary", "10.96.0.10", []string{"10.96.0.10", "fd00::10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}},
-			{"ipv6 primary", "fd00::10", []string{"fd00::10", "10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}},
-			{"single stack", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10"}},
-			{"legacy fallback", "10.96.0.10", []string{}, map[string]string{"ipv4": "10.96.0.10"}},
-			{"headless", v1.ClusterIPNone, []string{v1.ClusterIPNone}, map[string]string{}},
+			{"ipv4 primary", "10.96.0.10", []string{"10.96.0.10", "fd00::10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}, nil},
+			{"ipv6 primary", "fd00::10", []string{"fd00::10", "10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}, nil},
+			{"single stack", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10"}, nil},
+			{"ipv6 single stack", "fd00::10", []string{"fd00::10"}, map[string]string{"ipv6": "fd00::10"}, nil},
+			{"legacy fallback", "10.96.0.10", []string{}, map[string]string{"ipv4": "10.96.0.10"}, nil},
+			{"headless", v1.ClusterIPNone, []string{v1.ClusterIPNone}, map[string]string{}, nil},
+			{"clusterip and load balancer", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::11"}, []v1.LoadBalancerIngress{{IP: "fd00::11"}}},
+			{"duplicate and hostname ingress", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::11"}, []v1.LoadBalancerIngress{{IP: "10.96.0.10"}, {IP: "fd00::11"}, {IP: "fd00::11"}, {Hostname: "lb.example.com"}}},
 		} {
 			t.Run(fmt.Sprintf("%s/%s", mode.name, tt.name), func(t *testing.T) {
 				config := NewConfig()
@@ -4938,6 +4942,10 @@ func TestBuildDualStackServiceAugment(t *testing.T) {
 					servicePort("http", v1.ProtocolTCP, 8080, 8080),
 				})
 				service.Spec.ClusterIPs = tt.clusterIPs
+				if len(tt.ingress) > 0 {
+					service.Spec.Type = v1.ServiceTypeLoadBalancer
+					service.Status.LoadBalancer.Ingress = tt.ingress
+				}
 				assert.NoError(t, cont.serviceIndexer.Add(service))
 				cont.targetPortIndex["tcp-num-8080"] = &portIndexEntry{
 					portMapping: targetPort{
@@ -4974,10 +4982,17 @@ func TestBuildDualStackServiceAugment(t *testing.T) {
 						if mode.direct {
 							subj := &hppv1.HostprotSubj{}
 							cont.buildServiceAugment(nil, subj, ports, logger)
-							rules := subj.HostprotRule
+							rules := canonicalizeHppRules(subj.HostprotRule, logger)
 							if assert.Len(t, rules, len(tt.want)) {
 								got := make(map[string]string)
 								for _, rule := range rules {
+									assert.Equal(t, "service_tcp_8080-"+rule.Ethertype, rule.Name)
+									for _, address := range rule.HostprotServiceRemoteIps {
+										ip := net.ParseIP(address)
+										if assert.NotNil(t, ip) {
+											assert.Equal(t, rule.Ethertype == "ipv4", ip.To4() != nil)
+										}
+									}
 									if assert.Len(t, rule.HostprotServiceRemoteIps, 1) {
 										got[rule.Ethertype] = rule.HostprotServiceRemoteIps[0]
 									}
@@ -5007,87 +5022,138 @@ func TestBuildDualStackServiceAugment(t *testing.T) {
 }
 
 func TestServiceClusterIPUpdateRefreshesEgressPolicies(t *testing.T) {
-	for _, mode := range []string{"apic", "optimized"} {
-		t.Run(mode, func(t *testing.T) {
-			cont := newIngressLifecycleController(t, mode)
-			service := npservice("testns", "dual", "10.96.0.10", []v1.ServicePort{
-				servicePort("http", v1.ProtocolTCP, 8080, 8080),
-			})
-			service.Spec.ClusterIPs = []string{"10.96.0.10"}
-			proto := v1.ProtocolTCP
-			target := intstr.FromInt(8080)
-			policy := netpol("testns", "egress", &metav1.LabelSelector{}, nil,
-				[]v1net.NetworkPolicyEgressRule{egressRule([]v1net.NetworkPolicyPort{
-					{Protocol: &proto, Port: &target},
-				}, nil)}, []v1net.PolicyType{v1net.PolicyTypeEgress})
-			assert.NoError(t, cont.serviceIndexer.Add(service))
-			assert.NoError(t, cont.networkPolicyIndexer.Add(policy))
-			cont.networkPolicyAdded(policy)
-			cont.serviceAdded(service)
+	for _, mode := range []string{"apic", "optimized", "direct"} {
+		for _, addressSource := range []string{"clusterip", "loadbalancer"} {
+			t.Run(mode+"/"+addressSource, func(t *testing.T) {
+				cont := newIngressLifecycleController(t, mode)
+				service := npservice("testns", "dual", "10.96.0.10", []v1.ServicePort{
+					servicePort("http", v1.ProtocolTCP, 8080, 8080),
+				})
+				service.Spec.ClusterIPs = []string{"10.96.0.10"}
+				if addressSource == "loadbalancer" {
+					service.Spec.Type = v1.ServiceTypeLoadBalancer
+				}
+				proto := v1.ProtocolTCP
+				target := intstr.FromInt(8080)
+				policy := netpol("testns", "egress", &metav1.LabelSelector{}, nil,
+					[]v1net.NetworkPolicyEgressRule{egressRule([]v1net.NetworkPolicyPort{
+						{Protocol: &proto, Port: &target},
+					}, nil)}, []v1net.PolicyType{v1net.PolicyTypeEgress})
+				assert.NoError(t, cont.serviceIndexer.Add(service))
+				assert.NoError(t, cont.networkPolicyIndexer.Add(policy))
+				cont.networkPolicyAdded(policy)
+				cont.serviceAdded(service)
 
-			policyKey := "testns/egress"
-			consumePolicy := func() {
-				t.Helper()
-				if !assert.Equal(t, 1, cont.netPolQueue.Len()) {
-					return
-				}
-				item, _ := cont.netPolQueue.Get()
-				assert.Equal(t, policyKey, item)
-				cont.handleNetPolUpdate(policy)
-				cont.netPolQueue.Done(item)
-			}
-			serviceIPs := func() map[string]bool {
-				t.Helper()
-				labelKey := cont.aciNameForKey("np", policyKey)
-				if mode == "optimized" {
-					hash, err := util.CreateHashFromNetPol(policy)
-					assert.NoError(t, err)
-					labelKey = cont.aciNameForKey("np", hash)
-				}
-				ips := make(map[string]bool)
-				for _, obj := range cont.apicConn.GetDesiredState(labelKey) {
-					pol := obj["hostprotPol"]
-					if pol == nil {
-						continue
+				policyKey := "testns/egress"
+				consumePolicy := func() {
+					t.Helper()
+					if !assert.Equal(t, 1, cont.netPolQueue.Len()) {
+						return
 					}
-					for _, subject := range pol.Children {
-						subj := subject["hostprotSubj"]
-						if subj == nil {
+					item, _ := cont.netPolQueue.Get()
+					assert.Equal(t, policyKey, item)
+					cont.handleNetPolUpdate(policy)
+					cont.netPolQueue.Done(item)
+				}
+				serviceIPs := func() map[string]bool {
+					t.Helper()
+					labelKey := cont.aciNameForKey("np", policyKey)
+					if mode == "optimized" {
+						hash, err := util.CreateHashFromNetPol(policy)
+						assert.NoError(t, err)
+						labelKey = cont.aciNameForKey("np", hash)
+					}
+					ips := make(map[string]bool)
+					if mode == "direct" {
+						hash, err := util.CreateCanonicalHashFromNetPol(policy)
+						assert.NoError(t, err)
+						name := strings.ReplaceAll(cont.aciNameForKey("np", hash), "_", "-")
+						ref, exists := cont.hppDirRef[name]
+						if assert.True(t, exists) {
+							for _, subject := range ref.HppCr.Spec.HostprotSubj {
+								for _, rule := range subject.HostprotRule {
+									if strings.HasPrefix(rule.Name, "service_") {
+										assert.Equal(t, "service_tcp_8080-"+rule.Ethertype, rule.Name)
+										for _, ip := range rule.HostprotServiceRemoteIps {
+											ips[ip] = true
+										}
+									}
+								}
+							}
+						}
+						return ips
+					}
+					for _, obj := range cont.apicConn.GetDesiredState(labelKey) {
+						pol := obj["hostprotPol"]
+						if pol == nil {
 							continue
 						}
-						for _, rule := range subj.Children {
-							if strings.HasPrefix(rule.GetAttrStr("name"), "service_") {
-								for _, remote := range rule["hostprotRule"].Children {
-									if remote["hostprotRemoteIp"] != nil {
-										ips[remote.GetAttrStr("addr")] = true
+						for _, subject := range pol.Children {
+							subj := subject["hostprotSubj"]
+							if subj == nil {
+								continue
+							}
+							for _, rule := range subj.Children {
+								if strings.HasPrefix(rule.GetAttrStr("name"), "service_") {
+									for _, remote := range rule["hostprotRule"].Children {
+										if remote["hostprotRemoteIp"] != nil {
+											ips[remote.GetAttrStr("addr")] = true
+										}
 									}
 								}
 							}
 						}
 					}
+					return ips
 				}
-				return ips
-			}
-			consumePolicy()
-			assert.Equal(t, map[string]bool{"10.96.0.10": true}, serviceIPs())
+				consumePolicy()
+				assert.Equal(t, map[string]bool{"10.96.0.10": true}, serviceIPs())
 
-			updated := service.DeepCopy()
-			updated.Spec.ClusterIPs = []string{"10.96.0.10", "fd00::10"}
-			assert.NoError(t, cont.serviceIndexer.Update(updated))
-			cont.serviceUpdated(service, updated)
-			consumePolicy()
-			assert.Equal(t, map[string]bool{"10.96.0.10": true, "fd00::10": true}, serviceIPs())
+				updated := service.DeepCopy()
+				if addressSource == "loadbalancer" {
+					updated.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{IP: "fd00::10"}}
+				} else {
+					updated.Spec.ClusterIPs = []string{"10.96.0.10", "fd00::10"}
+				}
+				assert.NoError(t, cont.serviceIndexer.Update(updated))
+				cont.serviceUpdated(service, updated)
+				consumePolicy()
+				assert.Equal(t, map[string]bool{"10.96.0.10": true, "fd00::10": true}, serviceIPs())
 
-			unchanged := updated.DeepCopy()
-			unchanged.Labels = map[string]string{"unrelated": "change"}
-			cont.serviceUpdated(updated, unchanged)
-			assert.Equal(t, 0, cont.netPolQueue.Len())
+				cont.networkPolicyAdded(policy)
+				consumePolicy()
+				assert.Equal(t, map[string]bool{"10.96.0.10": true, "fd00::10": true}, serviceIPs())
 
-			assert.NoError(t, cont.serviceIndexer.Update(service))
-			cont.serviceUpdated(updated, service)
-			consumePolicy()
-			assert.Equal(t, map[string]bool{"10.96.0.10": true}, serviceIPs())
-		})
+				unchanged := updated.DeepCopy()
+				unchanged.Labels = map[string]string{"unrelated": "change"}
+				cont.serviceUpdated(updated, unchanged)
+				assert.Equal(t, 0, cont.netPolQueue.Len())
+
+				if addressSource == "loadbalancer" {
+					replaced := updated.DeepCopy()
+					replaced.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{IP: "fd00::11"}}
+					assert.NoError(t, cont.serviceIndexer.Update(replaced))
+					cont.serviceUpdated(updated, replaced)
+					consumePolicy()
+					assert.Equal(t, map[string]bool{"10.96.0.10": true, "fd00::11": true}, serviceIPs())
+					updated = replaced
+				}
+				assert.NoError(t, cont.serviceIndexer.Update(service))
+				cont.serviceUpdated(updated, service)
+				consumePolicy()
+				assert.Equal(t, map[string]bool{"10.96.0.10": true}, serviceIPs())
+
+				assert.NoError(t, cont.serviceIndexer.Delete(service))
+				cont.serviceDeleted(service)
+				consumePolicy()
+				assert.Empty(t, serviceIPs())
+
+				assert.NoError(t, cont.serviceIndexer.Add(service))
+				cont.serviceAdded(service)
+				consumePolicy()
+				assert.Equal(t, map[string]bool{"10.96.0.10": true}, serviceIPs())
+			})
+		}
 	}
 }
 
@@ -5111,17 +5177,23 @@ func TestServiceClusterIPUpdateQueuesCrossNamespaceEgress(t *testing.T) {
 	for _, policy := range policies {
 		assert.NoError(t, cont.networkPolicyIndexer.Add(policy))
 	}
-	updated := service.DeepCopy()
-	updated.Spec.ClusterIPs = []string{"10.96.0.10", "fd00::10"}
-	cont.serviceUpdated(service, updated)
-	if assert.Equal(t, 2, cont.netPolQueue.Len()) {
-		got := make(map[string]bool)
-		for i := 0; i < 2; i++ {
-			item, _ := cont.netPolQueue.Get()
-			got[item.(string)] = true
-			cont.netPolQueue.Done(item)
+	for _, addressSource := range []string{"clusterip", "loadbalancer"} {
+		updated := service.DeepCopy()
+		if addressSource == "clusterip" {
+			updated.Spec.ClusterIPs = []string{"10.96.0.10", "fd00::10"}
+		} else {
+			updated.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{IP: "fd00::11"}}
 		}
-		assert.Equal(t, map[string]bool{"otherns/selector": true, "otherns/range": true}, got)
+		cont.serviceUpdated(service, updated)
+		if assert.Equal(t, 2, cont.netPolQueue.Len(), addressSource) {
+			got := make(map[string]bool)
+			for i := 0; i < 2; i++ {
+				item, _ := cont.netPolQueue.Get()
+				got[item.(string)] = true
+				cont.netPolQueue.Done(item)
+			}
+			assert.Equal(t, map[string]bool{"otherns/selector": true, "otherns/range": true}, got)
+		}
 	}
 }
 

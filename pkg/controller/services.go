@@ -2271,7 +2271,8 @@ func (cont *AciController) serviceUpdated(oldSvc, newSvc interface{}) {
 		cont.indexMutex.Unlock()
 	}
 	if oldservice.Spec.ClusterIP != newservice.Spec.ClusterIP ||
-		!reflect.DeepEqual(oldservice.Spec.ClusterIPs, newservice.Spec.ClusterIPs) {
+		!reflect.DeepEqual(oldservice.Spec.ClusterIPs, newservice.Spec.ClusterIPs) ||
+		!reflect.DeepEqual(oldservice.Status.LoadBalancer.Ingress, newservice.Status.LoadBalancer.Ingress) {
 		// Service addresses can be included by selectors, IP blocks, or
 		// wildcard port ranges, including across namespaces.
 		for _, obj := range cont.networkPolicyIndexer.List() {

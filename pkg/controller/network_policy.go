@@ -2056,13 +2056,13 @@ func (cont *AciController) buildServiceAugment(subj apicapi.ApicObject,
 			if len(remoteIpsv4) > 0 {
 				sort.Strings(remoteIpsv4)
 				cont.buildLocalNetPolSubjRule(localsubj,
-					"service_"+augment.proto+"_"+augment.port,
+					"service_"+augment.proto+"_"+augment.port+"-ipv4",
 					"egress", "ipv4", augment.proto, augment.port, "", "", remoteIpsv4)
 			}
 			if len(remoteIpsv6) > 0 {
 				sort.Strings(remoteIpsv6)
 				cont.buildLocalNetPolSubjRule(localsubj,
-					"service_"+augment.proto+"_"+augment.port,
+					"service_"+augment.proto+"_"+augment.port+"-ipv6",
 					"egress", "ipv6", augment.proto, augment.port, "", "", remoteIpsv6)
 			}
 		}
