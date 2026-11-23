@@ -16,16 +16,23 @@ package hostagent
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 
 	"github.com/noironetworks/aci-containers/pkg/metadata"
+	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
+	nodeinfoclient "github.com/noironetworks/aci-containers/pkg/nodeinfo/clientset/versioned"
 	snatglobal "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
@@ -168,6 +175,177 @@ func (agent *testHostAgent) doTestSnat(t *testing.T, tempdir string,
 	case pt.policyname == "policy2":
 		assert.Equal(t, []string{"10.10.0.0/16"}, snat.DestIpAddress, desc, pt.name, "destip")
 	}
+}
+
+func TestSnatServiceDeletionPreservesRemainingMembership(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		policyLabels     map[string]string
+		survivorLabels   map[string]string
+		survivorSelector map[string]string
+		survivorType     v1.ServiceType
+		survivorNS       string
+		keepDeleted      bool
+		retainPolicy     bool
+		fallbackPolicy   bool
+	}{
+		{name: "namespace-only", survivorNS: "testns", survivorSelector: map[string]string{"role": "shared"}, retainPolicy: true},
+		{name: "deleted-service-still-cached", survivorNS: "testns", survivorSelector: map[string]string{"role": "shared"}, keepDeleted: true, retainPolicy: true},
+		{name: "label-selected", policyLabels: map[string]string{"snat": "yes"}, survivorLabels: map[string]string{"snat": "yes"}, survivorNS: "testns", survivorSelector: map[string]string{"role": "shared"}, retainPolicy: true},
+		{name: "nonmatching-policy-labels", policyLabels: map[string]string{"snat": "yes"}, survivorNS: "testns", survivorSelector: map[string]string{"role": "shared"}},
+		{name: "nonmatching-pod-selector", survivorNS: "testns", survivorSelector: map[string]string{"role": "unrelated"}},
+		{name: "different-namespace", survivorNS: "otherns", survivorSelector: map[string]string{"role": "shared"}},
+		{name: "clusterip-does-not-retain-service-backed-policy", survivorNS: "testns", survivorSelector: map[string]string{"role": "shared"}, survivorType: v1.ServiceTypeClusterIP, fallbackPolicy: true},
+		{name: "last-service"},
+		{name: "last-service-still-cached", keepDeleted: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			agent := testAgent()
+			agent.config.AciSnatNamespace = "aci-containers-system"
+			agent.config.UplinkMacAdress = "00:50:56:97:2d:0e"
+			agent.config.OpFlexEndpointDir = t.TempDir()
+			agent.syncEnabled.Store(true)
+			assert.NoError(t, agent.nodeInformer.GetStore().Add(&v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: agent.config.NodeName},
+			}))
+			policy := snatpolicydata("service-policy", "testns", nil, nil, test.policyLabels)
+			agent.snatPolicyCache[policy.Name] = policy
+			fallbackPolicyName := "lower-priority-policy"
+			if test.fallbackPolicy {
+				agent.snatPolicyCache[fallbackPolicyName] = snatpolicydata(fallbackPolicyName,
+					"testns", []string{"10.3.0.20"}, []string{"192.0.2.0/24"}, nil)
+			}
+			shared := &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "shared", Namespace: "testns", UID: "shared-pod", Labels: map[string]string{"app": "backend", "role": "shared"}},
+				Spec:       v1.PodSpec{NodeName: agent.config.NodeName},
+			}
+			onlyDeleted := shared.DeepCopy()
+			onlyDeleted.Name = "only-lb2"
+			onlyDeleted.UID = "only-lb2-pod"
+			onlyDeleted.Labels = map[string]string{"app": "backend", "role": "only-lb2"}
+			assert.NoError(t, agent.podInformer.GetStore().Add(shared))
+			assert.NoError(t, agent.podInformer.GetStore().Add(onlyDeleted))
+			deleted := &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "lb2", Namespace: "testns", UID: "lb2-uid", Labels: map[string]string{"snat": "yes"}},
+				Spec:       v1.ServiceSpec{Type: v1.ServiceTypeLoadBalancer, Selector: map[string]string{"app": "backend"}},
+			}
+			assert.NoError(t, agent.serviceInformer.GetStore().Add(deleted))
+			agent.handleObjectUpdateForSnat(deleted)
+			var survivor *v1.Service
+			if test.survivorNS != "" {
+				survivorType := test.survivorType
+				if survivorType == "" {
+					survivorType = v1.ServiceTypeLoadBalancer
+				}
+				survivor = &v1.Service{
+					ObjectMeta: metav1.ObjectMeta{Name: "lb1", Namespace: test.survivorNS, UID: "lb1-uid", Labels: test.survivorLabels},
+					Spec:       v1.ServiceSpec{Type: survivorType, Selector: test.survivorSelector},
+				}
+				assert.NoError(t, agent.serviceInformer.GetStore().Add(survivor))
+				agent.handleObjectUpdateForSnat(survivor)
+			}
+			var reportMutex sync.Mutex
+			reported := nodeinfo.NodeInfo{
+				TypeMeta:   metav1.TypeMeta{APIVersion: "aci.snat/v1", Kind: "NodeInfo"},
+				ObjectMeta: metav1.ObjectMeta{Name: agent.config.NodeName, Namespace: agent.config.AciSnatNamespace},
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				reportMutex.Lock()
+				defer reportMutex.Unlock()
+				writer.Header().Set("Content-Type", "application/json")
+				if request.Method == http.MethodPut {
+					var updated nodeinfo.NodeInfo
+					assert.NoError(t, json.NewDecoder(request.Body).Decode(&updated))
+					reported = updated
+				}
+				assert.NoError(t, json.NewEncoder(writer).Encode(&reported))
+			}))
+			defer server.Close()
+			client, err := nodeinfoclient.NewForConfig(&rest.Config{Host: server.URL})
+			if !assert.NoError(t, err) {
+				return
+			}
+			agent.env.(*K8sEnvironment).nodeInfo = client
+			assertReport := func(required bool) {
+				t.Helper()
+				assert.False(t, agent.syncSnatNodeInfo())
+				reportMutex.Lock()
+				defer reportMutex.Unlock()
+				assert.Equal(t, required, reported.Spec.SnatPolicyNames[policy.Name])
+				assert.Equal(t, agent.config.UplinkMacAdress, reported.Spec.Macaddress)
+			}
+			assertReport(true)
+			if !test.keepDeleted {
+				assert.NoError(t, agent.serviceInformer.GetStore().Delete(deleted))
+			}
+			agent.serviceDeleted(deleted)
+			assert.NotContains(t, agent.snatPods[policy.Name], string(onlyDeleted.UID))
+			if test.fallbackPolicy {
+				assert.Contains(t, agent.snatPods[fallbackPolicyName], string(shared.UID))
+				agent.opflexSnatGlobalInfos[agent.config.NodeName] = []*opflexSnatGlobalInfo{{
+					SnatIp:         "10.3.0.20",
+					SnatIpUid:      "lower-priority-uuid",
+					SnatPolicyName: fallbackPolicyName,
+				}}
+				agent.updateEpFiles([]string{string(shared.UID)})
+				assert.Equal(t, []string{"lower-priority-uuid"},
+					agent.opflexSnatLocalInfos[string(shared.UID)].PlcyUuids)
+			}
+			if test.retainPolicy {
+				assert.Equal(t, SERVICE, agent.snatPods[policy.Name][string(shared.UID)]&SERVICE)
+				assert.Contains(t, agent.opflexSnatLocalInfos[string(shared.UID)].Snatpolicies[SERVICE], policy.Name)
+			} else {
+				assert.Empty(t, agent.snatPods[policy.Name])
+			}
+			assertReport(test.retainPolicy)
+			if test.retainPolicy {
+				if test.keepDeleted {
+					assert.NoError(t, agent.serviceInformer.GetStore().Delete(deleted))
+				}
+				assert.NoError(t, agent.serviceInformer.GetStore().Delete(survivor))
+				agent.serviceDeleted(survivor)
+				assert.Empty(t, agent.snatPods[policy.Name])
+				assertReport(false)
+			}
+		})
+	}
+}
+
+func TestSnatGlobalInfoRemovalClearsEndpointUUID(t *testing.T) {
+	agent := testAgent()
+	agent.config.OpFlexServiceDir = t.TempDir()
+	policyName := "service-policy"
+	podUID := "backend-pod"
+	agent.snatPolicyCache[policyName] = snatpolicydata(policyName, "testns", nil,
+		[]string{"192.0.2.0/24"}, nil)
+	agent.snatPods[policyName] = map[string]ResourceType{podUID: POD}
+	agent.opflexSnatLocalInfos[podUID] = &opflexSnatLocalInfo{
+		Existing: true,
+		Snatpolicies: map[ResourceType][]string{
+			POD: {policyName},
+		},
+		PlcyUuids: []string{"removed-snat-uuid"},
+	}
+	agent.opflexSnatGlobalInfos[agent.config.NodeName] = []*opflexSnatGlobalInfo{{
+		SnatIp:         "10.3.0.3",
+		SnatIpUid:      "removed-snat-uuid",
+		SnatPolicyName: policyName,
+	}}
+
+	remoteInfo := snatglobal.GlobalInfo{
+		MacAddress:     "00:11:22:33:44:55",
+		PortRanges:     []snatglobal.PortRange{{Start: 5000, End: 7999}},
+		SnatIp:         "10.3.0.4",
+		SnatIpUid:      "remote-snat-uuid",
+		SnatPolicyName: policyName,
+	}
+	globalInfo := snatglobaldata("global-uid", "snatglobalinfo", "remote-node",
+		"aci-containers-system", snatglobal.GlobalInfoList{remoteInfo})
+	agent.snaGlobalInfoChanged(globalInfo, nil)
+
+	assert.Empty(t, agent.opflexSnatGlobalInfos[agent.config.NodeName])
+	assert.Empty(t, agent.opflexSnatLocalInfos[podUID].PlcyUuids)
+	assert.False(t, agent.opflexSnatLocalInfos[podUID].Existing)
 }
 
 func TestSnatSync(t *testing.T) {
