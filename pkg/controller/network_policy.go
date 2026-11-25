@@ -1763,9 +1763,14 @@ func updateServiceAugment(portAugments map[string]*portServiceAugment, proto, po
 
 func updateServiceAugmentForService(portAugments map[string]*portServiceAugment,
 	proto, port string, service *v1.Service) {
-	if service.Spec.ClusterIP != "" {
-		updateServiceAugment(portAugments,
-			proto, port, service.Spec.ClusterIP)
+	clusterIPs := service.Spec.ClusterIPs
+	if len(clusterIPs) == 0 {
+		clusterIPs = []string{service.Spec.ClusterIP}
+	}
+	for _, ip := range clusterIPs {
+		if ip != "" && ip != v1.ClusterIPNone {
+			updateServiceAugment(portAugments, proto, port, ip)
+		}
 	}
 	for _, ig := range service.Status.LoadBalancer.Ingress {
 		if ig.IP == "" {
