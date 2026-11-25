@@ -4922,12 +4922,16 @@ func TestBuildDualStackServiceAugment(t *testing.T) {
 			clusterIP  string
 			clusterIPs []string
 			want       map[string]string
+			ingress    []v1.LoadBalancerIngress
 		}{
-			{"ipv4 primary", "10.96.0.10", []string{"10.96.0.10", "fd00::10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}},
-			{"ipv6 primary", "fd00::10", []string{"fd00::10", "10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}},
-			{"single stack", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10"}},
-			{"legacy fallback", "10.96.0.10", []string{}, map[string]string{"ipv4": "10.96.0.10"}},
-			{"headless", v1.ClusterIPNone, []string{v1.ClusterIPNone}, map[string]string{}},
+			{"ipv4 primary", "10.96.0.10", []string{"10.96.0.10", "fd00::10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}, nil},
+			{"ipv6 primary", "fd00::10", []string{"fd00::10", "10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::10"}, nil},
+			{"single stack", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10"}, nil},
+			{"ipv6 single stack", "fd00::10", []string{"fd00::10"}, map[string]string{"ipv6": "fd00::10"}, nil},
+			{"legacy fallback", "10.96.0.10", []string{}, map[string]string{"ipv4": "10.96.0.10"}, nil},
+			{"headless", v1.ClusterIPNone, []string{v1.ClusterIPNone}, map[string]string{}, nil},
+			{"clusterip and load balancer", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::11"}, []v1.LoadBalancerIngress{{IP: "fd00::11"}}},
+			{"duplicate and hostname ingress", "10.96.0.10", []string{"10.96.0.10"}, map[string]string{"ipv4": "10.96.0.10", "ipv6": "fd00::11"}, []v1.LoadBalancerIngress{{IP: "10.96.0.10"}, {IP: "fd00::11"}, {IP: "fd00::11"}, {Hostname: "lb.example.com"}}},
 		} {
 			t.Run(fmt.Sprintf("%s/%s", mode.name, tt.name), func(t *testing.T) {
 				config := NewConfig()
@@ -4938,6 +4942,10 @@ func TestBuildDualStackServiceAugment(t *testing.T) {
 					servicePort("http", v1.ProtocolTCP, 8080, 8080),
 				})
 				service.Spec.ClusterIPs = tt.clusterIPs
+				if len(tt.ingress) > 0 {
+					service.Spec.Type = v1.ServiceTypeLoadBalancer
+					service.Status.LoadBalancer.Ingress = tt.ingress
+				}
 				assert.NoError(t, cont.serviceIndexer.Add(service))
 				cont.targetPortIndex["tcp-num-8080"] = &portIndexEntry{
 					portMapping: targetPort{
@@ -4974,10 +4982,17 @@ func TestBuildDualStackServiceAugment(t *testing.T) {
 						if mode.direct {
 							subj := &hppv1.HostprotSubj{}
 							cont.buildServiceAugment(nil, subj, ports, logger)
-							rules := subj.HostprotRule
+							rules := canonicalizeHppRules(subj.HostprotRule, logger)
 							if assert.Len(t, rules, len(tt.want)) {
 								got := make(map[string]string)
 								for _, rule := range rules {
+									assert.Equal(t, "service_tcp_8080-"+rule.Ethertype, rule.Name)
+									for _, address := range rule.HostprotServiceRemoteIps {
+										ip := net.ParseIP(address)
+										if assert.NotNil(t, ip) {
+											assert.Equal(t, rule.Ethertype == "ipv4", ip.To4() != nil)
+										}
+									}
 									if assert.Len(t, rule.HostprotServiceRemoteIps, 1) {
 										got[rule.Ethertype] = rule.HostprotServiceRemoteIps[0]
 									}
