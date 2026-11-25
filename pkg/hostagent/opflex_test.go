@@ -109,6 +109,17 @@ func TestDiscoverDpuConfig(t *testing.T) {
 	agent.updateOpflexConfig()
 }
 
+func TestDiscoverDpuConfigWithFabricIpOverrides(t *testing.T) {
+	agent := testAgent()
+	agent.config.OpflexMode = "dpu"
+	agent.config.OpflexPeerIpOverride = "10.10.13.62"
+	agent.config.VxlanAnycastIpOverride = "10.10.13.61"
+
+	config := agent.discoverHostConfig()
+	assert.Equal(t, "10.10.13.62", config.OpflexPeerIp)
+	assert.Equal(t, "10.10.13.61", config.VxlanAnycastIp)
+}
+
 func TestDiscoverHostConfigInvalidVlan(t *testing.T) {
 	agent := testAgent()
 	// assumes there won't be an interface with vlan 0
