@@ -946,6 +946,7 @@ func (agent *HostAgent) updateOpflexConfig() {
 		}
 	}
 	agent.indexMutex.Unlock()
+	agent.writeUplinkMacAnnotation()
 }
 
 func (agent *HostAgent) writeOpflexConfig() error {
