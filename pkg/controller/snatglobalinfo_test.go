@@ -18,10 +18,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/noironetworks/aci-containers/pkg/apicapi"
 	nodeinfo "github.com/noironetworks/aci-containers/pkg/nodeinfo/apis/aci.snat/v1"
 	snatglobalinfo "github.com/noironetworks/aci-containers/pkg/snatglobalinfo/apis/aci.snat/v1"
 	snatpolicy "github.com/noironetworks/aci-containers/pkg/snatpolicy/apis/aci.snat/v1"
 	tu "github.com/noironetworks/aci-containers/pkg/testutil"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -178,6 +180,171 @@ func snatWaitForIpUpdated(t *testing.T, desc, snatIp string, actual map[string]m
 		}
 		return true, nil
 	})
+}
+
+func TestServiceBackedSnatLifecycle(t *testing.T) {
+	for _, servicesFirst := range []bool{false, true} {
+		name := "policy-before-services"
+		if servicesFirst {
+			name = "services-before-policy"
+		}
+		t.Run(name, func(t *testing.T) {
+			cont := testController()
+			var err error
+			cont.apicConn, err = apicapi.New(cont.log, nil, "", "", nil, nil,
+				cont.config.AciPrefix, 1800, 210, 60, 5, "common", nil, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			*cont.config.AllocateServiceIps = false
+			policyObj := snatpolicydata("service-policy", "testns", nil, nil)
+			nodes := []*nodeinfo.NodeInfo{
+				Nodeinfodata("node-1", "aci-containers-system", "00:11:22:33:44:01", map[string]bool{policyObj.Name: true}),
+				Nodeinfodata("node-2", "aci-containers-system", "00:11:22:33:44:02", map[string]bool{policyObj.Name: true}),
+			}
+			for _, info := range nodes {
+				assert.NoError(t, cont.nodeIndexer.Add(node(info.Name)))
+				cont.snatNodeInfoCache[info.Name] = info
+			}
+			drainNodes := func(expected int) {
+				t.Helper()
+				assert.Equal(t, expected, cont.snatNodeInfoQueue.Len())
+				for cont.snatNodeInfoQueue.Len() > 0 {
+					key, shutdown := cont.snatNodeInfoQueue.Get()
+					assert.False(t, shutdown)
+					_, nodeName, err := cache.SplitMetaNamespaceKey(key.(string))
+					assert.NoError(t, err)
+					assert.False(t, cont.handleSnatNodeInfo(cont.snatNodeInfoCache[nodeName]))
+					cont.snatNodeInfoQueue.Done(key)
+				}
+			}
+			setService := func(svc *v1.Service) {
+				t.Helper()
+				assert.NoError(t, cont.serviceIndexer.Update(svc))
+				assert.False(t, cont.handleServiceUpdate(svc))
+			}
+			assertAllocations := func(expected map[string]string) {
+				t.Helper()
+				assert.Len(t, cont.snatGlobalInfoCache, len(expected))
+				for ip, serviceName := range expected {
+					entries := cont.snatGlobalInfoCache[ip]
+					assert.Len(t, entries, len(nodes))
+					for _, info := range nodes {
+						entry := entries[info.Name]
+						assert.NotNil(t, entry)
+						assert.Equal(t, policyObj.Name, entry.SnatPolicyName)
+						assert.Equal(t, "testns/"+serviceName, entry.ServiceKey)
+						assert.Equal(t, ip, entry.SnatIp)
+						assert.Equal(t, info.Spec.Macaddress, entry.MacAddress)
+					}
+					assert.NotEqual(t, entries["node-1"].PortRanges, entries["node-2"].PortRanges)
+				}
+			}
+			first := service("testns", "lb1", "")
+			first.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{IP: "10.3.0.9"}}
+			second := service("testns", "lb2", "")
+			second.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{IP: "10.3.0.10"}}
+			if servicesFirst {
+				setService(first)
+				setService(second)
+				drainNodes(0)
+			}
+			cont.updateSnatPolicyCache(policyObj.Name, policyObj)
+			for _, info := range nodes {
+				cont.snatNodeInfoAdded(info)
+			}
+			drainNodes(2)
+			if !servicesFirst {
+				setService(first)
+				drainNodes(2)
+				assertAllocations(map[string]string{"10.3.0.9": "lb1"})
+				original := *cont.snatGlobalInfoCache["10.3.0.9"]["node-1"]
+				setService(second)
+				drainNodes(2)
+				assert.Equal(t, original, *cont.snatGlobalInfoCache["10.3.0.9"]["node-1"])
+			}
+			assertAllocations(map[string]string{"10.3.0.9": "lb1", "10.3.0.10": "lb2"})
+			setService(second.DeepCopy())
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.9": "lb1", "10.3.0.10": "lb2"})
+
+			second = second.DeepCopy()
+			second.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{IP: "10.3.0.11"}}
+			setService(second)
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.9": "lb1", "10.3.0.11": "lb2"})
+
+			assert.NoError(t, cont.serviceIndexer.Delete(first))
+			assert.False(t, cont.handleServiceDelete("testns/lb1"))
+			drainNodes(2)
+			assert.NotContains(t, cont.snatServices, "testns/lb1")
+			assertAllocations(map[string]string{"10.3.0.11": "lb2"})
+
+			assert.NoError(t, cont.serviceIndexer.Delete(second))
+			assert.False(t, cont.handleServiceDelete("testns/lb2"))
+			second = second.DeepCopy()
+			second.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{IP: "10.3.0.12"}}
+			setService(second)
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.12": "lb2"})
+
+			replacement := second.DeepCopy()
+			replacement.Name = "replacement"
+			assert.NoError(t, cont.serviceIndexer.Delete(second))
+			assert.False(t, cont.handleServiceDelete("testns/lb2"))
+			setService(replacement)
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.12": "replacement"})
+
+			cont.snatPolicyCache[policyObj.Name].Selector.Labels = map[string]string{"selected": "true"}
+			setService(replacement)
+			drainNodes(2)
+			assert.NotContains(t, cont.snatServices, "testns/replacement")
+			assertAllocations(nil)
+			replacement = replacement.DeepCopy()
+			replacement.Labels = map[string]string{"selected": "true"}
+			setService(replacement)
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.12": "replacement"})
+
+			replacement = replacement.DeepCopy()
+			replacement.Spec.Type = v1.ServiceTypeClusterIP
+			setService(replacement)
+			drainNodes(2)
+			assertAllocations(nil)
+			replacement = replacement.DeepCopy()
+			replacement.Spec.Type = v1.ServiceTypeLoadBalancer
+			setService(replacement)
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.12": "replacement"})
+
+			replacement = replacement.DeepCopy()
+			replacement.Status.LoadBalancer.Ingress = append(replacement.Status.LoadBalancer.Ingress,
+				v1.LoadBalancerIngress{IP: "10.3.0.13"},
+				v1.LoadBalancerIngress{Hostname: "loadbalancer.example.com"},
+				v1.LoadBalancerIngress{IP: "invalid"})
+			setService(replacement)
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.12": "replacement", "10.3.0.13": "replacement"})
+			replacement = replacement.DeepCopy()
+			replacement.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+			setService(replacement)
+			drainNodes(2)
+			assertAllocations(nil)
+			replacement = replacement.DeepCopy()
+			replacement.DeletionTimestamp = nil
+			setService(replacement)
+			drainNodes(2)
+			assertAllocations(map[string]string{"10.3.0.12": "replacement", "10.3.0.13": "replacement"})
+
+			assert.NoError(t, cont.serviceIndexer.Delete(replacement))
+			cont.clearSnatGlobalCache(policyObj.Name, "node-1")
+			assert.NotContains(t, cont.snatGlobalInfoCache["10.3.0.12"], "node-1")
+			assert.Contains(t, cont.snatGlobalInfoCache["10.3.0.12"], "node-2")
+			cont.clearSnatGlobalCache(policyObj.Name, "")
+			assertAllocations(nil)
+		})
+	}
 }
 
 func TestSnatnodeInfo(t *testing.T) {
