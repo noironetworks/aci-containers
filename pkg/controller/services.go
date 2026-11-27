@@ -2143,30 +2143,28 @@ func (cont *AciController) handleServiceUpdate(service *v1.Service) bool {
 		// matches this service. This handles the case where the SNAT
 		// policy was created before the service existed.
 		cont.indexMutex.Lock()
-		if _, exists := cont.snatServices[servicekey]; !exists {
-			for _, policy := range cont.snatPolicyCache {
-				if len(policy.SnatIp) == 0 {
-					if len(policy.Selector.Namespace) == 0 ||
-						policy.Selector.Namespace == service.ObjectMeta.Namespace {
-						selector := labels.SelectorFromSet(labels.Set(policy.Selector.Labels))
-						if selector.Matches(labels.Set(service.ObjectMeta.Labels)) {
-							cont.snatServices[servicekey] = true
-							break
-						}
+		delete(cont.snatServices, servicekey)
+		for _, policy := range cont.snatPolicyCache {
+			if len(policy.SnatIp) == 0 {
+				if len(policy.Selector.Namespace) == 0 ||
+					policy.Selector.Namespace == service.ObjectMeta.Namespace {
+					selector := labels.SelectorFromSet(labels.Set(policy.Selector.Labels))
+					if selector.Matches(labels.Set(service.ObjectMeta.Labels)) {
+						cont.snatServices[servicekey] = true
+						break
 					}
 				}
 			}
 		}
+		cont.indexMutex.Unlock()
+		cont.queueNodeInfoForServiceBackedPolicies(service.Namespace)
 		if cont.serviceSyncEnabled {
-			cont.indexMutex.Unlock()
 			err = cont.updateServiceDeviceInstance(servicekey, service)
 			if err != nil {
 				serviceLogger(cont.log, service).
 					Error("Failed to update service device Instance: ", err)
 				return true
 			}
-		} else {
-			cont.indexMutex.Unlock()
 		}
 	} else {
 		cont.clearLbService(servicekey)
@@ -2181,10 +2179,28 @@ func (cont *AciController) clearLbService(servicekey string) {
 		cont.returnServiceIps(meta.ingressIps)
 		returnIps(cont.staticServiceIps, meta.staticIngressIps)
 		delete(cont.serviceMetaCache, servicekey)
-		delete(cont.snatServices, servicekey)
+	}
+	delete(cont.snatServices, servicekey)
+	cont.indexMutex.Unlock()
+	if namespace, _, err := cache.SplitMetaNamespaceKey(servicekey); err == nil {
+		cont.queueNodeInfoForServiceBackedPolicies(namespace)
+	}
+	cont.apicConn.ClearApicObjects(cont.aciNameForKey("svc", servicekey))
+}
+
+func (cont *AciController) queueNodeInfoForServiceBackedPolicies(namespace string) {
+	nodeInfoKeys := make(map[string]bool)
+	cont.indexMutex.Lock()
+	for name, policy := range cont.snatPolicyCache {
+		if len(policy.SnatIp) == 0 &&
+			(policy.Selector.Namespace == "" || policy.Selector.Namespace == namespace) {
+			cont.getNodeInfoKeys(name, nodeInfoKeys)
+		}
 	}
 	cont.indexMutex.Unlock()
-	cont.apicConn.ClearApicObjects(cont.aciNameForKey("svc", servicekey))
+	for key := range nodeInfoKeys {
+		cont.queueNodeInfoUpdateByKey(key)
+	}
 }
 
 func (cont *AciController) processServiceTargetPorts(service *v1.Service, svcKey string, old bool) map[string]targetPort {

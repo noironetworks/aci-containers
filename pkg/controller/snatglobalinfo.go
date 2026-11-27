@@ -397,13 +397,30 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 				updated = true
 			} else {
 				svcIpMap := cont.getServiceIpMap(snatpolicy)
-				nodeSNATEntryFound := cont.checkIfPolicyApplied(nodename, name, cont.getServiceIps(snatpolicy))
-				if nodeSNATEntryFound {
-					cont.log.Debug("Allocation already done for nodename and snatpolicy", nodename, name)
-					continue
+				cont.indexMutex.Lock()
+				for ip, glinfos := range cont.snatGlobalInfoCache {
+					if glinfo, exists := glinfos[nodename]; exists && glinfo.SnatPolicyName == name {
+						if svcKey, desired := svcIpMap[ip]; !desired {
+							delete(glinfos, nodename)
+							if len(glinfos) == 0 {
+								delete(cont.snatGlobalInfoCache, ip)
+							}
+							updated = true
+						} else if glinfo.ServiceKey != svcKey {
+							glinfo.ServiceKey = svcKey
+							updated = true
+						}
+					}
 				}
+				cont.indexMutex.Unlock()
 				cont.log.Debug("Service Ips: ", svcIpMap)
 				for ip, svcKey := range svcIpMap {
+					cont.indexMutex.Lock()
+					allocated := cont.checkIfPolicyApplied(nodename, name, []string{ip})
+					cont.indexMutex.Unlock()
+					if allocated {
+						continue
+					}
 					snatIp, portrange, alloc := cont.getIpAndPortRange(nodename, snatpolicy, ip)
 					cont.log.Infof("Handling nodeinfo for node %s and snatpolicy %s: ", nodename, name)
 					cont.log.Info("Allocated SNAT IP and Port Range: ", snatIp, portrange)
@@ -424,8 +441,11 @@ func (cont *AciController) handleSnatNodeInfo(nodeinfo *nodeinfo.NodeInfo) bool 
 		if deleted {
 			updated = true
 		}
+		for name := range allocfailed {
+			delete(markready, name)
+		}
 		ret = cont.setSnatPoliciesState(allocfailed, snatv1.IpPortsExhausted)
-		ret = cont.setSnatPoliciesState(markready, snatv1.Ready) && ret
+		ret = cont.setSnatPoliciesState(markready, snatv1.Ready) || ret
 	}
 
 	if updated {
@@ -671,9 +691,14 @@ func (cont *AciController) getServiceIpMap(policy *ContSnatPolicy) map[string]st
 	services := cont.getServicesBySelector(labels.SelectorFromSet(policy.Selector.Labels),
 		policy.Selector.Namespace)
 	for _, service := range services {
+		if service.Spec.Type != v1.ServiceTypeLoadBalancer || service.DeletionTimestamp != nil {
+			continue
+		}
 		svcKey := service.Namespace + "/" + service.Name
 		for _, ip := range service.Status.LoadBalancer.Ingress {
-			result[ip.IP] = svcKey
+			if net.ParseIP(ip.IP) != nil {
+				result[ip.IP] = svcKey
+			}
 		}
 	}
 	return result
@@ -702,7 +727,18 @@ func (cont *AciController) clearSnatGlobalCache(policyName, nodename string) {
 	if len(contSnatPolicy.SnatIp) > 0 {
 		expandedIps = contSnatPolicy.ExpandedSnatIps
 	} else {
-		expandedIps = cont.getServiceIps(contSnatPolicy)
+		for ip, glinfos := range cont.snatGlobalInfoCache {
+			for node, glinfo := range glinfos {
+				if glinfo.SnatPolicyName == policyName && (nodename == "" || node == nodename) {
+					delete(glinfos, node)
+				}
+			}
+			if len(glinfos) == 0 {
+				delete(cont.snatGlobalInfoCache, ip)
+			}
+		}
+		cont.scheduleSyncGlobalInfo()
+		return
 	}
 	for _, snatip := range expandedIps {
 		if v, ok := cont.snatGlobalInfoCache[snatip]; ok {

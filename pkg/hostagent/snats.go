@@ -641,10 +641,21 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 	}
 	logger.Debug("Snat Global info Changed...")
 	globalInfo := snat.Spec.GlobalInfos
+	affectedPodUIDs := make(map[string]bool)
+	if oldInfos, exists := agent.opflexSnatGlobalInfos[agent.config.NodeName]; exists {
+		for _, info := range oldInfos {
+			for podUID := range agent.snatPods[info.SnatPolicyName] {
+				affectedPodUIDs[podUID] = true
+			}
+		}
+	}
 	// This case is possible when all the pods will be deleted from that node
 	for nodename := range agent.opflexSnatGlobalInfos {
 		if _, ok := globalInfo[nodename]; !ok {
 			delete(agent.opflexSnatGlobalInfos, nodename)
+			if nodename == agent.config.NodeName {
+				updateLocalInfo = true
+			}
 			syncSnat = true
 		}
 	}
@@ -719,14 +730,17 @@ func (agent *HostAgent) snaGlobalInfoChanged(snatobj interface{}, logger *logrus
 		agent.scheduleSyncSnats()
 	}
 	if updateLocalInfo {
-		var poduids []string
 		for _, v := range agent.opflexSnatGlobalInfos[agent.config.NodeName] {
-			for uuid := range agent.snatPods[v.SnatPolicyName] {
-				poduids = append(poduids, uuid)
+			for podUID := range agent.snatPods[v.SnatPolicyName] {
+				affectedPodUIDs[podUID] = true
 			}
 		}
-		agent.log.Debug("Updating EpFile GlobalInfo Context: ", poduids)
-		agent.updateEpFiles(poduids)
+		podUIDs := make([]string, 0, len(affectedPodUIDs))
+		for podUID := range affectedPodUIDs {
+			podUIDs = append(podUIDs, podUID)
+		}
+		agent.log.Debug("Updating EpFile GlobalInfo Context: ", podUIDs)
+		agent.updateEpFiles(podUIDs)
 	}
 }
 
@@ -1043,7 +1057,16 @@ func (agent *HostAgent) compare(plcy1, plcy2 string) bool {
 // labels matching policyLabels (the SNAT policy's selector) AND a pod selector
 // that matches podLabels (the labels on the pod/deployment being evaluated).
 // ie, if the pod is an endpoint of any service that matches the SNAT policy selector.
-func (agent *HostAgent) hasMatchingService(namespace string, podLabels map[string]string, policyLabels map[string]string) bool {
+func (agent *HostAgent) hasMatchingService(namespace string, podLabels map[string]string, policyLabels map[string]string, excludedServices ...*v1.Service) bool {
+	return agent.hasMatchingServiceType(namespace, podLabels, policyLabels, "", excludedServices...)
+}
+
+func (agent *HostAgent) hasMatchingLoadBalancerService(namespace string, podLabels map[string]string, policyLabels map[string]string, excludedServices ...*v1.Service) bool {
+	return agent.hasMatchingServiceType(namespace, podLabels, policyLabels,
+		v1.ServiceTypeLoadBalancer, excludedServices...)
+}
+
+func (agent *HostAgent) hasMatchingServiceType(namespace string, podLabels map[string]string, policyLabels map[string]string, serviceType v1.ServiceType, excludedServices ...*v1.Service) bool {
 	found := false
 	selector := labels.SelectorFromSet(labels.Set(policyLabels))
 	cache.ListAllByNamespace(agent.serviceInformer.GetIndexer(), namespace, selector,
@@ -1052,6 +1075,14 @@ func (agent *HostAgent) hasMatchingService(namespace string, podLabels map[strin
 				return
 			}
 			service := servobj.(*v1.Service)
+			if serviceType != "" && service.Spec.Type != serviceType {
+				return
+			}
+			for _, excluded := range excludedServices {
+				if service.Namespace == excluded.Namespace && service.Name == excluded.Name && service.UID == excluded.UID {
+					return
+				}
+			}
 			if service.Spec.Selector != nil {
 				svcSelector := labels.SelectorFromSet(service.Spec.Selector)
 				if svcSelector.Matches(labels.Set(podLabels)) {
@@ -1314,11 +1345,32 @@ func (agent *HostAgent) handleObjectDeleteForSnat(obj interface{}) {
 		agent.log.Infof("Handle snatpolicy as object deleted: %s, ObjectKey: %s", name, objKey)
 		agent.snatPolicyCacheMutex.RLock()
 		poduids, _ := agent.getPodsMatchingObject(obj, name)
+		retainedPods := make(map[string]bool)
+		if service, isService := obj.(*v1.Service); isService {
+			if policy, exists := agent.snatPolicyCache[name]; exists {
+				cache.ListAllByNamespace(agent.podInformer.GetIndexer(), service.Namespace,
+					labels.SelectorFromSet(service.Spec.Selector), func(podobj interface{}) {
+						pod := podobj.(*v1.Pod)
+						if pod.Spec.NodeName != agent.config.NodeName {
+							return
+						}
+						matchesAnotherService := agent.hasMatchingService(
+							pod.Namespace, pod.Labels, policy.Spec.Selector.Labels, service)
+						if len(policy.Spec.SnatIp) == 0 {
+							matchesAnotherService = agent.hasMatchingLoadBalancerService(
+								pod.Namespace, pod.Labels, policy.Spec.Selector.Labels, service)
+						}
+						if matchesAnotherService {
+							retainedPods[string(pod.UID)] = true
+						}
+					})
+			}
+		}
 		agent.snatPolicyCacheMutex.RUnlock()
 		for _, uid := range poduids {
 			if getResourceType(obj) == SERVICE {
 				for _, res := range resources {
-					if res == SERVICE {
+					if res == SERVICE && !retainedPods[uid] {
 						agent.deleteSnatLocalInfo(uid, res, name)
 						agent.log.Debug("Service deleted update the localInfo: ", name)
 					}
